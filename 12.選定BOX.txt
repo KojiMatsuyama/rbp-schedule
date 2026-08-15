@@ -1,0 +1,89 @@
+SpecBOX_DATASET = [
+
+{ id: "SpecSet01", agents: ["ベルクート","ダブルフェース"] },
+
+{ id: "SpecSet02", agents: ["キノンドー"] },
+
+{ id: "SpecSet03", agents: ["ゲッター"] },
+
+{ id: "SpecSet04", agents: ["ランマン","アファーム"] },
+
+{ id: "SpecSet05", agents: ["セイビア"] },
+
+{ id: "SpecSet06", agents: ["トレノックス","コテツ"] },
+
+{ id: "SpecSet07", agents: ["ベルクート","コロマイト"] },
+
+{ id: "SpecSet08", agents: ["アントラコール"] },
+
+{ id: "SpecSet09", agents: ["ゲッター","アファーム"] },
+
+{ id: "SpecSet10", agents: ["セイビア","プレバソン"] },
+
+{ id: "SpecSet11", agents: ["ベルクート","ダブルフェース"] },
+
+{ id: "SpecSet12", agents: ["トレノックス","ストロビー"] },
+
+{ id: "SpecSet13", agents: ["ゲッター","スターマイト","バリアード"] },
+
+{ id: "SpecSet14", agents: ["ダブルフェース"] },
+
+{ id: "SpecSet15", agents: ["アントラコール","トルネード","スピノエース"] },
+
+{ id: "SpecSet16", agents: ["セイビア","コロマイト","レーバス"] },
+
+{ id: "SpecSet17", agents: ["ゲッター","プレオ","チェス"] },
+
+{ id: "SpecSet18", agents: ["ベルクート","マイトコーネ","パンチョ"] },
+
+{ id: "SpecSet19", agents: ["シグナム","プレバソン","マッチ"] },
+
+{ id: "SpecSet20", agents: ["ファンタジスタ","スターマイト","トルネード"] },
+
+{ id: "SpecSet21", agents: ["セイビア","ラリー","コロマイト"] },
+
+{ id: "SpecSet22", agents: ["シグナム","バリアード","プレオ"] },
+
+{ id: "SpecSet23", agents: ["マイトコーネ","ベルクート"] },
+
+{ id: "SpecSet24", agents: ["ファンタジスタ","フェニックス"] },
+
+{ id: "SpecSet25", agents: ["セイビア","ダニサラバ"] },
+
+{ id: "SpecSet26", agents: ["プロパティ","ベネピア"] },
+
+{ id: "SpecSet27", agents: ["ファンベル"] },
+
+{ id: "SpecSet28", agents: ["カナメ"] },
+
+{ id: "SpecSet29", agents: ["パンチョ"] },
+
+{ id: "SpecSet30", agents: ["アフェット"] },
+
+{ id: "SpecSet31", agents: ["アベンジャー","カウンター","ダニコング","プロパティ"] },
+
+{ id: "SpecSet32", agents: ["ジーファイン","サンクリ"] },
+
+{ id: "SpecSet33", agents: ["バリアード","ジーファイン","サンクリ"] },
+
+{ id: "SpecSet34", agents: ["アントラコール","アファーム"] },
+
+{ id: "SpecSet35", agents: ["トレノックス","ヨーバル"] },
+
+{ id: "SpecSet36", agents: ["セイビア","グレーシア"] },
+
+{ id: "SpecSet37", agents: ["ジーファイン","グレーシア"] },
+
+{ id: "SpecSet38", agents: ["カリグリン","ベルクート"] },
+
+{ id: "SpecSet39", agents: ["アントラコール","フルピカ"] },
+
+{ id: "SpecSet40", agents: ["オラクル水和剤"] },
+
+{ id: "SpecSet41", agents: ["トリフミン"] },
+
+{ id: "SpecSet42", agents: ["セイピア"] },
+
+{ id: "SpecSet43", agents: ["トクチオン","ベルクート","アグリメック","ベストガード","アファーム"] }
+
+]

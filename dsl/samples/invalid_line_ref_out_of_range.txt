@@ -1,0 +1,53 @@
+(* dsl/samples/invalid_line_ref_out_of_range.txt — S2違反の例
+   dimensions=10（有効範囲は[0,10)）だが、BOX-22がLine-10を参照している。 *)
+
+Domain STB {
+  dimensions: 10;
+  lines: ["炭疽病","灰色かび病","うどんこ病","ナミハダニ","ハスモンヨトウ",
+          "オオタバコガ","ミカンキイロアザミウマ","ワタアブラムシ",
+          "アブラムシ","コナジラミ"];
+}
+
+Demand-Boundary PestDemand {
+  Line-0: 炭疽病(disease);
+  Line-1: 灰色かび病(disease);
+  Line-2: うどんこ病(disease);
+  Line-3: ナミハダニ(pest);
+  Line-4: ハスモンヨトウ(pest);
+  Line-5: オオタバコガ(pest);
+  Line-6: ミカンキイロアザミウマ(pest);
+  Line-7: ワタアブラムシ(pest);
+  Line-8: アブラムシ(pest);
+  Line-9: コナジラミ(pest);
+  Demand-Rule { on-occurrence => Line-i = 1; on-absence => Line-i = 0; }
+}
+
+Bridge-Boundary EvalBox {
+  BOX-22: { Line-0,Line-1,Line-2,Line-4,Line-5,Line-8,Line-10 } as "炭疽+うどんこ+灰色かび+ハスモン+オオタ+アブラムシ+コナジラミ";
+  Bridge-Rule { match = exact; on-match(0) => UNDEFINED; on-match(1) => OK; on-match(>=2) => MODEL_DEFINITION_ERROR; }
+  Bridge-Extension-Policy { on-UNDEFINED => auto-register; id-rule = next-max-plus-one; }
+}
+
+SpecBridge-Boundary PesticideCatalog {
+  Candidate P15: { targets = Line-1,Line-2; system="ベンズイミダゾール系"; maxApplications=3; };
+  Candidate P47: { targets = Line-3; system="METI"; maxApplications=2; };
+  SpecBridge-Rule { match-vector = EntryVector; combine = dot-product; result = TargetMatchVector; }
+  Bridge-Extension-Policy { on-UNDEFINED => alert-and-halt; }
+}
+
+Reflect-Boundary SafetyChannel {
+  BRIDGE L1_TARGET {
+    level = 1; direction = forward;
+    weight = if (targetMatch > 0) then full-pass else full-block;
+    description = "ターゲット不一致の候補を遮断";
+  }
+}
+
+Spec-Boundary FinalSet {
+  enumerate-sets { from = flowing; size = 1..2; }
+  Mirror-ID-Rule {
+    coverage = union(candidateTargetVectors);
+    distance = cosine(coverage, EntryVector);
+    select = max(distance);
+  }
+}

@@ -1,0 +1,24 @@
+cabal-version:      2.4
+name:               rbp-algebra
+version:            0.1.0.0
+synopsis:           RBP (Reflect Block Pattern) — Algebraic Business Logic in Haskell
+license:            MIT
+
+-- A pure-Haskell reimplementation of the RBP matrix engine.
+-- Proves that procedural business logic (if/else branching) can be
+-- expressed purely as algebraic type operations and vector calculus.
+--
+-- Architecture mirrors the 5-layer RBP pipeline:
+--   Demand  → EntryVector generation
+--   Bridge  → EVAL_BOX classification (meaning-set transformation)
+--   SpecBridge → Target matching (candidate generation)
+--   Reflect → 6-stage BRIDGE waterway (constraint propagation)
+--   Spec    → Prescription set selection (Mirror-ID optimisation)
+
+executable rbp-algebra
+  main-is:          Main.hs
+  build-depends:    base >= 4.14 && < 5
+                   , vector
+  hs-source-dirs:   src
+  default-language: Haskell2010
+  ghc-options:      -Wall -O2

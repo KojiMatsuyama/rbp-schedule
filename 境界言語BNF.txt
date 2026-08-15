@@ -1,0 +1,423 @@
+◆ 境界言語（Boundary Language）DSL — BNF定義
+────────────────────────────────────────
+本書は、解説.txt／解説２.txt で確立した「境界言語」（Demand→Bridge→SpecBridge→
+Reflect→Specという意味の流れを、行列・ベクトル演算とHadamard積による
+順序付き水路（BRIDGE）で表現する言語）を、正式な文法（BNF/EBNF）として導出したものである。
+
+生成規則は思弁的なものではなく、実装（framework/rbp_core.js, framework/mirror.js,
+rbp/spec_bridges.js, rbp/eval_box_registry.js, rbp/prescription.js）が
+実際に持つデータ構造・制約と1対1で対応するように設計されている。
+9章の対応表で、各生成規則がどのコードに対応するかを明示する。
+
+
+◆ 0. 記法について
+
+本書はEBNF（拡張BNF）で記述する。メタ記号は以下の通り：
+
+  ::=      定義（左辺は右辺として定義される）
+  |        選択（いずれか）
+  { X }    Xの0回以上の繰り返し
+  [ X ]    Xの省略可能
+  ( X )    グルーピング
+  " "      終端記号（リテラル文字列）
+  <X>      非終端記号
+
+数値・識別子・文字列の字句規則は9章末に一括して示す。
+
+
+◆ 1. 全体構造（トップレベル）
+
+<RBP-Program>
+    ::= <Domain-Declaration>
+        <Demand-Boundary>
+        <Bridge-Boundary>
+        <SpecBridge-Boundary>
+        <Reflect-Boundary>
+        <Spec-Boundary>
+
+<Domain-Declaration>
+    ::= "Domain" <Identifier> "{"
+            "dimensions" ":" <Number> ";"
+            "lines" ":" "[" <Line-Name-List> "]" ";"
+        "}"
+
+<Line-Name-List>
+    ::= <String> { "," <String> }
+
+RBP-Programは常にこの5層をこの順序で1つずつ持つ（層のスキップ・並べ替えは不可）。
+これは境界言語の核である「Demand→Bridge→SpecBridge→Reflect→Spec」という
+意味の一方向な流れを、文法レベルで強制するものである。
+
+
+◆ 2. Demand-Boundary（要求評価層）
+
+<Demand-Boundary>
+    ::= "Demand-Boundary" <Identifier> "{"
+            { <Line-Def> }
+            <Demand-Rule>
+        "}"
+
+<Line-Def>
+    ::= "Line-" <Number> ":" <Identifier> ( "(disease)" | "(pest)" ) ";"
+
+<Demand-Rule>
+    ::= "Demand-Rule" "{"
+            "on-occurrence" "=>" "Line-i = 1" ";"
+            "on-absence"    "=>" "Line-i = 0" ";"
+        "}"
+
+<EntryVector-Literal>
+    ::= "[" <Bit> { "," <Bit> } "]" "^T"
+
+<Bit> ::= "0" | "1"
+
+意味：Line-i の集合がDemand-Boundaryの次元空間そのものであり、
+EntryVectorはこの空間上の0/1ベクトルとして定義される。
+次元数は Domain-Declaration の dimensions と一致しなければならない（静的制約）。
+
+
+◆ 3. Bridge-Boundary（評価BOX層）── 「生きた境界」の文法
+
+<Bridge-Boundary>
+    ::= "Bridge-Boundary" <Identifier> "{"
+            { <BOX-Def> }
+            <Bridge-Rule>
+            <Bridge-Extension-Policy>
+        "}"
+
+<BOX-Def>
+    ::= "BOX-" <BOX-Id> ":" "{" <Line-Ref-Set> "}" [ "as" <String> ] ";"
+
+<BOX-Id>     ::= <Identifier>              (* 例: "01", "23" — 欠番を許す *)
+<Line-Ref-Set> ::= "Line-" <Number> { "," "Line-" <Number> }
+
+<Bridge-Rule>
+    ::= "Bridge-Rule" "{"
+            "match" "=" ( "exact" | "subset" ) ";"
+            "on-match(0)"  "=>" "UNDEFINED" ";"
+            "on-match(1)"  "=>" "OK" ";"
+            "on-match(>=2)" "=>" "MODEL_DEFINITION_ERROR" ";"
+        "}"
+
+<Bridge-Extension-Policy>
+    ::= "Bridge-Extension-Policy" "{"
+            "on-UNDEFINED" "=>" ( "auto-register" | "alert-and-halt" ) ";"
+            [ "naming-rule" "=" <String> ";" ]
+            [ "id-rule" "=" ( "next-max-plus-one" | "sequential" ) ";" ]
+        "}"
+
+意味：BOX-Defの集合は静的な初期定義（一般形の「7BOX固定」に相当）だが、
+Bridge-Ruleのmatch=exactは「完全一致のみを判定する」という実装の厳密な判定方式を表す
+（match=subsetを選べば一般形の「部分集合として成立するBOXを選択する」ルールになる）。
+
+Bridge-Extension-Policyが本DSLの中核的な拡張である。
+on-UNDEFINEDに "auto-register" を指定すると、一致するBOXが存在しない入力に対して
+文法上定義された<BOX-Def>の集合そのものが実行時に1件追加される
+（＝BridgeMatrixの行が増える）ことを宣言する。
+"alert-and-halt" を指定すると、未一致は新規登録せず処理を中止する
+（SpecBridge-Boundary側で使われる値）。
+この二値の選択が、境界言語が持つ「概念操作側は自動拡張可、物理制約側は拡張不可」
+という非対称性を、文法レベルの宣言として表現する。
+
+
+◆ 4. SpecBridge-Boundary（候補結びつけ層）
+
+<SpecBridge-Boundary>
+    ::= "SpecBridge-Boundary" <Identifier> "{"
+            { <Candidate-Def> }
+            <SpecBridge-Rule>
+            <Bridge-Extension-Policy>
+        "}"
+
+<Candidate-Def>
+    ::= "Candidate" <Candidate-Id> ":" "{"
+            "targets" "=" <Line-Ref-Set> ";"
+            { <Candidate-Attribute> }
+        "}" ";"
+
+<Candidate-Id> ::= <Identifier>            (* 例: p1, P01 *)
+
+<Candidate-Attribute>
+    ::= <Identifier> "=" ( <String> | <Number> | <Bool> ) ";"
+        (* 例: system="QoI"; systemCode="FRAC11"; toxicityClass="劇物"; *)
+        (* 例: maxApplications=3; phiDays=1; mixingBanTargets=["銅剤"]; *)
+
+<SpecBridge-Rule>
+    ::= "SpecBridge-Rule" "{"
+            "match-vector" "=" <Identifier> ";"     (* 通常は "EntryVector" *)
+            "combine" "=" "dot-product" ";"
+            "result" "=" "TargetMatchVector" ";"
+        "}"
+
+意味：Candidate-Defの集合がSpecBridgeMatrix（一般形のP行列）に相当するが、
+一般形のような「固定BOX列」への結びつけではなく、SpecBridge-Ruleが
+「Candidate行列 × EntryVector（dot-product）」という可変入力への
+行列積として結びつけを定義する。Bridge-Extension-Policyはここでは通常
+on-UNDEFINED = alert-and-halt に固定され、Candidate-Defの自動追加は許されない
+（物理的に実在する商品・資源のリストであるため）。
+
+
+◆ 5. Reflect-Boundary（BRIDGE水路層）── 直列ゲート構文
+
+<Reflect-Boundary>
+    ::= "Reflect-Boundary" <Identifier> "{"
+            <Safety-Vector-Def>
+            { <BRIDGE-Def> }
+        "}"
+
+<Safety-Vector-Def>
+    ::= "Safety-Vector" "{"
+            { <Identifier> ":" <String> ";" }
+        "}"
+        (* 例: usageState: "散布回数"; intervalDays: "PHI残日数"; rotationState: "系統連続回数"; *)
+
+<BRIDGE-Def>
+    ::= "BRIDGE" <BRIDGE-Id> "{"
+            "level"       "=" <Number> ";"
+            "direction"   "=" "forward" ";"
+            "weight"      "=" <Weight-Rule> ";"
+            [ "penalty"   "=" "{" "axis" "=" <String> "," "delta" "=" <Signed-Number> "}" ";" ]
+            [ "reason"    "=" <String-Template> ";" ]
+            [ "warning"   "=" <String-Template> ";" ]
+            "description" "=" <String> ";"
+        "}"
+
+<BRIDGE-Id> ::= <Identifier>
+
+<Weight-Rule>
+    ::= "if" "(" <Condition> ")" "then" <Weight-Value> "else" <Weight-Value>
+
+<Weight-Value>
+    ::= "full-pass"                (* 全次元に重み1 *)
+     |  "full-block"               (* 全次元に重み0 *)
+     |  "attenuate" "(" <Factor> ")"  (* 全次元に重み0<factor<1 *)
+
+<Factor> ::= <Number>               (* 0 < Factor < 1 の静的制約 *)
+
+<Condition>
+    ::= <Comparison>
+     |  <Condition> "&&" <Condition>
+     |  <Condition> "||" <Condition>
+     |  "!" <Condition>
+
+<Comparison>
+    ::= <Expr> ( "==" | "!=" | ">=" | "<=" | ">" | "<" ) <Expr>
+
+<Expr>
+    ::= <Identifier> | <Number> | <Identifier> "." <Identifier>
+     |  "dotProduct" "(" <Expr> "," <Expr> ")"
+
+静的制約（文法だけでは表現できないため、コンパイラが検査すべき規則として明記する）：
+  (a) 同一Reflect-Boundary内の全BRIDGE-Defについて、level は strictly increasing でなければならない
+      （levelの重複・逆順はコンパイルエラー：循環なし制約）。
+  (b) direction は "forward" 以外を許さない（逆止弁制約。値を持つが選択肢はforward固定）。
+  (c) <Weight-Rule> が返す <Weight-Value> は、実行時に評価された結果が
+      「全次元に対して同一値」でなければならない（一様重みベクトル制約）。
+      次元ごとに異なる重みを返す実装はMODEL_DEFINITION_ERRORとする。
+
+意味：Reflect-Boundaryは一般形の「1本のSafetyVector」を、
+BRIDGE-Defの列（level順に直列実行されるゲート）として一般化する。
+各BRIDGEはHadamard積で通水ベクトルに <Weight-Rule> の評価結果を掛け、
+full-blockなら以降のBRIDGEをスキップして遮断状態を返す（短絡評価）。
+
+
+◆ 6. Spec-Boundary（最終セット決定層）
+
+<Spec-Boundary>
+    ::= "Spec-Boundary" <Identifier> "{"
+            <Set-Enumeration-Rule>
+            { <Set-Level-Gate> }
+            <Mirror-ID-Rule>
+            [ <Score-Rule> ]
+        "}"
+
+<Set-Enumeration-Rule>
+    ::= "enumerate-sets" "{"
+            "from" "=" <Identifier> ";"        (* 例: "flowing"（全BRIDGEを通過したLINE） *)
+            "size" "=" <Number> [ ".." <Number> ] ";"  (* 例: 1..2 *)
+        "}"
+
+<Set-Level-Gate>
+    ::= "Set-Gate" <BRIDGE-Id> "{"
+            "level" "=" <Number> ";"
+            "weight" "=" <Weight-Rule> ";"
+            "description" "=" <String> ";"
+        "}"
+
+<Mirror-ID-Rule>
+    ::= "Mirror-ID-Rule" "{"
+            "coverage" "=" "union" "(" <Identifier> ")" ";"   (* セット内候補の論理和 *)
+            "distance" "=" "cosine" "(" "coverage" "," "EntryVector" ")" ";"
+            "select"   "=" "max(distance)" ";"
+        "}"
+
+<Score-Rule>
+    ::= "Score-Rule" "{"
+            { <Score-Axis> }
+            "sort-by" "=" "[" <Sort-Key-List> "]" ";"
+        "}"
+
+<Score-Axis>
+    ::= <Identifier> "=" <Score-Expr> ";"
+
+<Sort-Key-List>
+    ::= <Identifier> { "," <Identifier> }   (* 例: mirrorId, totalScore, set-size, id (タイブレーク順) *)
+
+<Score-Expr>
+    ::= <Number>
+     |  <Score-Expr> ( "+" | "-" | "*" ) <Score-Expr>
+     |  "sum-penalties" "(" <String> ")"       (* axisでフィルタしたBRIDGE減衰イベントの総和 *)
+
+意味：Spec-Boundaryは「Reflect-Boundaryを通過した候補からセットを列挙し、
+セット単位の追加ゲート（Set-Level-Gate）を通し、Mirror-ID（coverageベクトルと
+EntryVectorのコサイン類似度）を主基準に最良セットを選ぶ」という判断を定義する。
+Score-Ruleは同点時のタイブレーク基準（安全性・抵抗性リスク等の複合スコア）を宣言する。
+
+
+◆ 7. 共通の字句規則
+
+<Identifier>     ::= <Letter> { <Letter> | <Digit> | "_" | "-" }
+<Number>         ::= <Digit> { <Digit> } [ "." <Digit> { <Digit> } ]
+<Signed-Number>  ::= [ "+" | "-" ] <Number>
+<String>         ::= '"' { <any character except '"'> } '"'
+<String-Template> ::= <String>          (* "${identifier}" 形式の埋め込みを許す *)
+<Bool>           ::= "true" | "false"
+<Letter>         ::= "A".."Z" | "a".."z" | <Kanji/Kana>
+<Digit>          ::= "0".."9"
+
+
+◆ 8. RBP-Program 全体の整合性制約（文法外・静的意味規則）
+
+文法だけでは表現しきれないが、コンパイラが検査すべき規則を明記する。
+
+  (S1) Domain-Declaration.dimensions は、Demand-Boundary の Line-Def 総数と一致する。
+  (S2) Bridge-Boundary の各BOX-Defが参照するLine-Refは、Demand-Boundaryで
+       宣言済みのLine番号の範囲内でなければならない。
+  (S3) SpecBridge-Boundary の各Candidate-Defが持つtargetsも同様に範囲内。
+  (S4) Reflect-Boundary の全BRIDGE-Def は level について strictly increasing
+       （5章(a)の制約の形式的再掲）。
+  (S5) Bridge-Extension-Policy.on-UNDEFINED が "auto-register" の層と
+       "alert-and-halt" の層が RBP-Program 内に混在してよい
+       （実際、Bridge-Boundaryはauto-register、SpecBridge-Boundaryはalert-and-haltが標準）。
+       これは矛盾ではなく、境界言語の設計思想（概念操作 vs 物理制約の非対称性）の
+       正しい表現である。
+  (S6) Mirror-ID-Rule.distance の結果域は [0, 1]（正のベクトル同士のコサイン類似度）。
+
+
+◆ 9. 文法要素 ⇔ 実装コード 対応表
+
+生成規則                              対応する実装
+──────────────────────────  ──────────────────────────────────
+Demand-Boundary / Line-Def          data/diseases.js（DISEASES）
+EntryVector-Literal                  schedule_app.html の入力ベクトル（ebVector）
+Bridge-Boundary / BOX-Def           data/eval_boxes.js（EB_VECTORS, EB_MATRIX, EB_NAMES）
+Bridge-Rule（match=exact）           framework/mirror.js（matchExactBox）
+Bridge-Extension-Policy=auto-register rbp/eval_box_registry.js（classifyAndRegisterVector）
+SpecBridge-Boundary / Candidate-Def data/pesticides.js（PESTICIDE_DB, targetVector等）
+SpecBridge-Rule（dot-product）        rbp/spec_matching.js（TARGET_MATRIX, computeTargetMatchVector）
+Bridge-Extension-Policy=alert-and-halt rbp/prescription.js（NO_PESTICIDE_DEFINED）
+Reflect-Boundary / Safety-Vector-Def rbp/safety.js（buildSafetyVector）
+BRIDGE-Def（level, direction, weight） rbp/spec_bridges.js（SPEC_BRIDGES配列）
+BRIDGE-Defの実行エンジン              framework/rbp_core.js（runLineThroughBridges, hadamard）
+一様重みベクトル制約                  framework/rbp_core.js（isUniformWeight検査）
+Set-Enumeration-Rule                 rbp/prescription.js（candidateSets列挙, 1剤/2剤）
+Set-Level-Gate                       rbp/spec_bridges.js（SPEC-BRIDGE-MIXING-SET）
+Mirror-ID-Rule                       framework/engine.js（cosineSimilarity）
+                                     rbp/prescription.js（scorePrescriptionSet内のmirrorId）
+Score-Rule / sort-by                 rbp/prescription.js（scored.sort()のタイブレーク連鎖）
+
+
+◆ 10. サンプルプログラム（EB-23の実例をDSLで記述）
+
+以下は、解説２.txtで確認した実測ケース（EB-23＝灰色かび病+うどんこ病+ナミハダニ+
+オオタバコガ、最良セット=P15+P47, mirrorId=0.866）を、
+本BNFに従って記述した境界言語DSLの一部抜粋である。
+
+  Domain STB {
+    dimensions: 10;
+    lines: ["炭疽病","灰色かび病","うどんこ病","ナミハダニ","ハスモンヨトウ",
+            "オオタバコガ","ミカンキイロアザミウマ","ワタアブラムシ",
+            "アブラムシ","コナジラミ"];
+  }
+
+  Demand-Boundary PestDemand {
+    Line-1: 灰色かび病(disease);
+    Line-2: うどんこ病(disease);
+    Line-3: ナミハダニ(pest);
+    Line-5: オオタバコガ(pest);
+    Demand-Rule { on-occurrence => Line-i = 1; on-absence => Line-i = 0; }
+  }
+  (* EntryVector = [0,1,1,1,0,1,0,0,0,0]^T *)
+
+  Bridge-Boundary EvalBox {
+    BOX-22: { Line-0,Line-1,Line-2,Line-4,Line-5,Line-8,Line-9 } as "炭疽+うどんこ+灰色かび+ハスモン+オオタ+アブラムシ+コナジラミ";
+    Bridge-Rule { match = exact;
+      on-match(0) => UNDEFINED; on-match(1) => OK; on-match(>=2) => MODEL_DEFINITION_ERROR; }
+    Bridge-Extension-Policy { on-UNDEFINED => auto-register; id-rule = next-max-plus-one; }
+  }
+  (* → BOX-23: {Line-1,Line-2,Line-3,Line-5} が実行時に自動登録される（解説２.txt §具体例） *)
+
+  SpecBridge-Boundary PesticideCatalog {
+    Candidate P15: { targets = Line-1,Line-2; system="ベンズイミダゾール系"; maxApplications=3; };
+    Candidate P47: { targets = Line-3;        system="アベルメクチン系";     maxApplications=2; };
+    SpecBridge-Rule { match-vector = EntryVector; combine = dot-product; result = TargetMatchVector; }
+    Bridge-Extension-Policy { on-UNDEFINED => alert-and-halt; }
+  }
+
+  Reflect-Boundary SafetyChannel {
+    Safety-Vector { usageState: "散布回数"; intervalDays: "PHI残日数"; rotationState: "系統連続回数"; }
+
+    BRIDGE L1_TARGET {
+      level = 1; direction = forward;
+      weight = if (targetMatch > 0) then full-pass else full-block;
+      reason = "対象病害虫が要求と一致しない";
+      description = "ターゲット不一致の候補を遮断";
+    }
+    BRIDGE L2_USAGE {
+      level = 2; direction = forward;
+      weight = if (usageCount >= maxApplications) then full-block else full-pass;
+      reason = "散布回数上限に到達";
+      description = "使用回数上限に達した候補を遮断";
+    }
+    BRIDGE L3_PHI {
+      level = 3; direction = forward;
+      weight = if (intervalDays < phiDays) then attenuate(0.5) else full-pass;
+      penalty = { axis="safety", delta=-10 };
+      description = "PHI残日数を満たさない候補を減衰";
+    }
+  }
+
+  Spec-Boundary FinalSet {
+    enumerate-sets { from = flowing; size = 1..2; }
+    Set-Gate MixingSet {
+      level = 5.5;
+      weight = if (isPairWithInternalMixingConflict) then full-block else full-pass;
+      description = "セット内候補間の混用禁止で遮断";
+    }
+    Mirror-ID-Rule {
+      coverage = union(candidateTargetVectors);
+      distance = cosine(coverage, EntryVector);
+      select = max(distance);
+    }
+    Score-Rule {
+      effectiveness = mirrorId * 10 + coverageRatio * 5;
+      safety        = 20 + sum-penalties("safety");
+      resistance    = 15 + sum-penalties("resistance");
+      sort-by = [mirrorId, totalScore, set-size, id];
+    }
+  }
+  (* → best = {P15, P47}, mirrorId = 0.8660254037844387, coverageRatio = 0.75 *)
+
+
+◆ まとめ
+
+本BNFは5つの<Boundary>非終端記号（Demand/Bridge/SpecBridge/Reflect/Spec）を
+トップレベルの固定順序として強制し、Reflect-Boundaryの内部に
+「levelのstrictly increasing制約」「directionのforward固定」「一様重みベクトル制約」
+という3つの静的検査規則を課すことで、境界言語が繰り返し述べてきた
+「循環なし・逆流なし・意味の一方向な流れ」という思想を、
+自然言語の説明ではなく文法・静的検査として保証する。
+
+また Bridge-Extension-Policy という1つの生成規則が、
+「概念操作（自動拡張可）」と「物理制約（自動拡張不可・アラート）」という
+境界言語の非対称性を、RBP-Program内の各層で個別に宣言可能にしている。

@@ -1,0 +1,234 @@
+◆ dsl/ — 境界言語DSL→RBP行列 導出コンパイラ マニュアル
+────────────────────────────────────────
+設計の背景・各ファイルの役割は同ディレクトリの 解説.txt を参照。
+文法の正式な定義はリポジトリ直下の 境界言語BNF.txt を参照。
+
+本書は、人間が読んで理解できると同時に、AIエージェントが本書だけを読んで
+「DSLファイルをコンパイルする」「エラーを診断し自力で修正する」
+「新しいDSLファイルを書く」を実行できるよう、各手順を
+  前提条件 → 実行するコマンド（そのままコピー可能）→ 成功/失敗の判定方法 → 失敗時の分岐
+の形式で記述する。曖昧な自然言語表現（「適宜」「確認する」等）は避け、
+判定は常に「終了コード」または「文字列に一致するか」という機械的に
+判定可能な基準で書く。
+
+
+◆ 0. 前提条件（実行前に必ず満たされているべき事実）
+
+  P0. カレントディレクトリがリポジトリルート（/home/ko_matsuyama/app/STB）である。
+      確認コマンド: pwd
+      期待する出力: /home/ko_matsuyama/app/STB
+      一致しない場合: cd /home/ko_matsuyama/app/STB を実行してから以降の手順に進む。
+
+  P1. Node.jsが利用可能である。
+      確認コマンド: node --version
+      期待する出力: v12以上の任意のバージョン文字列（例: v12.22.9）
+      コマンドが見つからない/失敗する場合: この手順群は実行できない。ユーザーに報告して停止する。
+
+  P2. dsl/配下の全ファイルが存在する。
+      確認コマンド: test -f dsl/compile.js && test -f dsl/parser.js && test -f dsl/validate.js && echo OK
+      期待する出力: OK
+      OK以外の場合: dsl/のファイル構成が壊れている。解説.txt §4のファイル一覧と照合する。
+
+
+◆ 1. 手順：DSLファイルをコンパイルする（BridgeMatrix/SpecBridgeMatrixを導出する）
+
+  入力: DSLソースファイルのパス（例: dsl/samples/full_program.txt）
+  出力: <出力先>/eval_boxes.generated.js, <出力先>/pesticides.generated.js
+
+  実行するコマンド:
+    node dsl/compile.js <入力ファイル.txt> <出力先ディレクトリ>
+
+  例:
+    node dsl/compile.js dsl/samples/full_program.txt dsl/output
+
+  成功判定（両方を満たせば成功）:
+    (a) 終了コードが 0 である（直後に echo $? で確認できる）
+    (b) 標準出力に「要求評価RBP行列」と「仕様決定RBP行列」の2行が含まれる
+
+  成功時の標準出力の例（この形式に一致する）:
+    要求評価RBP行列（BridgeMatrix）: N件のEVAL_BOXを <path>/eval_boxes.generated.js に書き出しました
+    仕様決定RBP行列（SpecBridgeMatrix）: M件の候補を <path>/pesticides.generated.js に書き出しました
+
+  失敗判定:
+    終了コードが 1 である場合は失敗。標準エラー出力に原因が出力されている。
+    ファイルは一切書き出されていない（部分的な出力は存在しない）。
+    → 「Parse error」で始まる場合は §3-A（構文エラー）へ進む。
+    → 「N件の検証エラー:」で始まる場合は §3-B（検証エラー）へ進む。
+
+  副作用: <出力先ディレクトリ>が存在しなければmkdir -p相当で作成される。
+  既存の同名ファイルは上書きされる（確認プロンプトはない）。
+
+  生成物とdata/配下の実ファイルを比較する場合:
+    diff data/eval_boxes.js <出力先>/eval_boxes.generated.js
+    diff data/pesticides.js <出力先>/pesticides.generated.js
+    ※ 完全一致するとは限らない（生成物にはDSLソースで宣言した属性のみが
+       出力されるため、data/pesticides.jsの方が属性数が多いのが正常）。
+       targetVector部分の数値が一致するかどうかを主眼に見ること。
+
+
+◆ 2. 手順：新しいDSLファイルを書く
+
+  次の6ブロックを、この順序のまま1つずつ含める（順序の入れ替え・省略は不可）。
+  Reflect-Boundary / Spec-Boundaryは中身が空でもよいが、ブロック自体
+  （キーワード＋識別子＋{ }）は省略できない。
+
+  コピーして使える最小骨格（そのままでは検証エラーになる。< >の部分を埋める）:
+
+    Domain <ドメイン識別子> {
+      dimensions: <N>;
+      lines: [<"名前1">,<"名前2">, ... , <"名前N">];
+    }
+
+    Demand-Boundary <識別子> {
+      Line-0: <名前0>(<disease または pest>);
+      Line-1: <名前1>(<disease または pest>);
+      (* Line-2 ... Line-(N-1) まで、0からN-1を1つも欠かさず全て書く *)
+      Demand-Rule { on-occurrence => Line-i = 1; on-absence => Line-i = 0; }
+    }
+
+    Bridge-Boundary <識別子> {
+      BOX-<id>: { Line-<a>,Line-<b>, ... } as "<表示名>";
+      Bridge-Rule { match = exact; on-match(0) => UNDEFINED; on-match(1) => OK; on-match(>=2) => MODEL_DEFINITION_ERROR; }
+      Bridge-Extension-Policy { on-UNDEFINED => auto-register; id-rule = next-max-plus-one; }
+    }
+
+    SpecBridge-Boundary <識別子> {
+      Candidate <候補id>: {
+        targets = Line-<a>,Line-<b>, ... ;
+        <属性名>=<値>;
+      };
+      SpecBridge-Rule { match-vector = EntryVector; combine = dot-product; result = TargetMatchVector; }
+      Bridge-Extension-Policy { on-UNDEFINED => alert-and-halt; }
+    }
+
+    Reflect-Boundary <識別子> { }
+    Spec-Boundary <識別子> { }
+
+  執筆後のチェックリスト（すべて満たすまで検証エラーになる。§3-Bも参照）:
+    [ ] dimensions の数値 = lines配列の要素数 = Demand-BoundaryのLine-Def数
+    [ ] Demand-BoundaryはLine-0からLine-(dimensions-1)まで1つも欠けていない
+    [ ] 全てのBOX-DefのLine参照が[0, dimensions)の範囲内
+    [ ] 全てのCandidate-Defのtargets参照が[0, dimensions)の範囲内
+    [ ] BOX-Idの重複がない
+    [ ] Candidateのidの重複がない
+    [ ] Reflect-Boundary/Spec-Boundaryのブロック自体は（空でよいので）存在する
+
+  書いたら §1 の手順でコンパイルし、成功判定を満たすかどうかで正しさを確認する。
+  検証は自分で目視するのではなく、必ずコンパイラの終了コードで判定すること。
+
+
+◆ 3. エラー診断フローチャート
+
+  compile.jsの終了コードが0以外 → 標準エラー出力の先頭行を見る:
+
+    先頭行が "Parse error" で始まる
+      → §3-A へ
+
+    先頭行が "N件の検証エラー:" で始まる（Nは1以上の数値）
+      → §3-B へ、後続の各行を1件ずつ §3-B の表で照合する
+
+── §3-A. 構文エラー（Parse error）──
+
+  形式: Parse error (line <N>): <期待した内容>を期待しましたが "<実際のトークン>" でした
+  対処: 該当ファイルの<N>行目付近で、直前のブロックの閉じ括弧「}」「;」の
+        対応が取れているかを確認する。§2の最小骨格と行単位で見比べ、
+        欠けている記号を補う。
+
+  再現・確認用コマンド（実際にこのエラーを起こして挙動を見る）:
+    node dsl/compile.js dsl/samples/full_program.txt /tmp/x 2>&1 | head -1
+    （このコマンド自体は成功する。構文エラーの実例を見たい場合は
+      dsl/samples/full_program.txtの任意の行から"}"を1つ削除してから
+      同じコマンドを実行する）
+
+── §3-B. 検証エラー（意味的制約違反）── コード→原因→修正操作の対応表
+
+  コード                       | 原因                                  | 修正操作（具体的な編集手順）
+  ───────────────────────────  | ────────────────────────────────────  | ──────────────────────────────────
+  S1_DIMENSION_MISMATCH        | Domain.dimensions ≠ Demand-Boundary   | Demand-Boundary内のLine-Defの数を
+                                | のLine-Def数                          | dimensionsの値に一致するまで
+                                |                                       | 追加または削除する
+  S2_LINE_REF_OUT_OF_RANGE     | BOX-Defが参照するLine-Nの              | メッセージに含まれる"Line-N"の
+                                | Nがdimensions以上（範囲外）            | 数値を[0,dimensions)内に修正するか、
+                                |                                       | dimensionsを増やしてDemand-Boundary
+                                |                                       | にもLine-Nを追加する
+  S3_TARGET_REF_OUT_OF_RANGE   | Candidate-Defのtargetsが参照する       | 同上（BOX-DefではなくCandidate-Defの
+                                | Line-Nが範囲外                        | targetsを修正する）
+  DUPLICATE_BOX_ID              | 同一のBOX-<id>が2回以上定義            | メッセージに含まれる「最初の定義:
+                                |                                       | line <M>」を参照し、M行目以外の
+                                |                                       | 重複するBOX-Def定義を削除するか、
+                                |                                       | idを別の値に変更する
+  DUPLICATE_CANDIDATE_ID        | 同一Candidateのidが2回以上定義          | 同上（Candidate-Defで）
+
+  各行のエラーメッセージは以下の固定形式で出力される（正規表現で機械的に
+  抽出できる）:
+    MODEL_DEFINITION_ERROR\[(?<code>[A-Z0-9_]+)\] \(line (?<line>\d+)\): (?<detail>.+)
+
+  実際にこの4種の検証エラーだけを単独で再現するサンプルが用意されている:
+    node dsl/compile.js dsl/samples/invalid_dimension_mismatch.txt      → S1のみ
+    node dsl/compile.js dsl/samples/invalid_line_ref_out_of_range.txt   → S2のみ
+    node dsl/compile.js dsl/samples/invalid_duplicate_box_id.txt        → DUPLICATE_BOX_IDのみ
+    node dsl/compile.js dsl/samples/invalid_duplicate_candidate_id.txt  → DUPLICATE_CANDIDATE_IDのみ
+  いずれも終了コード1、標準出力への書き出しは0件。
+
+
+◆ 4. 手順：コンパイラ自体が正しく動作するか検証する
+
+  実行するコマンド:
+    node tests/run_all.js
+
+  成功判定:
+    最終行が次の文字列と完全に一致する:
+      全テストファイルが成功しました
+    終了コードが 0 である。
+
+  失敗判定:
+    最終行が次の文字列と完全に一致する:
+      一部のテストファイルで失敗があります
+    終了コードが 1 である。
+    この場合、出力中の "✗" で始まる行がある各 "=== test_....js ===" ブロックを
+    上から順に確認する。dsl関連の回帰であれば以下のいずれかのブロック名の
+    直後に✗が出る:
+      test_dsl_lexer.js / test_dsl_parser.js / test_dsl_validate.js /
+      test_dsl_derive.js / test_dsl_codegen.js
+    どのブロックで失敗したかに応じて、解説.txt §4の対応するファイルの
+    役割を参照して原因を切り分ける。
+
+  個別ファイルだけを実行する場合（原因切り分け用）:
+    node tests/test_dsl_lexer.js
+    node tests/test_dsl_parser.js
+    node tests/test_dsl_validate.js
+    node tests/test_dsl_derive.js
+    node tests/test_dsl_codegen.js
+  各ファイルの最終行は「<成功件数+失敗件数>件中 <成功件数>件成功、<失敗件数>件失敗」
+  という固定形式。失敗件数が0であることを機械的に確認できる。
+
+
+◆ 5. サンプル一覧（dsl/samples/）— 用途別の参照先
+
+  何をしたいか                              → 参照するサンプル
+  ────────────────────────────────────────  ──────────────────
+  正しいDSLファイルの完全な見本が欲しい       → full_program.txt
+  S1エラーの実例を見たい                     → invalid_dimension_mismatch.txt
+  S2エラーの実例を見たい                     → invalid_line_ref_out_of_range.txt
+  BOX-Id重複エラーの実例を見たい              → invalid_duplicate_box_id.txt
+  Candidate-Id重複エラーの実例を見たい        → invalid_duplicate_candidate_id.txt
+
+  full_program.txt内のBOX-22・Candidate P15/P47は、data/eval_boxes.js・
+  data/pesticides.jsの実データと同一の値になるよう作成されている
+  （tests/test_dsl_derive.jsがこの一致を数値で検証している）。
+  新しいサンプルを追加する場合も、可能であれば実データとの数値突合を
+  テストに追加すると、コンパイラの正しさを継続的に保証できる。
+
+
+◆ 6. 動作環境・スコープの制約（本コンパイラにできないこと）
+
+  - package.json・外部npm依存なし。Node組み込みモジュール（fs/path/vm/os）のみ使用。
+  - Node.js v12.22.9で動作確認済み。`?.`・`??`等の新しい構文は使用していない。
+  - schedule_app.html等のブラウザ実行時パイプラインには一切関与しない
+    （オフラインのビルド時ツール）。
+  - Reflect-Boundary / Spec-Boundary の中身（BRIDGE水路のWeight-Rule、
+    Mirror-ID-Rule、Score-Rule）は構文的に読み飛ばすのみで、実行エンジン
+    としては実装されていない。これらのブロックにどのような内容を書いても
+    行列導出の結果には一切影響しない（解説.txt §2, §5(1)参照）。
+  - 生成物（*.generated.js）はdata/配下の実ファイルを自動的に置き換えない。
+    置き換えたい場合は人間が diff の内容を確認した上で手動でコピーすること。

@@ -1,0 +1,284 @@
+
+
+---
+
+# ◆ **RBP構造力学 DSL（完全再整理版）**
+
+---
+
+## 【1. エージェントの目的】
+
+```
+このエージェントは、ReflectBlockPattern（RBP）を用いて
+ビジネスロジックを if-then を使わずに構築する。
+
+RBPは以下の構造から成る：
+
+ENTRY（イベント）
+BRIDGE（構造処理：レベル＋方向）
+評価BOX（要求の意味構造）
+選択BOX（仕様の意味構造）
+Mirror-ID（要求と仕様の意味距離）
+BoundaryLanguage（要求と仕様を結合する境界言語）
+LINE（ENTRY→評価BOXの意味流経路）
+
+これらを DSL と行列計算で扱い、
+BRIDGE のレベル・方向・接続構造を自動調整することで
+汎用ロジック生成器を構築する。
+```
+
+---
+
+## 【2. RBP構造の統一語彙】
+
+```
+ENTRY：
+　イベント（散布カレンダーの各散布など）
+
+評価BOX（EvalBOX）：
+　要求の意味構造（病害虫セット）
+
+選択BOX（SpecBOX）：
+　仕様の意味構造（散布薬剤セット）
+
+BRIDGE：
+　BOX間の構造処理（レベル＋方向）
+　逆止弁により direction は forward のみ（非対称）
+
+Mirror-ID：
+　評価BOXと選択BOXの意味距離
+
+BoundaryLanguage：
+　評価BOXと選択BOXを Mirror-ID と行列化により結合する写像DSL
+
+LINE：
+　ENTRY → 評価BOX の意味流経路（BRIDGEの並び）
+```
+
+---
+
+## 【3. BRIDGE DSL（統一版）】
+
+```
+BRIDGE {
+  id: <bridge-id>
+  level: <integer>        // 構造処理の階層
+  direction: forward      // 逆止弁により逆流不可
+  from: <BOX-id>          // 評価BOXまたは選択BOX
+  to: <BOX-id>
+  order: <sequence-number> // 時系列（levelとは別）
+}
+```
+
+### 行列化（非対称隣接行列）
+
+```
+A[i][j] = 1   // i → j に流れる
+A[j][i] = 0   // 逆止弁により逆流禁止
+```
+
+---
+
+## 【4. LINE DSL（新規追加：ENTRY→評価BOXの経路）】
+
+```
+LINE {
+  id: <line-id>           // ユニーク識別子
+  entry: <ENTRY-id>       // 水源
+  eval: <EVAL_BOX-id>     // 到達先
+
+  path: [
+    {
+      bridge_id: <BRIDGE-id>,
+      from: <BOX-id>,
+      to: <BOX-id>,
+      level: <integer>,
+      direction: forward
+    },
+    ...
+  ]
+}
+```
+
+### LINEの役割  
+- ENTRY → 評価BOX の到達経路を一意に識別  
+- 経路上の BRIDGE のレベル・方向を保持  
+- 評価BOXが孤立しないことを保証  
+- RBPの判断構造を「経路」として表現  
+
+---
+
+## 【5. 要求判定RBP DSL（Demand-Judgement RBP）】
+
+```
+DemandRBP {
+  entry: <ENTRY-id>
+  eval: <評価BOX-id>
+
+  bridge_path: [
+    {
+      level: <integer>,
+      direction: forward,
+      from: <評価BOX-id>,
+      to: <評価BOX-id>
+    },
+    ...
+  ]
+
+  mirror_candidates: [
+    <選択BOX-id>,
+    ...
+  ]
+
+  mirror_distances: {
+    <選択BOX-id>: <float>,
+    ...
+  }
+}
+```
+
+---
+
+## 【6. 仕様決定RBP DSL（Spec-Decision RBP）】
+
+```
+SpecRBP {
+  entry: <評価BOX-id>
+
+  bridge: [
+    {
+      level: <integer>,
+      direction: forward,
+      from: <評価BOX-id>,
+      to: <評価BOX-id>
+    },
+    ...
+  ]
+
+  spec_candidates: [
+    <選択BOX-id>,
+    ...
+  ]
+
+  mirror_distances: {
+    <選択BOX-id>: <float>,
+    ...
+  }
+
+  selected_spec: <選択BOX-id>
+
+  selected_action: {
+    agents: [ ... ],
+    frac_codes: [ ... ],
+    irac_codes: [ ... ]
+  }
+
+  rationale: <text>
+}
+```
+
+---
+
+## 【7. BRIDGE有無の条件】
+
+```
+if count(評価BOX) == count(選択BOX):
+    BRIDGE = none   // 直結構造
+else:
+    BRIDGE = required  // 構造処理が必要
+```
+
+---
+
+## 【8. 境界言語 DSL（BoundaryLanguage）】
+
+```
+BoundaryLanguage {
+  eval_box: <評価BOX-id>
+  eval_vector: [ ... ]
+
+  spec_candidates: [
+    <選択BOX-id>,
+    ...
+  ]
+
+  spec_vectors: {
+    <選択BOX-id>: [ ... ],
+    ...
+  }
+
+  mirror_distances: {
+    <選択BOX-id>: <float>,
+    ...
+  }
+
+  selected_spec: <選択BOX-id>
+
+  mapping_type: <direct|bridge>
+  rationale: <text>
+}
+```
+
+---
+
+## 【9. 行列化の統一仕様】
+
+```
+評価BOX → 0/1ベクトル（病害虫次元）
+選択BOX → FRAC/IRACベクトル（薬剤次元）
+
+BRIDGE → 非対称隣接行列（逆止弁）
+Mirror-ID → 評価BOX × 選択BOX の距離行列
+LINE → 経路テンソル（BRIDGEの並び）
+```
+
+---
+
+## 【10. RBPアウトプット DSL（要求判定＋仕様決定＋ライン）】
+
+```
+RBP_OUT {
+  entry: <ENTRY-id>
+  eval: <評価BOX-id>
+
+  line: <LINE-id>          // ★新規追加：ENTRY→評価BOXの経路
+
+  bridge_path: [
+    {level: 1, from: Set6, to: Set2},
+    {level: 2, from: Set2, to: Set18},
+    ...
+  ]
+
+  spec: <選択BOX-id>
+  mirror_distance: <float>
+  action: <selected-spec-or-behavior>
+}
+```
+
+---
+
+## 【11. 制約（Constraint）】
+
+### ◎ 全評価BOXは必ずどこかのENTRYから到達可能である
+
+```
+Constraint EvalReachability {
+  for each EvalBOX e:
+      exists LINE l such that l.eval == e
+}
+```
+
+---
+
+# ◆ **これが、あなたのRBP構造力学を完全に反映した正式DSLです。**
+
+- BRIDGE（レベル＋方向）  
+- BOX（意味構造）  
+- Mirror-ID（意味距離）  
+- BoundaryLanguage（写像）  
+- LINE（経路構造）  
+- 行列化（非対称隣接行列／距離行列／経路テンソル）  
+- 全評価BOXの到達可能性制約  
+
+すべてが矛盾なく統合されています。
+

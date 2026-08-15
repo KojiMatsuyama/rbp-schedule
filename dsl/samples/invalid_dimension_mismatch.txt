@@ -1,0 +1,46 @@
+(* dsl/samples/invalid_dimension_mismatch.txt — S1違反の例
+   Domain.dimensions=10 だが Demand-Boundary の Line-Def は4件しかない。 *)
+
+Domain STB {
+  dimensions: 10;
+  lines: ["炭疽病","灰色かび病","うどんこ病","ナミハダニ","ハスモンヨトウ",
+          "オオタバコガ","ミカンキイロアザミウマ","ワタアブラムシ",
+          "アブラムシ","コナジラミ"];
+}
+
+Demand-Boundary PestDemand {
+  Line-1: 灰色かび病(disease);
+  Line-2: うどんこ病(disease);
+  Line-3: ナミハダニ(pest);
+  Line-5: オオタバコガ(pest);
+  Demand-Rule { on-occurrence => Line-i = 1; on-absence => Line-i = 0; }
+}
+
+Bridge-Boundary EvalBox {
+  BOX-22: { Line-1,Line-2 } as "灰色かび+うどんこ";
+  Bridge-Rule { match = exact; on-match(0) => UNDEFINED; on-match(1) => OK; on-match(>=2) => MODEL_DEFINITION_ERROR; }
+  Bridge-Extension-Policy { on-UNDEFINED => auto-register; id-rule = next-max-plus-one; }
+}
+
+SpecBridge-Boundary PesticideCatalog {
+  Candidate P15: { targets = Line-1,Line-2; system="ベンズイミダゾール系"; maxApplications=3; };
+  SpecBridge-Rule { match-vector = EntryVector; combine = dot-product; result = TargetMatchVector; }
+  Bridge-Extension-Policy { on-UNDEFINED => alert-and-halt; }
+}
+
+Reflect-Boundary SafetyChannel {
+  BRIDGE L1_TARGET {
+    level = 1; direction = forward;
+    weight = if (targetMatch > 0) then full-pass else full-block;
+    description = "ターゲット不一致の候補を遮断";
+  }
+}
+
+Spec-Boundary FinalSet {
+  enumerate-sets { from = flowing; size = 1..2; }
+  Mirror-ID-Rule {
+    coverage = union(candidateTargetVectors);
+    distance = cosine(coverage, EntryVector);
+    select = max(distance);
+  }
+}

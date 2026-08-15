@@ -1,0 +1,179 @@
+**DSL → BRIDGEの数学定義 → DemandRBPのベクトル構造**を一気に書きます。
+
+---
+
+### 1. 要求評価RBPの DSL（構造定義）
+
+まずは、あなたが言ってきた構成要素をそのまま DSL に落とします。
+
+```txt
+DemandRBP {
+
+  Entry {
+    id: <entry-id>          // 例: "E2026-04-01"
+    date: <date>            // 例: "2026-04-01"
+    entry_vector: R^n       // 病害虫発生予報ベクトル
+  }
+
+  Line {
+    id: <line-id>           // 例: "L1", "L2", ...
+    eval_box_id: <eval-id>  // このラインが接続している評価BOX
+    eval_vector: R^n        // 評価BOXベクトル（Set1, Set2, ...）
+  }
+
+  Bridge {
+    id: <bridge-id>         // 例: "B1"
+    level: <integer>        // 縦パイプの高さ（評価順序）
+    direction: forward|back // 水の向き（基本は forward）
+    from_line: <line-id>    // 出発ライン
+    to_line: <line-id>      // 到達ライン
+    bridge_vector: R^n      // ベクトル演算用の変換ベクトル
+  }
+
+  EvalBox {
+    id: <eval-id>           // 例: "Set1"
+    eval_vector: R^n        // 病害虫セットのベクトル
+  }
+}
+```
+
+ここまでが「構造の言語化」。  
+次に、**BRIDGE_VECTOR を数学的に定義**します。
+
+---
+
+### 2. BRIDGE_VECTOR の数学的定義
+
+直感はこうでしたよね：
+
+> エントリーベクトルに、ブリッジベクトルを構造にそって順番に演算していくことで、  
+> 最終の評価BOXベクトルと同じにする。
+
+これを数式にすると、こうなります。
+
+#### 2.1 ベクトル空間の前提
+
+- 病害虫次元のベクトル空間を  
+  \(\mathbb{R}^n\) とする（n = 病害虫の種類数）。
+- ENTRY_VECTOR, eval_vector, bridge_vector はすべて \(\mathbb{R}^n\) の要素。
+
+#### 2.2 BRIDGE を「重みベクトル」として定義する
+
+ある BRIDGE \(B_k\) を
+
+```txt
+bridge_vector(B_k) = w_k ∈ R^n
+```
+
+とする。
+
+意味：
+
+- その BRIDGE が「どの病害虫方向へ水を流したいか」を表す重みベクトル。
+
+#### 2.3 ENTRY_VECTOR への適用
+
+ENTRY_VECTOR を \(e ∈ \mathbb{R}^n\) とすると、
+
+BRIDGE の適用は、例えば次のように書ける：
+
+\[
+e' = e \odot w_k
+\]
+
+ここで \(\odot\) は要素ごとの積（Hadamard積）。
+
+- 例：  
+  \(e = [0.2, 0.1, 0.7]\)  
+  \(w_k = [0, 1, 0]\)（灰色かび方向へ流したい）  
+  → \(e' = [0, 0.1, 0]\)
+
+この \(e'\) を次の BRIDGE へ渡していく。
+
+#### 2.4 BRIDGE を「変換行列」として定義する拡張
+
+より一般化するなら、BRIDGE を行列 \(W_k ∈ \mathbb{R}^{n \times n}\) として定義してもよい。
+
+\[
+e' = W_k \cdot e
+\]
+
+- 例：  
+  \(W_k\) が「LINE1 → LINE2 へ流す」ための射影行列になっている。
+
+最初は **重みベクトル（Hadamard積）**で十分で、  
+必要になれば行列に拡張する、という運用が現実的。
+
+---
+
+### 3. DemandRBP_VECTOR の正式な構造
+
+ここまで来ると、  
+「要求評価RBP全体をベクトルとして保持する」構造が見えてきます。
+
+#### 3.1 各要素のベクトル
+
+- **ENTRY_VECTOR**  
+  \[
+  e ∈ \mathbb{R}^n
+  \]
+
+- **LINEごとの評価ベクトル**  
+  \[
+  l_i = eval\_vector(Line_i) ∈ \mathbb{R}^n
+  \]
+
+- **BRIDGE_VECTOR**  
+  \[
+  w_k ∈ \mathbb{R}^n \quad \text{または} \quad W_k ∈ \mathbb{R}^{n \times n}
+  \]
+
+- **EVAL_BOX_VECTOR**  
+  \[
+  v_j = eval\_vector(EvalBox_j) ∈ \mathbb{R}^n
+  \]
+
+#### 3.2 DemandRBP の状態ベクトル
+
+要求評価RBP全体の状態を、  
+1つの「構造ベクトル」としてまとめるとこうなる：
+
+```txt
+DemandRBP_VECTOR = {
+  entry: e,                 // ENTRY_VECTOR
+  lines: [l1, l2, ...],     // 各LINEの評価ベクトル
+  bridges: [w1, w2, ...],   // 各BRIDGEの重みベクトル
+  eval_boxes: [v1, v2, ...] // 各評価BOXベクトル
+}
+```
+
+評価プロセスは：
+
+1. `e` を取り出す（ENTRY_VECTOR）
+2. level の小さい順に `bridges` を適用していく  
+   \[
+   e^{(1)} = e \odot w_1,\quad e^{(2)} = e^{(1)} \odot w_2,\dots
+   \]
+3. 最終的な \(e^{(K)}\) を、`eval_boxes` の中で最も近いものに一致させる  
+   （最大成分、コサイン類似度など）
+
+---
+
+### 4. ここまでの整理（あなたの直感との対応）
+
+- **DSLに BRIDGE を入れる**  
+  → どの LINE 間に横パイプがあるか、どの level で評価されるかを記述する。
+
+- **BRIDGE_VECTOR を数学的に定義する**  
+  → 「どの病害虫方向へ水を流すか」を表す重みベクトル／行列として定義する。
+
+- **DemandRBP_VECTOR を構造として保持する**  
+  → ENTRY、LINE、BRIDGE、EvalBox をすべてベクトルとして持ち、  
+    構造変形（BRIDGE追加・変更）を計算可能にする。
+
+あなたが言っていた
+
+> RBP構造は水が流れるパイプラインで、経路構造を模している
+
+を、  
+**DSL＋ベクトル＋行列**でそのまま表現した形になっています。

@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RBP 防除スケジュールリスト</title>
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="schedule_app.css">
+<!-- iOS PWA support -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="防除スケジ">
+<link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+
+<header>
+  <h1>🌿 RBP 防除スケジュールリスト</h1>
+  <div class="year-nav">
+    <button onclick="changeYear(-1)">◀</button>
+    <span id="yearDisplay"></span>
+    <button onclick="changeYear(1)">▶</button>
+    <button id="installHeaderBtn" onclick="handleInstallClick()" title="ホーム画面に追加" style="background:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.5);color:white;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:1.1rem;">📲</button>
+    <button id="themeToggle" onclick="toggleTheme()" title="テーマ切替">🌓</button>
+  </div>
+</header>
+
+<div class="container">
+  <!-- Calendar -->
+  <div class="calendar-panel">
+    <div class="legend">
+      <span><span class="dot green"></span> 実績あり</span>
+      <span><span class="dot red"></span> 選択中</span>
+    </div>
+    <div class="month-grid" id="monthGrid"></div>
+  </div>
+
+  <!-- Side Panel -->
+  <div class="side-panel">
+    <div class="panel-tabs">
+      <button class="panel-tab active" onclick="switchTab('detail')">📋 日次詳細</button>
+      <button class="panel-tab" onclick="switchTab('schedule')">📅 スケジュール</button>
+      <button class="panel-tab" onclick="switchTab('history')">🧴 防除履歴</button>
+      <button class="panel-tab" onclick="switchTab('import')">📥 インポート</button>
+    </div>
+    <div class="panel-content">
+      <!-- Detail Tab -->
+      <div class="tab-pane active" id="tab-detail">
+        <div class="selected-date-display">
+          <div class="date" id="selDate">日付を選択</div>
+          <div class="weekday" id="selWeekday"></div>
+        </div>
+        <div id="detailContent">
+          <p style="color:var(--muted);font-size:.85rem;text-align:center;padding:20px;">
+            カレンダーの日付をクリックして<br>防除実績を入力してください
+          </p>
+        </div>
+      </div>
+
+      <!-- Schedule Tab -->
+      <div class="tab-pane" id="tab-schedule">
+        <div class="stats-bar" id="statsBar">
+          <span>登録数: <strong id="statCount">0</strong></span>
+          <span>期間: <strong id="statPeriod">—</strong></span>
+        </div>
+        <div style="display:flex;gap:6px;margin:10px 0;">
+          <button class="btn btn-outline btn-sm" onclick="exportCSV()">📤 CSV出力</button>
+          <button class="btn btn-outline btn-sm" onclick="clearAllRecords()">🗑 全削除</button>
+        </div>
+        <ul class="schedule-list" id="scheduleList"></ul>
+      </div>
+
+      <!-- Spray History Tab -->
+      <div class="tab-pane" id="tab-history">
+        <div class="stats-bar" id="sprayStatsBar">
+          <span>散布回数: <strong id="sprayCount">0</strong></span>
+          <span>期間: <strong id="sprayPeriod">—</strong></span>
+        </div>
+        <div id="sprayHistoryContent">
+          <p style="color:var(--muted);font-size:.85rem;text-align:center;padding:20px;">
+            散布実績がありません<br>
+            処方箋を承認すると記録されます
+          </p>
+        </div>
+      </div>
+
+      <!-- Import Tab -->
+      <div class="tab-pane" id="tab-import">
+        <div class="import-area">
+          <p>散布実績データを貼り付けます。<br>形式: YYYY-MM-DD,病害虫(カンマ区切り)</p>
+          <p>例: 2025-02-21,灰色かび病,うどんこ病</p>
+          <textarea id="importText" placeholder="2025-02-21,灰色かび病,うどんこ病&#10;2025-02-29,灰色かび病&#10;2025-03-22,炭疽病"></textarea>
+          <div style="margin-top:8px;display:flex;gap:6px;">
+            <button class="btn btn-primary btn-sm" onclick="importData()">インポート</button>
+            <button class="btn btn-outline btn-sm" onclick="loadSampleData()">サンプル読み込み</button>
+          </div>
+        </div>
+        <div class="import-area">
+          <p>またはJSON形式でエクスポート/インポート:</p>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-outline btn-sm" onclick="exportJSON()">📤 JSON出力</button>
+            <input type="file" id="jsonFileInput" accept=".json" onchange="importJSON(event)" style="font-size:.75rem;">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="framework/engine.js"></script>
+<script src="framework/mirror.js"></script>
+<script src="framework/rbp_core.js"></script>
+<script src="data/diseases.js"></script>
+<script src="data/pesticides.js"></script>
+<script src="data/eval_boxes.js"></script>
+<script src="rbp/eval_box_registry.js"></script>
+<script src="rbp/safety.js"></script>
+<script src="rbp/spec_matching.js"></script>
+<script src="rbp/spec_bridges.js"></script>
+<script src="rbp/prescription.js"></script>
+<script>
+// ═══════════════════════════════════════════
+// State
+// ═══════════════════════════════════════════
+let currentYear = new Date().getFullYear();
+let selectedDate = null;  // "YYYY-MM-DD"
+let records = {};         // "YYYY-MM-DD" => { pests: [name, ...], vector: [...] }
+let sprays = [];          // [{ date: "YYYY-MM-DD", ids: ["P01","P02"], pests: [...] }]
+
+// サーバー永続化されたカスタムEVAL_BOX（他端末・他ユーザーが自動登録したもの）を
+// EB_VECTORS/EB_MATRIX/EB_NAMESへマージする。取得失敗時も起動をブロックしない。
+async function loadCustomEvalBoxes() {
+  try {
+    const res = await fetch('data/eval_boxes_custom.json');
+    if (!res.ok) return;
+    const custom = await res.json();
+    for (const [id, box] of Object.entries(custom)) {
+      if (EB_VECTORS[id]) continue; // 既に読み込み済み（再読込等）
+      EB_VECTORS[id] = box.vector;
+      EB_MATRIX.push(box.vector);
+      EB_NAMES[id] = box.name;
+    }
+  } catch (e) {
+    console.warn('カスタムEVAL_BOXの読み込みに失敗しました', e);
+  }
+}
+
+// Load from localStorage
+(async function init() {
+  try {
+    const saved = localStorage.getItem('rbp_schedule_records');
+    if (saved) records = JSON.parse(saved);
+    const savedSprays = localStorage.getItem('rbp_schedule_sprays');
+    if (savedSprays) sprays = JSON.parse(savedSprays);
+  } catch(e) {}
+  await loadCustomEvalBoxes();
+  renderCalendar();
+})();
+
+function saveRecords() {
+  localStorage.setItem('rbp_schedule_records', JSON.stringify(records));
+  localStorage.setItem('rbp_schedule_sprays', JSON.stringify(sprays));
+}
+
+// classifyAndRegisterVector がその場でEB_VECTORS/EB_MATRIX/EB_NAMESへ追加した新規EVAL_BOXを
+// サーバーへ非同期に永続化する（fire-and-forget）。失敗してもUIはブロックしない
+// （このセッション内ではEB_MATRIXへの追加が既に完了しているため、表示・以後の判定に支障はない）。
+function postNewEvalBox(id, name, vector) {
+  fetch('/api/eval-boxes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, name, vector }),
+  }).catch(e => console.warn(`新規EVAL_BOX(${id})のサーバー保存に失敗しました`, e));
+}
+
+// ═══════════════════════════════════════════
+// Calendar rendering
+// ═══════════════════════════════════════════
+function changeYear(delta) {
+  currentYear += delta;
+  renderCalendar();
+}
+
+function renderCalendar() {
+  document.getElementById('yearDisplay').textContent = currentYear + '年';
+  const grid = document.getElementById('monthGrid');
+
+  const months = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  const weekDays = ['日','月','火','水','木','金','土'];
+  const today = todayStr();
+
+  let html = '';
+  for (let m = 0; m < 12; m++) {
+    const daysInMonth = new Date(currentYear, m + 1, 0).getDate();
+
+    html += `<div class="month-card">`;
+    html += `<div class="month-title">${months[m]}</div>`;
+    html += `<table class="cal-table"><thead><tr>`;
+    weekDays.forEach(d => { html += `<th>${d}</th>`; });
+    html += `</tr></thead><tbody>`;
+
+    // First day of month (0=Sun)
+    let firstDow = new Date(currentYear, m, 1).getDay();
+    let date = 1;
+
+    for (let week = 0; week < 6; week++) {
+      if (date > daysInMonth && firstDow > 0) break;
+      html += `<tr>`;
+      for (let dow = 0; dow < 7; dow++) {
+        if (week === 0 && dow < firstDow) {
+          html += `<td class="empty-cell"></td>`;
+        } else if (date > daysInMonth) {
+          html += `<td class="empty-cell"></td>`;
+        } else {
+          const dayStr = String(date).padStart(2, '0');
+          const mmStr = String(m + 1).padStart(2, '0');
+          const dateKey = `${currentYear}-${mmStr}-${dayStr}`;
+          const isSun = dow === 0;
+          const isSat = dow === 6;
+          const isToday = dateKey === today;
+          const isSelected = dateKey === selectedDate;
+          const hasRec = !!records[dateKey];
+
+          let cls = '';
+          if (isSun) cls += ' sun';
+          if (isSat) cls += ' sat';
+          if (isToday) cls += ' today';
+          if (isSelected) cls += ' selected';
+
+          let inner = `<span class="day-label${cls}">${dayStr}</span>`;
+          if (hasRec) inner += `<span class="day-badge has-record">✓</span>`;
+
+          html += `<td class="${cls}" onclick="selectDate('${dateKey}')" title="${hasRec ? '実績あり: ' + records[dateKey].pests.join(', ') : ''}">${inner}</td>`;
+          date++;
+        }
+      }
+      html += `</tr>`;
+    }
+
+    html += `</tbody></table></div>`;
+  }
+
+  grid.innerHTML = html;
+}
+
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// ═══════════════════════════════════════════
+// Date selection & detail panel
+// ═══════════════════════════════════════════
+function selectDate(dateKey) {
+  selectedDate = dateKey;
+  renderCalendar();
+  renderDetail();
+  switchTab('detail');
+}
+
+function renderDetail() {
+  const dateEl = document.getElementById('selDate');
+  const weekdayEl = document.getElementById('selWeekday');
+  const contentEl = document.getElementById('detailContent');
+
+  if (!selectedDate) {
+    dateEl.textContent = '日付を選択';
+    weekdayEl.textContent = '';
+    return;
+  }
+
+  const d = new Date(selectedDate + 'T00:00:00');
+  const weekdays = ['日','月','火','水','木','金','土'];
+  dateEl.textContent = `${d.getMonth()+1}/${d.getDate()}`;
+  weekdayEl.textContent = `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日 (${weekdays[d.getDay()]})`;
+
+  const rec = records[selectedDate];
+  const vector = rec ? rec.vector : new Array(10).fill(0);
+  const pests = rec ? rec.pests : [];
+
+  // Build pest checkboxes
+  let pestHTML = '<div class="pest-grid">';
+  const diseaseLabels = DISEASES.filter(p => p.type === 'disease');
+  const pestLabels = DISEASES.filter(p => p.type === 'pest');
+
+  pestHTML += '<div class="pest-group-label">病害 (4)</div>';
+  diseaseLabels.forEach(p => {
+    const checked = pests.includes(p.name) ? 'checked' : '';
+    pestHTML += `<label class="pest-check"><input type="checkbox" data-idx="${p.id}" ${checked} onchange="saveRecord()"> ${p.name}</label>`;
+  });
+  pestHTML += '<div class="pest-group-label">害虫 (6)</div>';
+  pestLabels.forEach(p => {
+    const checked = pests.includes(p.name) ? 'checked' : '';
+    pestHTML += `<label class="pest-check"><input type="checkbox" data-idx="${p.id}" ${checked} onchange="saveRecord()"> ${p.name}</label>`;
+  });
+  pestHTML += '</div>';
+
+  // Vector bars
+  const diseaseVec = vector.slice(0, 4);
+  const pestVec = vector.slice(4, 10);
+
+  // 要求評価RBP: 完全一致判定。既存のどのEVAL_BOXとも一致しなければ、その場で新規EVAL_BOXとして
+  // 自動登録する（病害虫の組み合わせは概念操作であり、有限のEVAL_BOXで網羅しきれないため）。
+  // 病害虫が1件も選択されていない（vector全て0）場合は分類自体を行わない。
+  const hasAnyPest = vector.some(v => v > 0);
+  const pred = hasAnyPest ? classifyAndRegisterVector(vector) : null;
+  if (pred && pred.status === 'OK' && pred.isNew) {
+    postNewEvalBox(pred.id, pred.name, vector);
+  }
+
+  // Save button
+  const saveBtn = rec
+    ? `<button class="btn btn-primary btn-sm" onclick="saveRecord()" style="margin-top:10px;width:100%">💾 更新</button>`
+    : `<button class="btn btn-primary btn-sm" onclick="saveRecord()" style="margin-top:10px;width:100%">✅ 実績登録</button>`;
+
+  const deleteBtn = rec
+    ? `<button class="btn btn-danger btn-sm" onclick="deleteRecord()" style="margin-top:4px;width:100%">🗑 削除</button>`
+    : '';
+
+  // Spec-RBP: 自動処方（病害虫が1件以上登録済みの場合のみ計算）
+  const specHTML = hasAnyPest ? renderPrescriptionCard(vector) : '';
+
+  // 要求評価RBP結果の表示: 完全一致（既存/新規）とMODEL_DEFINITION_ERRORで表示を分ける
+  let ebResultHTML = '';
+  if (pred && pred.status === 'OK') {
+    const newBadge = pred.isNew ? '<span class="spec-badge good">🆕 新規追加</span>' : '';
+    ebResultHTML = `
+    <div class="eb-result">
+      <div class="eb-id">🎯 ${pred.id} ${newBadge}</div>
+      <div class="eb-name">${pred.name}</div>
+    </div>`;
+  } else if (pred && pred.status === 'MODEL_DEFINITION_ERROR') {
+    ebResultHTML = `
+    <div class="eb-result">
+      <p class="spec-badge danger" style="display:block;">⛔ モデル定義エラー: 同じ病害虫パターンが複数のEVAL_BOX（${pred.matchedIds.join('、')}）に重複登録されています</p>
+    </div>`;
+  }
+
+  contentEl.innerHTML = `
+    <div class="record-form">
+      <h3>🐛 病害虫選択</h3>
+      ${pestHTML}
+      ${saveBtn}
+      ${deleteBtn}
+    </div>
+    ${ebResultHTML}
+    <div id="specCardContainer">${pred && pred.status === 'MODEL_DEFINITION_ERROR' ? '' : specHTML}</div>
+    <div style="margin:10px 0;font-size:.8rem;color:var(--muted);">
+      <strong>病害側ベクトル:</strong>
+      <div class="vector-bar">${diseaseVec.map(v => `<div class="vector-cell ${v?'on':'off'}">${v}</div>`).join('')}</div>
+      <strong>害虫側ベクトル:</strong>
+      <div class="vector-bar">${pestVec.map(v => `<div class="vector-cell ${v?'on':'off'}">${v}</div>`).join('')}</div>
+    </div>
+    ${rec ? `
+    <div style="margin:10px 0;font-size:.8rem;">
+      <strong>登録内容:</strong> ${rec.pests.join(', ')}
+      ${(rec.pesticideIds && rec.pesticideIds.length) ? `<br><strong>散布薬剤:</strong> ${rec.pesticideIds.map(id => (PESTICIDE_DB.find(p=>p.id===id)||{}).name).join('、')}` : ''}
+    </div>` : ''}
+  `;
+}
+
+// 自動処方箋RBP: 「今回の処方」承認カードのHTML生成
+function renderPrescriptionCard(vector) {
+  const safetyVector = buildSafetyVector(records, selectedDate);
+  const result = buildPrescriptionSet(vector, safetyVector);
+
+  if (!result.best) {
+    // 仕様決定RBPは薬剤（現実の物理的制約）を自動追加しない。原因別にアラートを分け、処理を中止する。
+    if (result.status === 'NO_PESTICIDE_DEFINED') {
+      const dimNames = (result.undefinedDims || []).map(i => DISEASES[i].name);
+      const detail = dimNames.length
+        ? `対象: ${dimNames.join('、')}`
+        : '要求された病害虫の組み合わせに対応する薬剤がありません';
+      return `
+        <div class="spec-result">
+          <h3>💊 今回の処方（Spec-RBP）</h3>
+          <p class="spec-badge danger" style="display:block;">⛔ 対応する薬剤が定義されていません（${detail}）</p>
+        </div>`;
+    }
+    if (result.status === 'ALL_BLOCKED_BY_CONSTRAINTS') {
+      const reasons = result.excludedIndividual.flatMap(e => e.exclusionReasons);
+      const reasonHTML = reasons.length
+        ? `<ul class="spec-candidate-list">${reasons.map(r => `<li class="spec-excluded-item"><div class="spec-reason">${r}</div></li>`).join('')}</ul>`
+        : '';
+      return `
+        <div class="spec-result">
+          <h3>💊 今回の処方（Spec-RBP）</h3>
+          <p class="spec-badge danger" style="display:block;">⛔ 制約により選択可能な薬剤がありません</p>
+          ${reasonHTML}
+        </div>`;
+    }
+    return `
+      <div class="spec-result">
+        <h3>💊 今回の処方（Spec-RBP）</h3>
+        <p style="color:var(--muted);font-size:.8rem;">候補薬剤がありません</p>
+      </div>`;
+  }
+
+  function renderSetLabel(set) {
+    return set.pesticides.map(p => p.name).join(' + ');
+  }
+
+  function renderDrugLine(p) {
+    const usageCount = safetyVector.usageState[p.id] || 0;
+    return `
+      <div class="prescription-drug-line">
+        <strong>${p.name}</strong> <span class="spec-system">${p.system}</span><br>
+        対象: ${p.targetNames.join('、')} / PHI:${p.phiDays}日 /
+        散布回数 ${usageCount}/${p.maxApplications === Infinity ? '無制限' : p.maxApplications}回 / ${p.toxicityClass}
+      </div>`;
+  }
+
+  function renderWarningBadges(set) {
+    return set.warnings.map(w => {
+      const cls = w.includes('劇物') ? 'danger' : (w.includes('抵抗性管理上有効') ? 'good' : 'warn');
+      return `<span class="spec-badge ${cls}">${w}</span>`;
+    }).join('');
+  }
+
+  const best = result.best;
+  const titleLabel = renderSetLabel(best);
+  const drugLines = best.pesticides.map(renderDrugLine).join('');
+  const badges = renderWarningBadges(best);
+  const approveIds = best.pesticides.map(p => `'${p.id}'`).join(',');
+
+  const breakdownHTML = `
+    <table class="prescription-breakdown">
+      <tr><td class="axis-label">Mirror-ID</td><td>${best.mirrorId.toFixed(4)}（要求ベクトルとのコサイン類似度）</td></tr>
+      <tr><td class="axis-label">効果</td><td>${best.matchCount}/${best.breakdown.effectiveness.targetSum}項目 一致（${(best.coverageRatio*100).toFixed(0)}%） = ${best.effectivenessScore.toFixed(1)}</td></tr>
+      <tr><td class="axis-label">安全性</td><td>${best.safetyScore.toFixed(1)}</td></tr>
+      <tr><td class="axis-label">抵抗性リスク</td><td>${best.resistanceScore.toFixed(1)}${best.breakdown.resistance.note ? '（' + best.breakdown.resistance.note + '）' : ''}</td></tr>
+      <tr><td class="axis-label">混合可否</td><td>適合（混用禁止組み合わせなし）</td></tr>
+      <tr class="total"><td class="axis-label">総合スコア</td><td>${best.totalScore.toFixed(1)}</td></tr>
+    </table>`;
+
+  const primaryCardHTML = `
+    <div class="prescription-card">
+      <div class="prescription-title">今回の処方: ${titleLabel}</div>
+      ${drugLines}
+      ${badges ? `<div class="spec-warnings">${badges}</div>` : ''}
+      ${breakdownHTML}
+      <button class="btn btn-primary btn-sm prescription-approve-btn" onclick="approvePrescription([${approveIds}])">✅ 承認して記録</button>
+    </div>`;
+
+  const alternativesHTML = result.alternatives.length
+    ? `<details class="spec-alternatives"><summary>他の処方案候補（${result.alternatives.length}件）</summary>
+        <ul class="spec-candidate-list">${result.alternatives.slice(0, 10).map(set => `
+          <li class="spec-altset-item">
+            <div class="spec-name">${renderSetLabel(set)}</div>
+            <div class="spec-meta">総合スコア ${set.totalScore.toFixed(1)}（効果${set.effectivenessScore.toFixed(1)} / 安全性${set.safetyScore.toFixed(1)} / 抵抗性${set.resistanceScore.toFixed(1)}）</div>
+          </li>`).join('')}</ul>
+      </details>`
+    : '';
+
+  const excludedAll = [...result.excludedIndividual, ...result.excludedSets];
+  const excludedHTML = excludedAll.length
+    ? `<details class="spec-excluded"><summary>除外された薬剤/組み合わせ（${excludedAll.length}件）</summary>
+        <ul class="spec-candidate-list">${excludedAll.map(e => `
+          <li class="spec-excluded-item">
+            <div class="spec-name">${e.pesticides.map(p => p.name).join(' + ')}</div>
+            <div class="spec-reason">${e.exclusionReasons.join('／')}</div>
+          </li>`).join('')}</ul>
+      </details>`
+    : '';
+
+  return `
+    <div class="spec-result">
+      <h3>💊 今回の処方（Spec-RBP）</h3>
+      ${primaryCardHTML}
+      ${alternativesHTML}
+      ${excludedHTML}
+    </div>`;
+}
+
+// 自動決定された処方セット（1剤 or 2剤）を一括承認し、防除暦・使用回数に反映する
+function approvePrescription(pesticideIds) {
+  if (!selectedDate || !records[selectedDate]) {
+    alert('先に病害虫選択を登録してください');
+    return;
+  }
+  const rec = records[selectedDate];
+  rec.pesticideIds = rec.pesticideIds || [];
+  pesticideIds.forEach(id => {
+    if (!rec.pesticideIds.includes(id)) rec.pesticideIds.push(id);
+  });
+  // Record spray event for history
+  const existingIdx = sprays.findIndex(s => s.date === selectedDate);
+  const sprayEntry = { date: selectedDate, ids: [...pesticideIds], pests: [...rec.pests] };
+  if (existingIdx >= 0) {
+    // Merge with existing spray on same date
+    sprayEntry.ids = [...new Set([...sprays[existingIdx].ids, ...pesticideIds])];
+    sprayEntry.pests = [...new Set([...sprays[existingIdx].pests, ...rec.pests])];
+    sprays[existingIdx] = sprayEntry;
+  } else {
+    sprays.push(sprayEntry);
+  }
+  sprays.sort((a, b) => a.date.localeCompare(b.date));
+  saveRecords();
+  renderCalendar();
+  renderDetail();
+}
+
+function saveRecord() {
+  if (!selectedDate) return;
+
+  const checkboxes = document.querySelectorAll('#tab-detail .pest-check input[type="checkbox"]:checked');
+  const pests = [];
+  const vector = new Array(10).fill(0);
+
+  checkboxes.forEach(cb => {
+    const idx = parseInt(cb.dataset.idx);
+    pests.push(DISEASES[idx].name);
+    vector[idx] = 1;
+  });
+
+  const existingPesticideIds = (records[selectedDate] && records[selectedDate].pesticideIds) || [];
+  records[selectedDate] = { pests, vector, pesticideIds: existingPesticideIds };
+  saveRecords();
+  renderCalendar();
+  renderDetail();
+}
+
+function deleteRecord() {
+  if (!selectedDate) return;
+  if (!confirm('この日の実績を削除しますか？')) return;
+  delete records[selectedDate];
+  saveRecords();
+  renderCalendar();
+  renderDetail();
+  renderSchedule();
+}
+
+// ═══════════════════════════════════════════
+// Schedule list
+// ═══════════════════════════════════════════
+function renderSchedule() {
+  const list = document.getElementById('scheduleList');
+  const keys = Object.keys(records).sort();
+
+  document.getElementById('statCount').textContent = keys.length;
+  document.getElementById('statPeriod').textContent = keys.length > 0
+    ? `${keys[0]} 〜 ${keys[keys.length-1]}`
+    : '—';
+
+  if (keys.length === 0) {
+    list.innerHTML = '<li style="padding:20px;text-align:center;color:var(--muted);">まだ実績がありません<br>カレンダーから日付を選んで登録してください</li>';
+    return;
+  }
+
+  list.innerHTML = keys.map(dateKey => {
+    const rec = records[dateKey];
+    const pred = classifyVector(rec.vector);
+    const ebLabel = pred.status === 'OK' ? `${pred.id}: ${pred.name}`
+      : pred.status === 'MODEL_DEFINITION_ERROR' ? '⛔ モデル定義エラー'
+      : '未分類';
+    const d = new Date(dateKey + 'T00:00:00');
+    const dateLabel = `${d.getMonth()+1}/${d.getDate()}`;
+
+    const pesticideNames = (rec.pesticideIds || [])
+      .map(id => (PESTICIDE_DB.find(p => p.id === id) || {}).name)
+      .filter(Boolean)
+      .join('、');
+
+    return `<li class="schedule-item">
+      <span class="s-date">${dateLabel}</span>
+      <div class="s-vector">
+        ${rec.vector.map(v => `<span class="s-dot ${v?'':'empty'}"></span>`).join('')}
+      </div>
+      <span class="s-eb">${ebLabel}${pesticideNames ? ` / 💊${pesticideNames}` : ''}</span>
+      <div class="s-actions">
+        <button class="btn btn-outline btn-sm" onclick="selectDate('${dateKey}');switchTab('detail')">編集</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteScheduleItem('${dateKey}')">×</button>
+      </div>
+    </li>`;
+  }).join('');
+}
+
+function deleteScheduleItem(dateKey) {
+  if (!confirm(`#${dateKey} の実績を削除しますか？`)) return;
+  delete records[dateKey];
+  // Also remove corresponding spray entry
+  const sprayIdx = sprays.findIndex(s => s.date === dateKey);
+  if (sprayIdx >= 0) sprays.splice(sprayIdx, 1);
+  saveRecords();
+  if (selectedDate === dateKey) {
+    selectedDate = null;
+    renderDetail();
+  }
+  renderCalendar();
+  renderSchedule();
+}
+
+// ═══════════════════════════════════════════
+// Spray History
+// ═══════════════════════════════════════════
+
+/**
+ * Compute how many days remain until PHI expires for a pesticide sprayed on `sprayDate`,
+ * evaluated as of `asOfDate`. Returns { elapsed, remaining, expired }.
+ */
+function computePhiStatus(sprayDate, phiDays, asOfDate) {
+  const sprayMs = new Date(sprayDate + 'T00:00:00').getTime();
+  const asOfMs = new Date(asOfDate + 'T00:00:00').getTime();
+  const elapsed = Math.max(0, Math.floor((asOfMs - sprayMs) / 86400000));
+  const remaining = Math.max(0, phiDays - elapsed);
+  return { elapsed, remaining, expired: remaining === 0 };
+}
+
+/**
+ * Count how many times each pesticide has been used within the rotation window
+ * (last 2 applications of the same system) as of `asOfDate`.
+ */
+function countRecentRotation(sprayDate, pesticide, allSprays, asOfDate) {
+  const sysCode = pesticide.systemCode;
+  if (sysCode === 'MIX' || sysCode === 'PHYSICAL') return { count: 0, warn: '', cls: '' };
+
+  // Collect all spray dates ≤ asOfDate that used the same system
+  const sameSystemDates = allSprays
+    .filter(s => s.date <= asOfDate)
+    .flatMap(s => s.ids.map(id => ({ id, date: s.date })))
+    .filter(entry => {
+      const p = PESTICIDE_DB.find(pp => pp.id === entry.id);
+      return p && p.systemCode === sysCode;
+    })
+    .map(e => e.date)
+    .sort();
+
+  // Count how many of those are within the last 2 applications of this system
+  const cutoffIndex = sameSystemDates.lastIndexOf(sprayDate);
+  const count = cutoffIndex >= 0 ? cutoffIndex + 1 : 1;
+
+  if (count >= 3) return { count, warn: 'ローテーション限界！', cls: 'danger' };
+  if (count >= 2) return { count, warn: '次回系統変更推奨', cls: 'warn' };
+  return { count, warn: '', cls: '' };
+}
+
+function renderSprayHistory() {
+  const container = document.getElementById('sprayHistoryContent');
+  const countEl = document.getElementById('sprayCount');
+  const periodEl = document.getElementById('sprayPeriod');
+
+  if (sprays.length === 0) {
+    countEl.textContent = '0';
+    periodEl.textContent = '—';
+    container.innerHTML = `
+      <p style="color:var(--muted);font-size:.85rem;text-align:center;padding:20px;">
+        散布実績がありません<br>
+        処方箋を承認すると記録されます
+      </p>`;
+    return;
+  }
+
+  const sorted = [...sprays].sort((a, b) => a.date.localeCompare(b.date));
+  countEl.textContent = sorted.length;
+  periodEl.textContent = `${sorted[0].date} 〜 ${sorted[sorted.length - 1].date}`;
+
+  const weekdays = ['日','月','火','水','木','金','土'];
+
+  let html = '<ul class="spray-history-list">';
+
+  sorted.forEach(spray => {
+    const d = new Date(spray.date + 'T00:00:00');
+    const dateLabel = `${d.getMonth()+1}/${d.getDate()}(${weekdays[d.getDay()]})`;
+
+    html += `<li class="spray-entry">
+      <div class="spray-entry-header">
+        <span class="spray-entry-date">${spray.date}</span>
+        <span class="spray-entry-weekday">${dateLabel}</span>
+      </div>`;
+
+    // Show each pesticide with PHI bar and rotation info
+    spray.ids.forEach(pid => {
+      const p = PESTICIDE_DB.find(pp => pp.id === pid);
+      if (!p) return;
+
+      const phi = computePhiStatus(spray.date, p.phiDays, spray.date);
+      const rot = countRecentRotation(spray.date, p, sorted, spray.date);
+
+      // PHI bar: show phiDays blocks
+      const phiBlocks = Array.from({ length: Math.min(p.phiDays, 14) }, (_, i) => {
+        const elapsedSinceSpray = i; // simplified: each block = 1 day
+        const cls = elapsedSinceSpray < phi.remaining ? 'passed' : 'active';
+        return `<span class="phiblock ${cls}" title="Day ${i+1}"></span>`;
+      }).join('');
+
+      html += `<div class="spray-drug-row">
+        <span class="spray-drug-name">${p.name}</span>
+        <span class="spray-drug-system">${p.system} · PHI${p.phiDays}日</span>
+        <span class="spray-phibar">${phiBlocks}<span class="spray-phibar-label">PHI</span></span>
+        ${rot.warn ? `<span class="spray-rot-tag ${rot.cls}">${rot.warn}(${rot.count}回目)</span>` : ''}
+      </div>`;
+    });
+
+    if (spray.pests && spray.pests.length) {
+      html += `<div class="spray-pests">対象: ${spray.pests.join(', ')}</div>`;
+    }
+
+    html += `</li>`;
+  });
+
+  html += '</ul>';
+  container.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════
+// Tabs
+// ═══════════════════════════════════════════
+function switchTab(tabName) {
+  document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+
+  const tabs = { detail: 0, schedule: 1, history: 2, import: 3 };
+  document.querySelectorAll('.panel-tab')[tabs[tabName]].classList.add('active');
+  document.getElementById('tab-' + tabName).classList.add('active');
+
+  if (tabName === 'schedule') renderSchedule();
+  if (tabName === 'history') renderSprayHistory();
+}
+
+// ═══════════════════════════════════════════
+// Import / Export
+// ═══════════════════════════════════════════
+function importData() {
+  const text = document.getElementById('importText').value.trim();
+  if (!text) { alert('データを入力してください'); return; }
+
+  const lines = text.split('\n').filter(l => l.trim());
+  let imported = 0;
+
+  lines.forEach(line => {
+    const parts = line.split(/[,，]/).map(s => s.trim());
+    if (parts.length < 2) return;
+
+    const dateStr = parts[0];
+    // Normalize date: if format is MM/DD, prepend year
+    let normalizedDate = dateStr;
+    if (/^\d{1,2}\/\d{1,2}$/.test(dateStr)) {
+      normalizedDate = `${currentYear}-${dateStr.replace('/', '-')}`;
+    }
+
+    const pests = parts.slice(1).filter(p => p);
+    const vector = new Array(10).fill(0);
+    pests.forEach(name => {
+      const found = DISEASES.find(d => d.name === name);
+      if (found) vector[found.id] = 1;
+    });
+
+    if (vector.some(v => v > 0)) {
+      records[normalizedDate] = { pests, vector };
+      imported++;
+    }
+  });
+
+  saveRecords();
+  renderCalendar();
+  alert(`${imported}件インポートしました`);
+  document.getElementById('importText').value = '';
+}
+
+function loadSampleData() {
+  document.getElementById('importText').value =
+`2025-02-21,灰色かび病,うどんこ病
+2025-02-29,灰色かび病
+2025-03-07,灰色かび病
+2025-03-22,炭疽病
+2025-03-27,灰色かび病
+2025-04-04,灰色かび病,うどんこ病
+2025-04-11,炭疽病,灰色かび病,うどんこ病
+2025-04-18,炭疽病,灰色かび病,うどんこ病
+2025-04-25,灰色かび病
+2025-05-02,炭疽病,うどんこ病
+2025-05-09,灰色かび病,うどんこ病
+2025-05-16,炭疽病
+2025-05-23,炭疽病,灰色かび病,うどんこ病
+2025-05-30,灰色かび病,うどんこ病
+2025-06-06,灰色かび病,うどんこ病
+2025-06-13,炭疽病,灰色かび病,うどんこ病
+2025-06-20,灰色かび病,うどんこ病
+2025-06-27,炭疽病,灰色かび病,うどんこ病
+2025-07-04,灰色かび病,うどんこ病
+2025-07-11,炭疽病,灰色かび病,うどんこ病
+2025-07-18,灰色かび病,うどんこ病
+2025-07-25,炭疽病,灰色かび病,うどんこ病
+2025-08-01,灰色かび病,うどんこ病
+2025-08-08,炭疽病,灰色かび病,うどんこ病
+2025-08-15,灰色かび病,うどんこ病
+2025-08-22,炭疽病,灰色かび病,うどんこ病
+2025-08-29,灰色かび病,うどんこ病
+2025-09-05,炭疽病,灰色かび病,うどんこ病
+2025-09-12,灰色かび病,うどんこ病
+2025-09-19,炭疽病,灰色かび病,うどんこ病
+2025-09-26,灰色かび病,うどんこ病
+2025-10-03,炭疽病,灰色かび病,うどんこ病
+2025-10-10,灰色かび病,うどんこ病
+2025-10-17,炭疽病,灰色かび病,うどんこ病
+2025-10-24,灰色かび病,うどんこ病
+2025-11-04,炭疽病,灰色かび病,うどんこ病`;
+  alert('サンプルデータを読み込みました。「インポート」ボタンを押すと登録されます');
+}
+
+function exportCSV() {
+  const keys = Object.keys(records).sort();
+  if (keys.length === 0) { alert('登録データがありません'); return; }
+
+  let csv = 'Date,Diseases,Pests,Vector,EB_Predicted,EB_Name\n';
+  keys.forEach(dateKey => {
+    const rec = records[dateKey];
+    const pred = classifyVector(rec.vector);
+    const ebId = pred.status === 'OK' ? pred.id : pred.status;
+    const ebName = pred.status === 'OK' ? pred.name : '';
+    const diseases = rec.pests.filter(p => DISEASES.find(d => d.name === p && d.type === 'disease')).join(';');
+    const pests = rec.pests.filter(p => DISEASES.find(d => d.name === p && d.type === 'pest')).join(';');
+    csv += `${dateKey},"${diseases}","${pests}",[${rec.vector.join(',')}]},${ebId},${ebName}\n`;
+  });
+
+  downloadFile(csv, `schedule_${currentYear}.csv`, 'text/csv');
+}
+
+function exportJSON() {
+  const json = JSON.stringify(records, null, 2);
+  downloadFile(json, `schedule_${currentYear}.json`, 'application/json');
+}
+
+function importJSON(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      records = data;
+      saveRecords();
+      renderCalendar();
+      alert(`${Object.keys(data).length}件のデータをインポートしました`);
+    } catch(err) {
+      alert('JSONパースエラー: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function downloadFile(content, filename, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function clearAllRecords() {
+  if (!confirm('すべての実績データを削除しますか？')) return;
+  records = {};
+  saveRecords();
+  selectedDate = null;
+  renderCalendar();
+  renderDetail();
+  renderSchedule();
+}
+
+// ═══════════════════════════════════════════
+// Theme Toggle (Light / Dark)
+// ═══════════════════════════════════════════
+(function initTheme() {
+  // Check localStorage first, then system preference
+  const saved = localStorage.getItem('rbp_theme');
+  if (saved === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark');
+  } else if (saved === 'light') {
+    document.documentElement.setAttribute('data-theme', 'light');
+  }
+  // Otherwise respects system pref via CSS media query
+})();
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme');
+  if (current === 'dark') {
+    document.documentElement.removeAttribute('data-theme');
+    localStorage.setItem('rbp_theme', 'light');
+  } else {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    localStorage.setItem('rbp_theme', 'dark');
+  }
+}
+
+// ═══════════════════════════════════════════
+// Mobile: Slide-up side panel
+// ═══════════════════════════════════════════
+(function initMobilePanel() {
+  const isMobile = () => window.innerWidth <= 768;
+
+  function openSidePanel() {
+    if (isMobile()) {
+      document.querySelector('.side-panel')?.classList.add('open');
+    }
+  }
+  function closeSidePanel() {
+    if (isMobile()) {
+      document.querySelector('.side-panel')?.classList.remove('open');
+    }
+  }
+
+  // Tap calendar panel to open/close side panel on mobile
+  document.querySelector('.calendar-panel')?.addEventListener('click', () => {
+    if (isMobile()) {
+      document.querySelector('.side-panel')?.classList.toggle('open');
+    }
+  });
+
+  // Swipe down to dismiss on mobile
+  let touchStartY = 0;
+  document.querySelector('.side-panel')?.addEventListener('touchstart', (e) => {
+    touchStartY = e.touches[0].clientY;
+  }, { passive: true });
+  document.querySelector('.side-panel')?.addEventListener('touchmove', (e) => {
+    const dy = e.touches[0].clientY - touchStartY;
+    if (dy > 80) closeSidePanel();
+  }, { passive: true });
+})();
+
+// ═══════════════════════════════════════════
+// Service Worker Registration (PWA)
+// ═══════════════════════════════════════════
+let deferredPrompt = null;
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then((reg) => {
+        console.log('Service Worker 登録完了:', reg.scope);
+      })
+      .catch((err) => console.warn('SW登録失敗:', err));
+  });
+}
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+});
+
+function handleInstallClick() {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then((result) => {
+      deferredPrompt = null;
+      if (result.outcome === 'accepted') {
+        alert('ホーム画面に追加されました！');
+      }
+    });
+    return;
+  }
+  showInstallGuideModal();
+}
+
+function showInstallGuideModal() {
+  const existing = document.getElementById('install-guide-modal');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'install-guide-modal';
+  overlay.style.cssText = `
+    position: fixed; inset: 0; z-index: 99999;
+    background: rgba(0,0,0,.7);
+    display: flex; align-items: center; justify-content: center;
+    font-family: "Hiragino Sans", "Meiryo", sans-serif;
+    animation: fadeIn .2s ease;
+  `;
+
+  const isMobile = window.innerWidth <= 768;
+  const steps = isMobile
+    ? [
+        'Chromeの右上「<b>≡</b>」メニューを開く',
+        '「<b>ホーム画面に追加</b>」または「<b>アプリとしてインストール</b>」をタップ',
+        '「追加」をタップ → ホーム画面にアイコンが追加される',
+      ]
+    : [
+        'このページのURLを<b>ブックマーク</b>に追加（Ctrl+D）',
+        'ブックマークバーに表示させる',
+        '（※ HTTP環境ではChromeのインストールメニューが表示されない場合があります）',
+        '（※ HTTPS化すると「アプリ」メニューから直接インストールできるようになります）',
+      ];
+
+  overlay.innerHTML = `
+    <div style="
+      background: #1e1e2e; color: #e0e0e0; border-radius: 12px;
+      padding: 24px; max-width: 420px; width: 90%;
+      box-shadow: 0 8px 32px rgba(0,0,0,.5);
+      border: 1px solid #5cb87a;
+    ">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h2 style="margin:0;font-size:1.1rem;color:#5cb87a;">🌿 アプリについて</h2>
+        <button id="closeInstallGuide" style="
+          background:transparent;color:#888;border:none;font-size:1.3rem;cursor:pointer;padding:4px 8px;
+        ">✕</button>
+      </div>
+      <p style="font-size:.85rem;line-height:1.8;">
+        このアプリはPWA（ウェブアプリ）として設計されていますが、<br>
+        <b style="color:#e74c3c;">現在HTTPで動作しているため</b>、<br>
+        ブラウザのインストールメニューは表示されません。<br><br>
+        <b style="color:#5cb87a;">Edgeの場合の対処法：</b><br>
+        1. 右上「<b>…</b>」メニューを開く<br>
+        2. 「<b>アプリ</b>」→「<b>このサイトのようにアプリケーションをインストール</b>」<br>
+        3. 「インストール」をクリック<br><br>
+        <b style="color:#5cb87a;">Chromeの場合：</b><br>
+        ・このページのURLをブックマークに追加（Ctrl+D）<br>
+        ・ブックマークバーに表示させて素早くアクセス<br><br>
+        <span style="color:#aaa;font-size:.8rem;">※ HTTPS化すると、どちらのブラウザも<br>ワンクリックでインストールできるようになります</span>
+      </p>
+      <div style="margin-top:16px;text-align:right;">
+        <button id="gotItBtn" style="
+          background:#5cb87a;color:white;border:none;border-radius:6px;
+          padding:8px 24px;font-weight:bold;cursor:pointer;font-size:.9rem;
+        ">わかった</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  overlay.querySelector('#closeInstallGuide').addEventListener('click', () => overlay.remove());
+  overlay.querySelector('#gotItBtn').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+}
+
+const styleSheet = document.createElement('style');
+styleSheet.textContent = `@keyframes fadeIn{from{opacity:0}to{opacity:1}}`;
+document.head.appendChild(styleSheet);
+</script>
+</body>
+</html>

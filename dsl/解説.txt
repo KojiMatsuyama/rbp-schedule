@@ -1,0 +1,183 @@
+◆ dsl/ — 境界言語DSL→RBP行列 導出コンパイラ 解説
+────────────────────────────────────────
+本書は、dsl/配下に実装したコンパイラが「何を」「なぜ」「どうやって」行っているかを
+説明するものである。使い方だけを知りたい場合は同ディレクトリの
+マニュアル.txt を参照。文法の正式な定義は境界言語BNF.txt（リポジトリ直下）を参照。
+
+
+◆ 1. 位置づけ：このコンパイラは何を解決するか
+
+これまでのセッションで、STBの薬剤処方RBPロジックを「境界言語」という設計思想として
+言語化し（解説.txt／解説２.txt）、その文法を境界言語BNF.txtとしてBNF/EBNFで
+正式化した。境界言語DSLのソースコードは、STBの判断ロジックにおける
+「唯一の真実（single source of truth）」として書ける——という位置づけである。
+
+このDSLソースから実際に判断で使われる2つの行列を機械的に導出するのが
+本コンパイラの役割である：
+
+  要求評価RBP行列（BridgeMatrix）
+    ＝ data/eval_boxes.js の EB_VECTORS / EB_MATRIX / EB_NAMES に相当
+
+  仕様決定RBP行列（SpecBridgeMatrix）
+    ＝ rbp/spec_matching.js の TARGET_MATRIX
+      （data/pesticides.js の PESTICIDE_DB の targetVector部分）に相当
+
+現状これらは data/eval_boxes.js・data/pesticides.js に手書きされているが、
+本コンパイラは「その手書きデータが、境界言語DSLソースから機械的に
+導出可能である」ことを実証するものである（生成物で自動的に本体を
+置き換えることはしない。dsl/output/ 配下は diff比較用の参考物）。
+
+
+◆ 2. スコープ：やること／やらないこと
+
+境界言語BNF.txtは5つの<Boundary>（Demand/Bridge/SpecBridge/Reflect/Spec）を
+定義しているが、本コンパイラが構造化して解析するのは前半3つ＋Domain宣言のみ：
+
+  実装する:  Domain-Declaration, Demand-Boundary, Bridge-Boundary, SpecBridge-Boundary
+  読み飛ばす: Reflect-Boundary, Spec-Boundary
+             （Weight-Rule／Condition／Mirror-ID-Rule／Score-Ruleなどの
+               実行エンジン化は行わない。今回の要求は
+              「2つの行列を導出する」ことに限定されているため）
+
+読み飛ばす、と言っても「無視して壊れる」のではなく、構文的に正しくトークン化し、
+中括弧の対応を数えて安全にスキップする（3章で詳述）。したがって
+Reflect-Boundary/Spec-Boundaryを含む完全なDSLプログラム（境界言語BNF.txt §10の
+サンプルのような）を渡してもエラーにはならない。
+
+
+◆ 3. パイプライン全体の流れ
+
+  DSLソース(.txt)
+    │
+    ▼ dsl/lexer.js（tokenize）
+  トークン列
+    │
+    ▼ dsl/parser.js（parseProgram）
+  AST { domain, demand, bridge, specBridge }
+    │
+    ▼ dsl/validate.js（validate）
+  静的制約違反のリスト（0件なら次へ進む）
+    │
+    ▼ dsl/derive_matrices.js（deriveAll）
+  { bridgeMatrix, specBridgeMatrix }
+    │
+    ▼ dsl/codegen.js（genEvalBoxesJs / genPesticidesJs）
+  JSソース文字列
+    │
+    ▼ dsl/compile.js（CLI）
+  dsl/output/*.generated.js への書き出し
+
+
+◆ 4. 各ファイルの役割
+
+【dsl/lexer.js】
+DSLソース文字列をトークン列（IDENT/NUMBER/STRING/PUNCT/EOF）に変換する。
+識別子はハイフン・漢字仮名カタカナを継続文字として許すため、
+"BOX-22" "Line-3" "SPEC-BRIDGE-TARGET" や "灰色かび病" のような
+ハイフン付き識別子・日本語識別子も1トークンとして扱える。
+文字列リテラルと (* ... *) コメントは、内部に { や } を含んでいても
+レクサ段階で単一トークン（またはコメントとして完全除去）になるため、
+後段のパーサが中括弧の対応をトークン単位で数える際に混乱しない。
+
+【dsl/errors.js】
+DslError（S1_DIMENSION_MISMATCH等のコード付き、framework/mirror.jsの
+MODEL_DEFINITION_ERROR命名にならう）と、それをまとめて保持する
+DslValidationErrorを定義する。
+
+【dsl/parser.js】
+再帰下降パーサ。Domain-Declaration→Demand-Boundary→Bridge-Boundary→
+SpecBridge-Boundaryの順に構造化されたASTを組み立てる。
+
+  重要な設計判断：BOX-Def/Line-Defの"BOX-"/"Line-"は、境界言語BNF.txtの
+  文法上は独立した終端記号だが、字句規則（identifierはハイフンを継続文字と
+  して許す）と組み合わせると"BOX-22""Line-3"は実際には1個のIDENTトークンに
+  なる。パーサはこれを逆手に取り、/^BOX-(.+)$/や/^Line-(\d+)$/という
+  正規表現でIDENTトークンからid/index部分を取り出す、という現実的な方式を
+  取っている。
+
+  Reflect-Boundary/Spec-Boundaryは、キーワードと境界の識別子だけを読んだ後
+  skipBalancedBlock()で本体を丸ごと読み飛ばす。これにより、Weight-Rule内の
+  if/then/else・比較演算子・penalty={...}のようなネストしたオブジェクトを
+  一切解釈せずに済む。ネストの安全性は「文字列とコメントは既にトークン化
+  済みなので、日本語の説明文中の{や}を中括弧としてカウントすることはない」
+  という前提の上に成り立っている。
+
+【dsl/validate.js】
+境界言語BNF.txt §8の静的制約を検査する：
+  S1_DIMENSION_MISMATCH        … Domain.dimensions ≠ Demand-BoundaryのLine-Def数
+  S2_LINE_REF_OUT_OF_RANGE     … BOX-Defの参照が[0,dimensions)外
+  S3_TARGET_REF_OUT_OF_RANGE   … Candidate-Defのtargets参照が[0,dimensions)外
+  DUPLICATE_BOX_ID             … 同一BOX-Idの重複定義
+  DUPLICATE_CANDIDATE_ID       … 同一Candidate-Idの重複定義
+
+framework/rbp_core.jsのisUniformWeight検査やframework/mirror.jsの
+MODEL_DEFINITION_ERRORと同じ哲学（暗黙の補正をせず、原因を名指しして
+明示的に停止する）を踏襲しつつ、コンパイル時の一括診断という性質上
+「最初の1件で止める」のではなく「見つかった全違反をまとめて返す」方式を
+採用している（開発者が1回の実行で全ての問題を把握できるようにするため）。
+
+【dsl/derive_matrices.js】
+ASTから2つの行列を導出する。既存コードの導出方式をそのまま踏襲する：
+  BridgeMatrix:     EB_MATRIX = Object.values(EB_VECTORS)  と同じ（data/eval_boxes.js）
+  SpecBridgeMatrix: TARGET_MATRIX = PESTICIDE_DB.map(p => p.targetVector) と同じ
+                    （rbp/spec_matching.js）
+導出前に必ずvalidate()を呼び、違反があればDslValidationErrorを投げて
+行列を作らない（不正なASTから行列を生成しない）。
+
+【dsl/codegen.js】
+導出済みデータ構造から、data/eval_boxes.js・data/pesticides.jsと同形式の
+JSソース文字列を生成する（純粋な文字列生成のみ、ファイルI/Oはしない）。
+定数名（EB_VECTORS/EB_MATRIX/EB_NAMES、PESTICIDE_DB/TARGET_MATRIX）を
+実ファイルと意図的に揃え、module.exportsも付けていない——これは
+生成物を data/配下の実ファイルとdiffして意味のある比較をするためであり、
+<script>読み込み前提の非モジュールグローバルスクリプトという
+このリポジトリの既存の流儀にも合わせている。
+
+【dsl/compile.js】
+CLIエントリポイント。ファイル読み込み→parseProgram→deriveAll→codegen→
+書き出し、という一連の処理をつなぐ。検証エラーは全件stderrに出力し
+exit 1、ファイルは書き出さない。
+
+
+◆ 5. なぜこの設計にしたか（設計判断の理由）
+
+(1) Reflect-Boundary/Spec-Boundaryを実装せずスキップする理由
+    境界言語BNF.txtが定義するWeight-Rule/Condition/Score-Exprは、
+    実行時のBRIDGE水路（framework/rbp_core.jsのrunLineThroughBridges）を
+    DSLから記述するための文法であり、「行列を導出する」という
+    今回のタスクには不要。将来これを実装する場合も、今回のパーサが
+    確立した「トークンレベルの中括弧平衡スキップ」を「実際にAST化する」
+    処理に置き換えるだけで済むよう、既に構造を分離してある。
+
+(2) 検証エラーを1件ずつではなく一括収集する理由
+    rbp_core.jsのisUniformWeight検査は実行時ホットパスの防御であり
+    「最初の異常で即停止」が正しいが、DSLコンパイルは開発者が
+    ソースを直すためのバッチ処理であり、1回の実行で全ての問題を
+    知れる方が開発体験として優れる。
+
+(3) BOX-Id/Candidate-Idの重複を許さない理由
+    framework/mirror.jsのmatchExactBoxが「同一ベクトルの複数BOX登録」を
+    MODEL_DEFINITION_ERRORとして扱う設計と一貫させるため、
+    DSLソースの記述段階でも同一IDの重複定義を許さない。
+
+(4) 生成物にmodule.exportsを付けない理由
+    このリポジトリのframework/data/rbp配下は<script>タグ前提の
+    非モジュールグローバルスクリプトであり、DSLコンパイラの生成物も
+    その形式に合わせることで、手書きの実ファイルと構造的に
+    diffできる（「DSLから生成した行列と手書きの行列が本当に一致するか」を
+    人間が目で確認できることを重視した）。
+
+
+◆ 6. テストとの対応
+
+tests/test_dsl_lexer.js     … トークナイザの正常系・エッジケース・エラー系
+tests/test_dsl_parser.js    … AST形状、Reflect/Spec読み飛ばしの健全性
+tests/test_dsl_validate.js  … 4つの異常系サンプルがそれぞれ意図した1種類の
+                              違反のみを検出すること
+tests/test_dsl_derive.js    … 導出結果が実データ（EB_VECTORS/EB_NAMES/
+                              PESTICIDE_DB）と数値一致すること
+                              （tests/load_app.jsのvmローダーを再利用）
+tests/test_dsl_codegen.js   … 生成JSをvmで再ロードし、導出結果と
+                              構造一致すること（往復テスト）
+
+`node tests/run_all.js` で他の既存テストと合わせて一括実行される。

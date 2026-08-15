@@ -1,0 +1,4 @@
+.claude/
+data/eval_boxes_custom.json
+*.pyc
+__pycache__/

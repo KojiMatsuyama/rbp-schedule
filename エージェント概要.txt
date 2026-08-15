@@ -1,0 +1,300 @@
+
+
+---
+
+# ◆ **RBP構築エージェント概要（DSL準拠・正式再整理版）**
+
+---
+
+## 1. **目的（Purpose）**
+
+```
+このエージェントは、ReflectBlockPattern（RBP）を用いて
+ビジネスロジックを if-then を使わずに構築する。
+
+RBPは、判断をロジックではなく「構造」として表現するため、
+ENTRY（イベント）、EVAL_BOX（要求の意味構造）、
+SPEC_BOX（仕様の意味構造）、BRIDGE（構造処理）、
+Mirror-ID（意味距離）、BoundaryLanguage（写像）、
+LINE（ENTRY→評価BOXの経路）を用いて判断構造を生成する。
+
+これらを DSL と行列計算で扱い、
+BRIDGE のレベル・方向・接続構造を自動調整することで
+汎用ロジック生成器を構築する。
+```
+
+---
+
+## 2. **構造モデル（Structure Model）**
+
+RBPは以下の構造単位で構成される：
+
+```
+ENTRY        … イベント（要求の発火点）
+EVAL_BOX     … 要求の意味構造（DemandBlock）
+SPEC_BOX     … 仕様の意味構造（SpecBlock）
+BRIDGE       … BOX間の構造処理（レベル＋方向）
+LINE         … ENTRY→EVAL_BOX の意味流経路（BRIDGEの並び）
+MIRROR_ID    … EVAL ↔ SPEC の意味距離
+BOUNDARY_LANG … 要求×仕様の写像（不可逆）
+```
+
+判断は if/else ではなく、  
+**BOX・BRIDGE・LINE・Mirror-ID の構造で表現される。**
+
+---
+
+## 3. **ENTRY DSL**
+
+```
+ENTRY {
+  id: <event-id>
+  date: <date>
+}
+```
+
+---
+
+## 4. **評価BOX（EVAL_BOX）DSL**
+
+```
+EVAL_BOX {
+  id: <eval-id>
+  diseases: [ ... ]        // 病害虫セット
+  vector: [0/1,...]        // 行列化（病害虫次元）
+}
+```
+
+---
+
+## 5. **選択BOX（SPEC_BOX）DSL**
+
+```
+SPEC_BOX {
+  id: <spec-id>
+  agents: [ ... ]          // 薬剤セット
+  frac_codes: [ ... ]
+  irac_codes: [ ... ]
+  vector: [ ... ]          // 行列化（FRAC/IRAC）
+}
+```
+
+---
+
+## 6. **BRIDGE DSL（構造処理：レベル＋方向）**
+
+```
+BRIDGE {
+  id: <bridge-id>
+  level: <integer>         // 構造処理の階層（意味流の段階）
+  direction: forward       // 逆止弁により forward のみ
+  from: <BOX-id>
+  to: <BOX-id>
+  order: <sequence-number> // 時系列（levelとは別）
+}
+```
+
+### 行列化（非対称隣接行列）
+
+```
+A[i][j] = 1   // i → j に流れる
+A[j][i] = 0   // 逆止弁により逆流禁止
+```
+
+---
+
+## 7. **LINE DSL（ENTRY→評価BOXの経路）**
+
+```
+LINE {
+  id: <line-id>
+  entry: <ENTRY-id>
+  eval: <EVAL_BOX-id>
+
+  path: [
+    {
+      bridge_id: <BRIDGE-id>,
+      from: <BOX-id>,
+      to: <BOX-id>,
+      level: <integer>,
+      direction: forward
+    },
+    ...
+  ]
+}
+```
+
+### LINEの役割  
+- ENTRY → 評価BOX の到達経路を一意に識別  
+- 経路上の BRIDGE のレベル・方向を保持  
+- 評価BOXが孤立しないことを保証  
+- RBPの判断構造を「経路」として表現  
+
+---
+
+## 8. **Mirror-ID DSL（意味距離）**
+
+```
+MIRROR_ID {
+  eval: <eval-id>
+  spec: <spec-id>
+  distance: <float>
+}
+```
+
+---
+
+## 9. **要求判定RBP DSL（Demand-Judgement RBP）**
+
+```
+DemandRBP {
+  entry: <ENTRY-id>
+  eval: <EVAL_BOX-id>
+
+  bridge_path: [
+    {
+      level: <integer>,
+      direction: forward,
+      from: <EVAL_BOX-id>,
+      to: <EVAL_BOX-id>
+    },
+    ...
+  ]
+
+  mirror_candidates: [
+    <SPEC_BOX-id>,
+    ...
+  ]
+
+  mirror_distances: {
+    <SPEC_BOX-id>: <float>,
+    ...
+  }
+}
+```
+
+---
+
+## 10. **仕様決定RBP DSL（Spec-Decision RBP）**
+
+```
+SpecRBP {
+  entry: <EVAL_BOX-id>
+
+  bridge: [
+    {
+      level: <integer>,
+      direction: forward,
+      from: <EVAL_BOX-id>,
+      to: <EVAL_BOX-id>
+    },
+    ...
+  ]
+
+  spec_candidates: [
+    <SPEC_BOX-id>,
+    ...
+  ]
+
+  mirror_distances: {
+    <SPEC_BOX-id>: <float>,
+    ...
+  }
+
+  selected_spec: <SPEC_BOX-id>
+
+  selected_action: {
+    agents: [ ... ],
+    frac_codes: [ ... ],
+    irac_codes: [ ... ]
+  }
+
+  rationale: <text>
+}
+```
+
+---
+
+## 11. **BRIDGE有無の条件**
+
+```
+if count(EVAL_BOX) == count(SPEC_BOX):
+    mapping_type = direct
+else:
+    mapping_type = bridge
+```
+
+---
+
+## 12. **境界言語 DSL（BoundaryLanguage）**
+
+```
+BoundaryLanguage {
+  eval_box: <EVAL_BOX-id>
+  eval_vector: [ ... ]
+
+  spec_candidates: [
+    <SPEC_BOX-id>,
+    ...
+  ]
+
+  spec_vectors: {
+    <SPEC_BOX-id>: [ ... ],
+    ...
+  }
+
+  mirror_distances: {
+    <SPEC_BOX-id>: <float>,
+    ...
+  }
+
+  selected_spec: <SPEC_BOX-id>
+
+  mapping_type: <direct|bridge>
+  rationale: <text>
+}
+```
+
+---
+
+## 13. **RBP_OUT DSL（要求判定＋仕様決定＋ライン）**
+
+```
+RBP_OUT {
+  entry: <ENTRY-id>
+  eval: <EVAL_BOX-id>
+
+  line: <LINE-id>          // ENTRY→評価BOXの経路
+
+  bridge_path: [
+    {level: 1, from: Set6, to: Set2},
+    {level: 2, from: Set2, to: Set18},
+    ...
+  ]
+
+  spec: <SPEC_BOX-id>
+  mirror_distance: <float>
+  action: <selected-spec-or-behavior>
+}
+```
+
+---
+
+## 14. **制約（Constraint）**
+
+### ◎ 全評価BOXは必ずどこかのENTRYから到達可能である
+
+```
+Constraint EvalReachability {
+  for each EvalBOX e:
+      exists LINE l such that l.eval == e
+}
+```
+
+---
+
+# ◆ **これが、DSL.txt に完全準拠しつつ、  
+あなたの追加した LINE／到達可能性制約を統合した  
+RBP構築エージェントの正式な概要です。**
+
+---

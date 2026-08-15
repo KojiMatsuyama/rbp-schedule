@@ -1,0 +1,101 @@
+====================================================================
+STB アプリ（schedule_app.html）起動手順 — AI向けノウハウ
+====================================================================
+最終更新: 2026-08-15
+対象環境: DGXサーバー上のコンテナ（dgx-1v100 / Ubuntu / Node v12.22.9 / Python 3.10）
+
+
+■ 結論（これだけ実行すればよい）
+--------------------------------------------------------------------
+リポジトリ直下の server.py を実行する（ヒアドキュメントでの使い捨て生成はもう不要）：
+
+  setsid nohup python3 /home/ko_matsuyama/app/STB/server.py > /tmp/stb_server.log 2>&1 < /dev/null &
+  disown
+
+server.py は起動.txt がこれまで記載していたヒアドキュメント版と同じ
+IP・ポート・バインド・キャッシュ無効化・ThreadingHTTPServer必須の要件を満たした上で、
+POST /api/eval-boxes（要求評価RBPが自動登録した新規EVAL_BOXの永続化）を追加している。
+data/eval_boxes_custom.json に書き込まれ、次回起動時にブラウザが自動で読み込む。
+
+起動確認：
+  ss -tlnp | grep :9999
+  timeout 5 curl -s -o /dev/null -w "%{http_code}\n" http://192.168.131.161:9999/schedule_app.html
+  → 200 が返ればOK
+
+ユーザーにブラウザで開いてもらうURL：
+
+  http://192.168.131.161:9999/schedule_app.html
+
+
+■ なぜこのIP・この方法なのか（ハマりポイントの記録）
+--------------------------------------------------------------------
+1. IPアドレスは「192.168.131.161」一択
+   - このコンテナ（ホスト名 dgx-1v100）には複数のIPがある：
+       vlan.505: 192.168.120.1   ← ユーザーPCから到達不可（別VLAN、タイムアウトする）
+       vlan.511: 192.168.131.161 ← デフォルトゲートウェイ側。ユーザーPCから到達可能なのはこれだけ
+   - `hostname -I` の先頭は 192.168.120.1 を返すので騙されないこと。
+   - 確認コマンド: ip addr show vlan.511 | grep inet
+
+2. 「localhost」やVS Codeのポート転送（PORTSパネル）は使えない
+   - VS Code の Auto Forward / User Forward は転送が確立せず、
+     localhost:XXXX ではユーザーのブラウザから開けなかった（実績あり）。
+   - コンテナIP直打ちが確実。
+
+3. バインドは必ず 0.0.0.0
+   - `python3 -m http.server PORT` のデフォルトや 127.0.0.1 バインドでは
+     外部（ユーザーPC）から接続できない。
+
+4. ThreadingHTTPServer 必須（単一スレッド版は事故る）
+   - 過去に HTTPServer（単一スレッド, backlog=5）で起動したところ、
+     途切れた接続がキューに残って詰まり、以後の全接続が
+     ERR_CONNECTION_TIMED_OUT になった（ss で `LISTEN 6 5` = キュー溢れを確認）。
+   - ThreadingHTTPServer なら1接続が固まっても他を処理できる。
+
+5. ポートは 9999 を使う（空きポート事情）
+   - 3000, 8888, 8090 等は他プロセスが使用中のことが多い。
+   - 事前確認: ss -tlnp | grep :9999
+   - もし 9999 も使用中なら、既存のSTBサーバーの可能性が高い。
+     プロセス確認: ps aux | grep stb_server
+     生きていればそのまま使えばよい（再起動不要）。
+
+6. バックグラウンド起動は setsid + nohup + disown で行う
+   - AIツールの run_in_background 機能ではプロセスがすぐ死ぬことがあった。
+   - 上記の組み合わせならセッションから切り離されて永続する。
+
+7. 古い詰まったサーバーが残っていたら殺してから起動する
+   - ss -tlnp | grep :9999 でPIDを確認し、kill -9 <PID>
+
+8. server.py はリポジトリ直下に固定ファイルとして置く（/tmpへの使い捨て生成はしない）
+   - 以前は毎回ヒアドキュメントで /tmp/stb_server.py を生成していたが、
+     POST /api/eval-boxes 対応のためロジックが増えたので固定ファイル化した。
+   - コード修正時は server.py を直接編集し、サーバーを再起動すれば反映される
+     （kill -9 <PID> → 上記の起動コマンドを再実行）。
+
+
+■ サーバー不要の動作確認（CLI）
+--------------------------------------------------------------------
+ロジックの動作確認だけならブラウザ不要。テストを実行する：
+
+  cd /home/ko_matsuyama/app/STB
+  node tests/run_all.js
+
+  → 「全テストファイルが成功しました」（55件）が出ればコアロジックは正常。
+
+
+■ アプリ構成メモ
+--------------------------------------------------------------------
+- schedule_app.html はビルドツールなしの静的HTML。
+  framework/*.js → data/*.js → rbp/eval_box_registry.js → rbp/*.js を
+  <script src> で順次読み込む（非モジュールのグローバルスクリプト）。
+- 要求評価RBP（病害虫の組み合わせ判定）は完全一致方式。既存のEVAL_BOXと一致しない
+  病害虫パターンが入力されると、その場で新しいEVAL_BOXとして自動登録し、
+  POST /api/eval-boxes 経由で data/eval_boxes_custom.json へ永続化される
+  （全ユーザー・全端末で共有。次回アクセス時に自動読込）。
+  一方、仕様決定RBP（薬剤選定）は薬剤を自動追加しない
+  （薬剤は実在する商品という物理的制約のため）。全滅時は原因別にアラートを出し処理を中止する：
+    - NO_PESTICIDE_DEFINED: 対象病害虫に対応する薬剤がPESTICIDE_DBに定義されていない
+    - ALL_BLOCKED_BY_CONSTRAINTS: 薬剤は存在するが使用回数上限・混用禁止等で全滅
+- HTTP経由が確実（file://直開きは fetch('data/eval_boxes_custom.json') がCORSで失敗する）。
+- サーバーログ: /tmp/stb_server.log
+- サーバー本体: /home/ko_matsuyama/app/STB/server.py（静的配信 + POST /api/eval-boxes）
+====================================================================

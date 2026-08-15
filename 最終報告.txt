@@ -1,0 +1,171 @@
+Phase 5: 最終報告
+====================================
+RBP（Reflect Block Pattern）薬剤仕様決定システム
+手続き的コードの行列演算化リファクタリング
+
+
+1. 実施概要
+====================================
+
+対象: rbp/ ディレクトリ配下の薬剤仕様決定ロジック（SPEC-RBP）
+目的: if/else連鎖・for文ループ・手続き的な集合操作を、意味の明確な行列・ベクトル演算
+      （Hadamard積、内積、事前構築した制約行列の参照）に置き換える。
+方針: 「候補全体への一括操作」は行列演算化し、「個別の業務判断」は
+      意味のある変数名を持つIF/THENとして維持し、コメントで意図を明記する。
+
+前提として、Phase 1の診断で以下が判明した：
+  - rbp/spec_matching.js の matchCandidates / scoreCandidate / rankPrescriptions /
+    buildSpecBox は、schedule_app.html の renderSpecBox からのみ呼ばれるが、
+    その renderSpecBox 自体がどこからも呼ばれていない完全なデッドコードだった。
+  - 実際にライブで使われているのは rbp/prescription.js の
+    buildPrescriptionSet 系統（SPEC_BRIDGE通水方式）のみ。
+
+このため、当初想定していた「二重実装の統合」ではなく「デッドコードの削除」＋
+「ライブパスの行列演算化」という形で修正を実施した。
+
+
+2. 変更したファイルと内容
+====================================
+
+■ rbp/spec_matching.js
+  削除: matchCandidates, scoreCandidate, rankPrescriptions, buildSpecBox
+        （デッドコード。呼び出し元なし）
+  維持: classifyVector（EBの表示専用ライブコード。処方決定にはフィードバックしない）
+  書き換え: hasMixingConflict
+    - Before: 呼び出しの都度 .find() + .some() で文字列包含判定
+    - After:  起動時に一度だけ MIXING_CONFLICT_MATRIX（67×67の0/1行列）を構築し、
+              以降は行列参照 MIXING_CONFLICT_MATRIX[i][j] === 1 で判定
+    - シグネチャは不変のため、呼び出し元（prescription.js, spec_bridges.js）は無修正
+
+■ rbp/prescription.js
+  scorePrescriptionSet:
+    - Before: for文2本（safety軸・resistance軸）でスコアに直接加算していく手続き
+    - After:  各薬剤のBRIDGE通過履歴からペナルティイベントを .flatMap() で収集し、
+              ペナルティベクトル（penaltyVector）を構築 → .reduce() で総和を取る
+              集約演算に変更
+    - 2剤セットの異系統ボーナス判定（同一系統か、単剤で代替可能な冗長組み合わせか）は
+      意図的にIF/THENのまま維持。意味のある変数名（isSameSystemCombo,
+      isRedundantWithSoloAlternative）を与え、コメントで「なぜ行列演算に
+      押し込めないのか」を明記した。
+  buildPrescriptionSet:
+    - flowing.length===0 の場合に、旧来の {best:null} という曖昧な表現ではなく、
+      明示的な status:'NO_CANDIDATES' を返すよう変更
+    - 正常終了時は status:'SUCCESS' を返す
+    - 実装中に、到達不能な分岐（scored配列が空になり得るかのようなALL_SETS_BLOCKED
+      状態）が紛れ込んでいたことに気づき、削除した
+      （SPEC-BRIDGE-MIXING-SETは2剤セット限定のゲートのため、flowing.length>0
+        である限り単剤セットは必ずvalidSetsに残り、scoredが空になることはない）
+
+■ rbp/spec_bridges.js
+  各BRIDGEの weight_vector_fn 内で繰り返されていた ebVector.map(() => 定数) を、
+  fullPass(dim) / fullBlock(dim) / attenuate(dim, factor) という名前付きヘルパーに置換。
+  三項演算子側の条件式（散布回数上限か、PHI残日数が不足か等の業務判断そのもの）は
+  IF/THENとして残し、変数名を意味のあるもの（usageLimitReached, phiNotYetSatisfied,
+  sameSystemOveruse, conflictsWithLastSpray, isHighlyToxic,
+  isPairWithInternalMixingConflict）に変更した。
+
+■ framework/rbp_core.js
+  runLineThroughBridges内の const w = weight[0]（「各BRIDGEは一様重みベクトルを
+  返す」という無検証の前提）に、weight.every(x => x === weight[0]) の検証を追加。
+  破られていれば、原因のBRIDGE IDと実際の値を含めたエラーメッセージとともに
+  例外をthrowする（暗黙の0/false変換ではなく、モデル定義そのものの誤りとして扱う）。
+
+■ rbp/safety.js
+  computeRotationStateを、firstIterationフラグ＋Setミューテーションによる
+  手続き的な状態遷移から、reduceベースの「直近から遡って連続出現する回数
+  （run-length）」計算に書き換えた。
+
+■ schedule_app.html
+  呼び出し元のなくなった renderSpecBox（旧・候補選択UI）と、
+  そこからのみ呼ばれていた addPesticideToRecord を削除した。
+
+
+3. 検証方法と結果
+====================================
+
+このアプリはビルドツールなしの静的HTML/JSサイトで、framework/・data/・rbp/は
+<script src>読み込み前提の非モジュールグローバルスクリプト。そのためNodeのvm
+モジュールで schedule_app.html と同一の読み込み順を再現するハーネスを構築し、
+以下の2段階で検証した。
+
+(1) 修正前後の全体挙動比較（振る舞い保存の確認）
+    5種類の代表的な需要ベクトル（単独病害、複合病害虫、空ベクトル等）×
+    2種類の安全状態（記録なし／使用履歴あり）で buildPrescriptionSet を実行し、
+    最終処方・スコア・除外件数が完全一致することを確認。
+    また hasMixingConflict について、全67×67ペアの判定結果が新旧で
+    完全一致することを確認。
+    → 全て一致（差分なし）
+
+(2) computeRotationState の詳細エッジケース比較
+    単純連続・途中脱落・複数系統同時進行・記録なし・1件のみ・lookback超過・
+    脱落後の別系統再出現、の7パターンで新旧実装を直接比較。
+    → 全て一致
+
+いずれの検証でも、リファクタリングによる挙動の変化は確認されなかった
+（status フィールドの追加という「新しい情報の追加」を除く）。
+
+
+4. Phase 4: 追加した自動テスト
+====================================
+
+tests/ ディレクトリに、外部依存のない自作の最小テストランナー
+（tests/tiny_test.js）と、schedule_app.htmlと同じ読み込み順で
+グローバルスクリプトをロードするハーネス（tests/load_app.js）を用意し、
+以下5ファイル・合計36件のテストを作成した。全て成功。
+
+  tests/test_data_integrity.js   (6件) — 次元整合性（正常系）
+    DISEASESの次元数、全67薬剤・全22EVAL_BOXのベクトル次元一致、
+    薬剤ID一意性など、行列演算の前提となる不変条件を検証。
+
+  tests/test_mixing_matrix.js    (6件) — hasMixingConflict行列化
+    既知の混用禁止ペアの対称性（正常系）、未知ID・自己参照（エッジケース）、
+    MIXING_CONFLICT_MATRIXの次元・値域検証。
+
+  tests/test_rbp_core.js         (8件) — runLineThroughBridges
+    通過・遮断・減衰の中間ベクトル検証（正常系）、非一様重みベクトルでの
+    MODEL_DEFINITION_ERROR、direction/level制約違反（エッジケース）。
+
+  tests/test_safety.js           (8件) — computeRotationState等
+    連続run長計算の正常系・脱落パターン・lookback超過・当日除外などの
+    エッジケース。
+
+  tests/test_prescription.js     (8件) — buildPrescriptionSet統合テスト
+    正常系（単独要求・複合要求・使用回数上限による除外）、
+    エッジケース（空ベクトルでのNO_CANDIDATES）、
+    中間ベクトル検証（PHI減衰によるsafetyScore低下、
+    同一系統2剤の抵抗性ノート）。
+
+実行方法: node tests/run_all.js （個別ファイルは node tests/test_*.js でも可）
+
+
+5. 未対応・今後の検討事項
+====================================
+
+- data/pesticides.js の全67薬剤について、targetVector以外のプロパティ
+  （phiDays, maxApplications等）の型・値域検証テストまでは追加していない。
+  Phase 1診断の「暗黙の前提」指摘のうち、rbp_core.jsの一様重み検証は対応したが、
+  データそのものの入力検証（DSLコンパイル時の厳密なスキーマ検証）は
+  今回のスコア外。
+- Phase 2で設計した「監査ログ（AuditEntry）」の完全な実装（inputVector,
+  matchedBoxVector等を含む構造化ログ）は、既存の bridgeTrace で代替可能な
+  範囲にとどめ、新規のログ機構としては実装していない。ユーザーが監査ログ機能を
+  必要とする場合は、別途スコープを切って対応する必要がある。
+- rbp/spec_matching.js の classifyVector（EB表示専用の分類系統）は、
+  処方決定パイプラインとは独立したまま残している。これは意図的な設計判断
+  （表示とロジックの責任分離）であり、統合は不要と判断した。
+
+
+6. まとめ
+====================================
+
+- 削除したデッドコード: 4関数（matchCandidates, scoreCandidate,
+  rankPrescriptions, buildSpecBox）+ HTML側の2関数（renderSpecBox,
+  addPesticideToRecord）
+- 行列演算化した箇所: hasMixingConflict（67×67制約行列）、
+  scorePrescriptionSetのペナルティ集計（ベクトル構築→総和）
+- 明示化した箇所: SPEC_BRIDGESの重みベクトル生成（fullPass/fullBlock/attenuate）、
+  IF/THEN分岐の変数名
+- 追加した安全機構: weight_vector_fnの一様性検証（MODEL_DEFINITION_ERROR）、
+  buildPrescriptionSetのstatus明示化
+- 全ての変更は既存の挙動を完全に保存（振る舞い保存のリファクタリング）
+- 追加テスト: 5ファイル・36件、全て成功
