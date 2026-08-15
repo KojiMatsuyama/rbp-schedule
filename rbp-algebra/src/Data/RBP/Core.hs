@@ -106,7 +106,7 @@ runLineThroughBridges initialFlow bridges ctx =
     step (FlowResult flow state trace) bridge =
       let (EV rawFlow) = flow
           bw = uniformWeight weightAction (vectorDim flow)
-          wVec = U.replicate (vectorDim rawFlow) (fromIntegral bw)
+          wVec = U.replicate (U.length rawFlow) (bridgeWeightValue bw)
           newRaw = hadamard rawFlow wVec
           newFlow = EV newRaw
           blocked = isZeroVector newRaw && isFlowing state
@@ -116,7 +116,7 @@ runLineThroughBridges initialFlow bridges ctx =
             , btLevel      = bLevel bridge
             , btWeight     = bw
             , btPassed     = not (isZeroVector newRaw)
-            , btAttenuated = not (isZeroVector newRaw) && bw < 1.0
+            , btAttenuated = not (isZeroVector newRaw) && bridgeWeightValue bw < 1.0
             }
 
           newState = case (state, blocked) of

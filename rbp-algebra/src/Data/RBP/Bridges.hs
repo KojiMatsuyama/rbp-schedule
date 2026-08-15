@@ -237,10 +237,12 @@ hasMixingConflict :: Pesticide -> Pesticide -> Bool
 hasMixingConflict a b =
   let aBans = mixingBanTargets a
       bBans = mixingBanTargets b
-  in any (\t -> b.system `mentions` t || b.pname `mentions` t) aBans ||
-     any (\t -> a.system `mentions` t || a.pname `mentions` t) bBans
-  where
-    mentions haystack needle = needle `elem` haystack || needle `isInfixOf` haystack
+      bSys = system b
+      bNm = pname b
+      aSys = system a
+      aNm = pname a
+  in (any (\t -> bSys == t || t `isInfixOf` bSys || bNm == t || t `isInfixOf` bNm) aBans) ||
+     (any (\t -> aSys == t || t `isInfixOf` aSys || aNm == t || t `isInfixOf` aNm) bBans)
 
 {-|
 Check if a set of pesticides has internal mixing conflicts.

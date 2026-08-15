@@ -8,8 +8,11 @@
 # 全ユーザー・全端末で共有するため、data/eval_boxes_custom.jsonへ永続化する。
 # ID・名称・ベクトルの計算ロジックはすべてJS側（rbp/eval_box_registry.js）が単一の情報源で、
 # このエンドポイントは検証つきの「追記のみ」を行う（薬剤側=仕様決定RBPは自動追加しない）。
+import glob
 import json
 import os
+import subprocess
+import sys
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -17,6 +20,55 @@ os.chdir(APP_ROOT)
 
 CUSTOM_EVAL_BOXES_PATH = os.path.join(APP_ROOT, 'data', 'eval_boxes_custom.json')
 VECTOR_DIM = 10
+
+# --- POST /api/prescribe: RBPエンジン切替（python / haskell） ---
+# フロントのラジオボタン（index.html）から entryVector を受け取り、
+# サーバー側PoCエンジンで処方セットを計算して返す。
+# どちらもサンプル13剤DB・簡略スコアのPoCで、JS版と結果が異なる場合がある。
+PY_ENGINE_DIR = os.path.join(APP_ROOT, 'rbp-algebra-python')
+_py_engine = None  # lazy-load cache
+
+
+def run_python_engine(entry_vector):
+    global _py_engine
+    if _py_engine is None:
+        sys.path.insert(0, PY_ENGINE_DIR)
+        import api as _py_engine_mod
+        _py_engine = _py_engine_mod
+    return _py_engine.prescribe(entry_vector)
+
+
+def find_haskell_bin():
+    # dist-newstyle-user（一般ユーザーでのビルド先）を優先し、次にdist-newstyle。
+    # 古いバイナリ（--prescribe未対応）を誤って掴まないよう、更新が新しい方を選ぶ。
+    hits = []
+    for build_root in ('dist-newstyle-user', 'dist-newstyle'):
+        pattern = os.path.join(
+            APP_ROOT, 'rbp-algebra', build_root, 'build', '*', '*',
+            'rbp-algebra-*', 'x', 'rbp-algebra', 'build', 'rbp-algebra', 'rbp-algebra')
+        hits.extend(glob.glob(pattern))
+    if not hits:
+        return None
+    return max(hits, key=os.path.getmtime)
+
+
+def run_haskell_engine(entry_vector):
+    bin_path = find_haskell_bin()
+    if bin_path is None:
+        return {'error': 'Haskellバイナリが見つかりません（rbp-algebra/ で cabal build が必要）'}
+    csv = ','.join(str(v) for v in entry_vector)
+    try:
+        proc = subprocess.run(
+            [bin_path, '--prescribe', csv],
+            capture_output=True, text=True, timeout=30)
+    except subprocess.TimeoutExpired:
+        return {'error': 'Haskellエンジンがタイムアウトしました'}
+    if proc.returncode != 0:
+        return {'error': f'Haskellエンジンが異常終了しました: {proc.stderr[:500]}'}
+    try:
+        return json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        return {'error': f'HaskellエンジンのJSON出力を解析できません: {proc.stdout[:200]}'}
 
 
 def load_custom_eval_boxes():
@@ -47,7 +99,7 @@ class Handler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_POST(self):
-        if self.path != '/api/eval-boxes':
+        if self.path not in ('/api/eval-boxes', '/api/prescribe'):
             self._send_json(404, {'error': 'not found'})
             return
 
@@ -57,6 +109,10 @@ class Handler(SimpleHTTPRequestHandler):
             body = json.loads(raw.decode('utf-8')) if raw else {}
         except (ValueError, json.JSONDecodeError):
             self._send_json(400, {'error': 'invalid JSON body'})
+            return
+
+        if self.path == '/api/prescribe':
+            self._handle_prescribe(body)
             return
 
         box_id = body.get('id')
@@ -82,6 +138,30 @@ class Handler(SimpleHTTPRequestHandler):
         custom[box_id] = {'name': name, 'vector': vector}
         save_custom_eval_boxes(custom)
         self._send_json(200, {'status': 'OK', 'id': box_id, 'name': name})
+
+    def _handle_prescribe(self, body):
+        engine = body.get('engine')
+        entry_vector = body.get('entryVector')
+
+        if engine not in ('python', 'haskell'):
+            self._send_json(400, {'error': "engine must be 'python' or 'haskell'"})
+            return
+        if (not isinstance(entry_vector, list) or len(entry_vector) != VECTOR_DIM
+                or any(v not in (0, 1) for v in entry_vector)):
+            self._send_json(400, {'error': f'entryVector must be a {VECTOR_DIM}-length array of 0/1'})
+            return
+
+        try:
+            if engine == 'python':
+                result = run_python_engine(entry_vector)
+            else:
+                result = run_haskell_engine(entry_vector)
+        except Exception as e:  # PoCエンジン内部の想定外エラーはサーバーを落とさず500で返す
+            self._send_json(500, {'error': f'{engine} engine error: {e}'})
+            return
+
+        status = 500 if isinstance(result, dict) and result.get('error') else 200
+        self._send_json(status, result)
 
 
 def main():

@@ -26,23 +26,24 @@ module Data.RBP.Types
   ( -- * Disease/Pest dimensions
     DiseaseIndex (..)
     -- * Entry Vector (Demand Layer)
-  , EntryVector
+  , EntryVector (EV)
   , mkEntryVector
   , isEntryActive
     -- * Evaluation Boxes (Bridge Layer)
   , EvalBoxId (..)
-  , EvalBox
+  , EvalBox (..)
   , mkEvalBox
     -- * Pesticides (SpecBridge Layer)
   , ToxicityClass (..)
   , RotationCategory (..)
-  , Pesticide
+  , Pesticide (..)
   , PesticideId (..)
-  , TargetMatch
+  , TargetMatch (TM)
     -- * Bridge Weights (Reflect Layer primitives)
   , WeightAction (..)
-  , BridgeWeight
+  , BridgeWeight (..)
   , uniformWeight
+  , bridgeWeightValue
     -- * Bridge (Reflect Layer gates)
   , BridgeId (..)
   , Bridge (..)
@@ -66,6 +67,10 @@ module Data.RBP.Types
   , ForwardOnly (..)
   , hadamard
   , isZeroVector
+  , dotProductInt
+  , evToIntVector
+  , evToDouble
+  , countActive
   ) where
 
 import qualified Data.Map.Strict as Map
@@ -212,6 +217,9 @@ data WeightAction
 -- the entire line, not individual dimensions.
 newtype BridgeWeight = BW Double
   deriving newtype (Show, Eq, Ord)
+
+bridgeWeightValue :: BridgeWeight -> Double
+bridgeWeightValue (BW w) = w
 
 uniformWeight :: WeightAction -> Int -> BridgeWeight
 uniformWeight action dim = BW $ case action of
@@ -394,6 +402,10 @@ isZeroVector = U.all (== 0)
 -- | Hadamard product (element-wise multiplication).
 hadamard :: U.Vector Int -> U.Vector Double -> U.Vector Int
 hadamard a w = U.map (\(x, w') -> round (fromIntegral x * w')) (U.zip a w)
+
+-- | Convert EntryVector to int vector for computation.
+evToIntVector :: EntryVector -> U.Vector Int
+evToIntVector (EV v) = v
 
 -- | Convert EntryVector to double vector for computation.
 evToDouble :: EntryVector -> U.Vector Double

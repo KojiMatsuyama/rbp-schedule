@@ -26,9 +26,12 @@ import Data.RBP.Types
 import Data.RBP.Core (runLineThroughBridges)
 import Data.RBP.Bridges (specBridges, hasMixingConflict, setHasInternalMixingConflict)
 import qualified Data.Map.Strict as Map
-import Data.List (sortBy, nub)
+import Data.List (sortBy, nub, intercalate)
 import Data.Ord (Down (..), comparing)
 import qualified Data.Vector.Unboxed as U
+import System.Environment (getArgs)
+import System.IO (hSetEncoding, stdout, utf8)
+import Text.Read (readMaybe)
 
 ------------------------------------------------------------------------------
 -- Helper: unsafe from list (safe because we control the literals)
@@ -143,25 +146,25 @@ computeUnionCoverage pesticides ev =
   let dim = vectorDim ev
       indices = [0 .. dim - 1]
       unionVec = U.fromList
-        [ if any (\p -> U.index (targetVector p) i > 0) pesticides then 1 else 0
+        [ if any (\p -> evToIntVector (targetVector p) U.! i > 0) pesticides then 1 else 0
         | i <- indices ]
   in EV unionVec
 
 scorePrescriptionSet :: [Pesticide] -> EntryVector -> Double
 scorePrescriptionSet pesticides ev =
   let unionVec = computeUnionCoverage pesticides ev
-      matchCount = fromIntegral $ dotProductInt (evToUV unionVec) (evToUV ev)
+      matchCount = fromIntegral $ dotProductInt (evToIntVector unionVec) (evToIntVector ev)
       targetSum  = fromIntegral $ countActive ev
       coverageRatio = if targetSum > 0 then matchCount / fromIntegral targetSum else 0
-      mirrorId = cosineSimilarity (evToUV unionVec) (evToUV ev)
+      mirrorId = cosineSimilarity (evToIntVector unionVec) (evToIntVector ev)
       effectiveness = mirrorId * 10 + coverageRatio * 5
       safetyBase = 20.0
       resistanceBase = 15.0
       total = effectiveness + safetyBase + resistanceBase
   in total
   where
-    evToUV :: EntryVector -> U.Vector Int
-    evToUV (EV v) = v
+    evToIntVector :: EntryVector -> U.Vector Int
+    evToIntVector (EV v) = v
 
 ------------------------------------------------------------------------------
 -- Pretty printing
@@ -198,16 +201,117 @@ padRight n s = s ++ take (n - length s) (repeat ' ')
 
 main :: IO ()
 main = do
-  putStrLn $ "+`" ++ replicate 70 "-´"
+  hSetEncoding stdout utf8
+  args <- getArgs
+  case args of
+    -- JSONモード: server.py の POST /api/prescribe (engine=haskell) から呼ばれる。
+    -- 例: rbp-algebra --prescribe 0,1,1,1,0,1,0,0,0,0
+    ["--prescribe", csv] ->
+      case mkEntryVector (parseCsvInts csv) of
+        Just v  -> putStrLn (prescribeJson v)
+        Nothing -> putStrLn (jObj [("error", jStr "entryVector must be 10 comma-separated 0/1 values")])
+    _ -> runDemo
+
+------------------------------------------------------------------------------
+-- JSON API mode (--prescribe)
+-- aesonは依存に含めない方針（base/vector/containersのみ）のため手組みで出力する。
+-- 薬剤DBはサンプル13剤・スコアは簡略版で、Python PoC（api.py）と同一仕様。
+------------------------------------------------------------------------------
+
+jsonEscape :: String -> String
+jsonEscape = concatMap esc
+  where
+    esc '"'  = "\\\""
+    esc '\\' = "\\\\"
+    esc '\n' = "\\n"
+    esc '\r' = "\\r"
+    esc '\t' = "\\t"
+    esc c    = [c]
+
+jStr :: String -> String
+jStr s = "\"" ++ jsonEscape s ++ "\""
+
+jObj :: [(String, String)] -> String
+jObj kvs = "{" ++ intercalate "," [ jStr k ++ ":" ++ v | (k, v) <- kvs ] ++ "}"
+
+jArr :: [String] -> String
+jArr xs = "[" ++ intercalate "," xs ++ "]"
+
+parseCsvInts :: String -> [Int]
+parseCsvInts s =
+  let ws = words (map (\c -> if c == ',' then ' ' else c) s)
+  in [ n | w <- ws, Just n <- [readMaybe w] ]
+
+prescribeJson :: EntryVector -> String
+prescribeJson entryV =
+  let pesticides = samplePesticides
+      mkCtx p = emptySafetyCtx
+        { bcPesticide   = p
+        , bcEntryVector = entryV
+        , bcTargetMatch = TM (countOverlap (targetVector p) entryV)
+        }
+      lineResults = [ (p, runLineThroughBridges entryV specBridges (mkCtx p)) | p <- pesticides ]
+      flowing = [ p | (p, fr) <- lineResults, not (isBlocked (frState fr)) ]
+      pairSets = [ [a, b] | (i, a) <- zip [(0 :: Int) ..] flowing, b <- drop (i + 1) flowing ]
+      candidates = map (: []) flowing ++ pairSets
+      validSets = filter (not . setHasInternalMixingConflict) candidates
+      scored = sortBy (comparing (Down . snd))
+                 [ (s, scorePrescriptionSet s entryV) | s <- validSets ]
+      ebJson = case matchEvalBox entryV sampleEvalBoxes of
+        Right Nothing    -> jObj [("status", jStr "UNDEFINED"), ("detail", "null")]
+        Right (Just eid) -> jObj [("status", jStr "MATCH"), ("detail", jStr (pretty eid))]
+        Left err         -> jObj [("status", jStr "ERROR"), ("detail", jStr err)]
+      setJson (s, score) =
+        let unionVec = computeUnionCoverage s entryV
+            toIV (EV v) = v
+            matchCount = dotProductInt (toIV unionVec) (toIV entryV)
+            targetSum = countActive entryV
+            coverage = if targetSum > 0
+                         then fromIntegral matchCount / fromIntegral targetSum
+                         else 0 :: Double
+            mirrorId = cosineSimilarity (toIV unionVec) (toIV entryV)
+        in jObj
+             [ ("pesticides", jArr [ jObj [ ("id", jStr (pretty (pid p)))
+                                          , ("name", jStr (pname p))
+                                          , ("system", jStr (system p)) ]
+                                   | p <- s ])
+             , ("matchCount", show matchCount)
+             , ("coverageRatio", show coverage)
+             , ("mirrorId", show mirrorId)
+             , ("totalScore", show score)
+             ]
+      (statusStr, bestJson, altsJson)
+        | null flowing = ("NO_PESTICIDE_DEFINED", "null", jArr [])
+        | null scored  = ("ALL_BLOCKED_BY_CONSTRAINTS", "null", jArr [])
+        | otherwise    = ( "SUCCESS"
+                         , setJson (head scored)
+                         , jArr (map setJson (take 10 (drop 1 scored))) )
+  in jObj
+       [ ("engine", jStr "haskell")
+       , ("sampleDb", "true")
+       , ("pesticideCount", show (length pesticides))
+       , ("evalBox", ebJson)
+       , ("status", jStr statusStr)
+       , ("best", bestJson)
+       , ("alternatives", altsJson)
+       ]
+
+------------------------------------------------------------------------------
+-- Demo mode (default, no arguments)
+------------------------------------------------------------------------------
+
+runDemo :: IO ()
+runDemo = do
+  putStrLn $ "+`" ++ concat (replicate 70 "-´")
   putStrLn "|  RBP ALGEBRAIC ENGINE — Haskell Proof of Concept"
   putStrLn "|  Procedural if/else → Algebraic type pattern matching"
-  putStrLn $ "+`" ++ replicate 70 "-´"
+  putStrLn $ "+`" ++ concat (replicate 70 "-´")
 
   -- ===== LAYER 1: DEMAND =====
   section "LAYER 1: DEMAND — EntryVector Generation"
   putStrLn "  Scenario (EB-23): Gray Mold + Powdery Mildew +"
   putStrLn "  Spider Mite + Tobacco Budworm simultaneously active"
-  putStrLn $ "  Vector: " ++ show (U.toList (evToUV exampleEntryVector))
+  putStrLn $ "  Vector: " ++ show (U.toList (evToIntVector exampleEntryVector))
   putStrLn $ "  Active dimensions: " ++ show (countActive exampleEntryVector)
 
   -- ===== LAYER 2: BRIDGE =====
@@ -235,11 +339,11 @@ main = do
   putStrLn "  (Clean slate: no usage history, no PHI constraints)"
   putStrLn ""
 
-  let demoPests = [P15, Larry, Ablame, Afirm]
-      P15 = samplePesticides !! 1
-      Larry = samplePesticides !! 3
-      Ablame = samplePesticides !! 11
-      Afirm = samplePesticides !! 8
+  let p15 = samplePesticides !! 1
+      larry = samplePesticides !! 3
+      ablame = samplePesticides !! 11
+      afirm = samplePesticides !! 8
+      demoPests = [p15, larry, ablame, afirm]
   mapM_ (\p -> do
     let tm = TM $ countOverlap (targetVector p) exampleEntryVector
         ctx = emptySafetyCtx { bcPesticide = p, bcTargetMatch = tm }
@@ -300,6 +404,3 @@ main = do
 ------------------------------------------------------------------------------
 -- Helpers
 ------------------------------------------------------------------------------
-
-evToUV :: EntryVector -> U.Vector Int
-evToUV (EV v) = v

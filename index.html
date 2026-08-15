@@ -426,8 +426,123 @@ function renderDetail() {
   `;
 }
 
-// 自動処方箋RBP: 「今回の処方」承認カードのHTML生成
+// ── RBPエンジン切替（案A: 3択ラジオボタン） ──
+// js: ブラウザ内で即計算（本番ロジック・全67剤DB）
+// python / haskell: server.py の POST /api/prescribe 経由でサーバー側PoCエンジンを呼ぶ
+// （PoCはサンプル13剤DB・簡略スコアのため、JS版と結果が異なる場合がある）
+let rbpEngine = localStorage.getItem('rbpEngine') || 'js';
+let rbpEngineRequestSeq = 0; // 古いfetch応答で新しい表示を上書きしないためのトークン
+
+function setRbpEngine(engine) {
+  rbpEngine = engine;
+  localStorage.setItem('rbpEngine', engine);
+  renderDetail();
+}
+
+function renderEngineSelector() {
+  const opts = [
+    ['js', 'JavaScript'],
+    ['python', 'Python'],
+    ['haskell', 'Haskell'],
+  ];
+  const radios = opts.map(([v, label]) => `
+    <label style="margin-right:10px;cursor:pointer;">
+      <input type="radio" name="rbpEngine" value="${v}" ${rbpEngine === v ? 'checked' : ''}
+        onchange="setRbpEngine('${v}')"> ${label}</label>`).join('');
+  return `
+    <div style="margin:8px 0 4px;font-size:.78rem;color:var(--muted);">
+      ⚙ RBPエンジン: ${radios}
+    </div>`;
+}
+
+// サーバーPoCエンジン（python/haskell）の結果カードHTML
+function renderServerEngineResult(data) {
+  const engineLabel = data.engine === 'haskell' ? 'Haskell' : 'Python';
+  const ebHTML = data.evalBox
+    ? `<div style="font-size:.78rem;margin-bottom:6px;">EVAL_BOX判定: ${
+        data.evalBox.status === 'MATCH' ? `🎯 ${data.evalBox.detail}`
+        : data.evalBox.status === 'UNDEFINED' ? '🆕 未定義（新規境界）'
+        : `⛔ ${data.evalBox.detail}`}</div>`
+    : '';
+
+  if (data.status !== 'SUCCESS' || !data.best) {
+    const msg = data.status === 'NO_PESTICIDE_DEFINED'
+      ? '対応する薬剤がサンプルDBに定義されていません'
+      : data.status === 'ALL_BLOCKED_BY_CONSTRAINTS'
+        ? '制約により選択可能な薬剤がありません'
+        : `結果なし（${data.status}）`;
+    return `${ebHTML}<p class="spec-badge warn" style="display:block;">⚠ ${msg}</p>
+      <p style="font-size:.72rem;color:var(--muted);">※ ${engineLabel} PoCエンジン（サンプル${data.pesticideCount}剤DB）による判定</p>`;
+  }
+
+  function setLine(set) {
+    return `${set.pesticides.map(p => p.name).join(' + ')}
+      <span style="color:var(--muted);">（Mirror-ID ${set.mirrorId.toFixed(4)} / カバー率 ${(set.coverageRatio * 100).toFixed(0)}% / スコア ${set.totalScore.toFixed(1)}）</span>`;
+  }
+
+  const altsHTML = (data.alternatives || []).length
+    ? `<details class="spec-alternatives"><summary>他の処方案候補（${data.alternatives.length}件）</summary>
+        <ul class="spec-candidate-list">${data.alternatives.map(s => `
+          <li class="spec-altset-item"><div class="spec-name">${setLine(s)}</div></li>`).join('')}</ul>
+      </details>`
+    : '';
+
+  return `
+    ${ebHTML}
+    <div class="prescription-card">
+      <div class="prescription-title">今回の処方: ${data.best.pesticides.map(p => p.name).join(' + ')}</div>
+      <div style="font-size:.8rem;margin:4px 0;">${data.best.pesticides.map(p => `<strong>${p.name}</strong> <span class="spec-system">${p.system}</span>`).join('<br>')}</div>
+      <table class="prescription-breakdown">
+        <tr><td class="axis-label">Mirror-ID</td><td>${data.best.mirrorId.toFixed(4)}（要求ベクトルとのコサイン類似度）</td></tr>
+        <tr><td class="axis-label">効果</td><td>${data.best.matchCount}項目 一致（${(data.best.coverageRatio * 100).toFixed(0)}%）</td></tr>
+        <tr class="total"><td class="axis-label">総合スコア</td><td>${data.best.totalScore.toFixed(1)}</td></tr>
+      </table>
+    </div>
+    ${altsHTML}
+    <p style="font-size:.72rem;color:var(--muted);margin-top:6px;">
+      ※ ${engineLabel} PoCエンジン（サンプル${data.pesticideCount}剤DB・簡略スコア）のため、JavaScript版と結果が異なる場合があります。承認して記録する場合はJavaScriptエンジンをご利用ください。</p>`;
+}
+
+// サーバーPoCエンジンへ処方計算を依頼し、#serverEngineResult を書き換える
+async function fetchServerPrescription(vector) {
+  const seq = ++rbpEngineRequestSeq;
+  const el = () => document.getElementById('serverEngineResult');
+  try {
+    const res = await fetch('/api/prescribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ engine: rbpEngine, entryVector: vector }),
+    });
+    const data = await res.json();
+    if (seq !== rbpEngineRequestSeq || !el()) return; // 古い応答は破棄
+    if (!res.ok || data.error) {
+      el().innerHTML = `<p class="spec-badge danger" style="display:block;">⛔ ${data.error || 'サーバーエラー'}</p>`;
+      return;
+    }
+    el().innerHTML = renderServerEngineResult(data);
+  } catch (e) {
+    if (seq !== rbpEngineRequestSeq || !el()) return;
+    el().innerHTML = `<p class="spec-badge danger" style="display:block;">⛔ サーバーに接続できません（server.py の起動が必要です）</p>`;
+  }
+}
+
+// 自動処方箋RBP: エンジン選択に応じてJS即時計算 or サーバーPoC計算に振り分ける
 function renderPrescriptionCard(vector) {
+  const selector = renderEngineSelector();
+  if (rbpEngine !== 'js') {
+    const engineLabel = rbpEngine === 'haskell' ? 'Haskell' : 'Python';
+    setTimeout(() => fetchServerPrescription(vector), 0);
+    return `${selector}
+      <div class="spec-result">
+        <h3>💊 今回の処方（Spec-RBP / ${engineLabel}エンジン）</h3>
+        <div id="serverEngineResult">⏳ サーバーで計算中…</div>
+      </div>`;
+  }
+  return selector + renderPrescriptionCardJS(vector);
+}
+
+// JavaScriptエンジン（従来実装）: 「今回の処方」承認カードのHTML生成
+function renderPrescriptionCardJS(vector) {
   const safetyVector = buildSafetyVector(records, selectedDate);
   const result = buildPrescriptionSet(vector, safetyVector);
 
