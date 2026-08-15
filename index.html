@@ -146,14 +146,76 @@ async function loadCustomEvalBoxes() {
   }
 }
 
-// Load from localStorage
+// ── Server-sync helpers ──────────────────────────────────────
+const API_BASE = '/api';
+
+async function fetchRecordsFromServer() {
+  try {
+    const res = await fetch(API_BASE + '/records');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    return json.success ? json.data : [];
+  } catch(e) {
+    console.warn('サーバーからの記録取得に失敗:', e);
+    return null; // null = fallback to localStorage
+  }
+}
+
+async function saveRecordToServer(date, pests, vector) {
+  try {
+    await fetch(API_BASE + '/records', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date, pests, vector }),
+    });
+  } catch(e) {
+    console.warn('サーバー保存に失敗:', e);
+  }
+}
+
+async function deleteRecordFromServer(date) {
+  try {
+    await fetch(API_BASE + '/records?date=' + encodeURIComponent(date), { method: 'DELETE' });
+  } catch(e) {
+    console.warn('サーバー削除に失敗:', e);
+  }
+}
+
+async function syncAllRecordsToServer() {
+  // Save every record to server (upsert)
+  const dates = Object.keys(records);
+  for (const date of dates) {
+    await saveRecordToServer(date, records[date].pests, records[date].vector);
+  }
+}
+
+// Load from localStorage + server
 (async function init() {
   try {
-    const saved = localStorage.getItem('rbp_schedule_records');
-    if (saved) records = JSON.parse(saved);
+    // Try server first, fall back to localStorage
+    const serverRecords = await fetchRecordsFromServer();
+    if (serverRecords && serverRecords.length > 0) {
+      // Convert DB rows to our hash format
+      serverRecords.forEach(row => {
+        records[row.date] = {
+          pests: JSON.parse(row.pests),
+          vector: JSON.parse(row.vector),
+        };
+      });
+    } else {
+      // Fallback to localStorage
+      const saved = localStorage.getItem('rbp_schedule_records');
+      if (saved) records = JSON.parse(saved);
+    }
     const savedSprays = localStorage.getItem('rbp_schedule_sprays');
     if (savedSprays) sprays = JSON.parse(savedSprays);
-  } catch(e) {}
+  } catch(e) {
+    // Ultimate fallback: localStorage only
+    try {
+      const saved = localStorage.getItem('rbp_schedule_records');
+      if (saved) records = JSON.parse(saved);
+    } catch(e2) {}
+  }
   await loadCustomEvalBoxes();
   renderCalendar();
 })();
@@ -161,6 +223,8 @@ async function loadCustomEvalBoxes() {
 function saveRecords() {
   localStorage.setItem('rbp_schedule_records', JSON.stringify(records));
   localStorage.setItem('rbp_schedule_sprays', JSON.stringify(sprays));
+  // Also sync to server (non-blocking)
+  syncAllRecordsToServer();
 }
 
 // classifyAndRegisterVector がその場でEB_VECTORS/EB_MATRIX/EB_NAMESへ追加した新規EVAL_BOXを
@@ -754,7 +818,7 @@ function importData() {
 
   saveRecords();
   renderCalendar();
-  alert(`${imported}件インポートしました`);
+  alert(`${imported}件インポートしました（サーバーにも保存しました）`);
   document.getElementById('importText').value = '';
 }
 
@@ -850,10 +914,15 @@ function downloadFile(content, filename, mimeType) {
   URL.revokeObjectURL(url);
 }
 
-function clearAllRecords() {
-  if (!confirm('すべての実績データを削除しますか？')) return;
+async function clearAllRecords() {
+  if (!confirm('すべての実績データを削除しますか？（サーバーからも削除します）')) return;
+  const dates = Object.keys(records);
   records = {};
   saveRecords();
+  // Delete all records from server
+  for (const date of dates) {
+    await deleteRecordFromServer(date);
+  }
   selectedDate = null;
   renderCalendar();
   renderDetail();

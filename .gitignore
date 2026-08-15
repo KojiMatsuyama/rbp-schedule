@@ -2,3 +2,4 @@
 data/eval_boxes_custom.json
 *.pyc
 __pycache__/
+.env
