@@ -531,9 +531,19 @@ class Handler(SimpleHTTPRequestHandler):
 
 def main():
     init_db()
-    server = ThreadingHTTPServer(("0.0.0.0", 9999), Handler)
-    print(f"Serving on 0.0.0.0:9999 — DB: {DB_PATH}")
-    server.serve_forever()
+    # Dual-stack: bind to both IPv4 and IPv6 to prevent browser IPv6 connect hangs
+    import socket
+    server_v4 = ThreadingHTTPServer(("0.0.0.0", 9999), Handler)
+    server_v6 = ThreadingHTTPServer(("::", 9999), Handler)
+    server_v6.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
+    print(f"Serving on 0.0.0.0:9999 + [::]:9999 — DB: {DB_PATH}")
+    import threading
+    t4 = threading.Thread(target=server_v4.serve_forever, daemon=True)
+    t6 = threading.Thread(target=server_v6.serve_forever, daemon=True)
+    t4.start()
+    t6.start()
+    t4.join()
+    t6.join()
 
 
 if __name__ == "__main__":
