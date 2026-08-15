@@ -22,6 +22,7 @@
     <button onclick="changeYear(1)">▶</button>
     <button id="installHeaderBtn" onclick="handleInstallClick()" title="ホーム画面に追加" style="background:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.5);color:white;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:1.1rem;">📲</button>
     <button id="themeToggle" onclick="toggleTheme()" title="テーマ切替">🌓</button>
+    <button id="settingsBtn" onclick="openSettingsModal()" title="設定（RBPエンジン切替）">⚙</button>
     <img id="qrCode" src="qr-code.png" alt="QR Code" style="width:48px;height:48px;border-radius:4px;cursor:pointer;" title="スマホでスキャン">
   </div>
 </header>
@@ -433,26 +434,103 @@ function renderDetail() {
 let rbpEngine = localStorage.getItem('rbpEngine') || 'js';
 let rbpEngineRequestSeq = 0; // 古いfetch応答で新しい表示を上書きしないためのトークン
 
+const RBP_ENGINE_LABELS = { js: 'JavaScript', python: 'Python', haskell: 'Haskell' };
+
 function setRbpEngine(engine) {
   rbpEngine = engine;
   localStorage.setItem('rbpEngine', engine);
   renderDetail();
 }
 
+// 処方カード上部の現在エンジン表示。切替はヘッダー⚙の設定モーダルから行う
 function renderEngineSelector() {
-  const opts = [
-    ['js', 'JavaScript'],
-    ['python', 'Python'],
-    ['haskell', 'Haskell'],
-  ];
-  const radios = opts.map(([v, label]) => `
-    <label style="margin-right:10px;cursor:pointer;">
-      <input type="radio" name="rbpEngine" value="${v}" ${rbpEngine === v ? 'checked' : ''}
-        onchange="setRbpEngine('${v}')"> ${label}</label>`).join('');
   return `
     <div style="margin:8px 0 4px;font-size:.78rem;color:var(--muted);">
-      ⚙ RBPエンジン: ${radios}
+      ⚙ RBPエンジン: <strong>${RBP_ENGINE_LABELS[rbpEngine] || rbpEngine}</strong>
+      <a href="javascript:void(0)" onclick="openSettingsModal()" style="margin-left:6px;">変更</a>
     </div>`;
+}
+
+// server.pyの有無を確認する（公開サーバー=Cloudflare Pagesには /api/prescribe が無い）。
+// 空ボディPOSTに 400（バリデーション応答）を返すのは server.py だけなので、それを生存確認に使う
+async function checkServerEngineAvailable() {
+  try {
+    const res = await fetch('/api/prescribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    return res.status === 400;
+  } catch (e) {
+    return false;
+  }
+}
+
+// ── 設定モーダル（ヘッダー⚙から開く。PC/スマホ共通） ──
+function openSettingsModal() {
+  const existing = document.getElementById('settings-modal');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'settings-modal';
+  overlay.style.cssText = `
+    position: fixed; inset: 0; z-index: 99999;
+    background: rgba(0,0,0,.85);
+    display: flex; align-items: center; justify-content: center;
+    font-family: "Hiragino Sans", "Meiryo", sans-serif;
+    animation: fadeIn .2s ease;
+  `;
+
+  const engineRow = (value, label, desc, serverOnly) => `
+    <label style="display:block;padding:10px 12px;border:1px solid #ddd;border-radius:8px;margin-bottom:8px;cursor:pointer;${rbpEngine === value ? 'background:#eef7ee;border-color:#4a7c59;' : ''}">
+      <input type="radio" name="settingsRbpEngine" value="${value}" ${rbpEngine === value ? 'checked' : ''}
+        ${serverOnly ? 'data-server-only="1"' : ''}
+        onchange="setRbpEngine(this.value); openSettingsModal();">
+      <strong style="margin-left:4px;">${label}</strong>
+      <span style="display:block;margin:4px 0 0 22px;font-size:.78rem;color:#666;">${desc}</span>
+    </label>`;
+
+  overlay.innerHTML = `
+    <div style="
+      background: white; border-radius: 16px;
+      padding: 24px; max-width: 400px; width: 90%;
+      box-shadow: 0 8px 32px rgba(0,0,0,.5);
+      color: #333;
+    ">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <strong style="font-size:1.05rem;">⚙ 設定</strong>
+        <button id="closeSettings" style="background:transparent;color:#888;border:none;font-size:1.3rem;cursor:pointer;padding:4px 8px;">✕</button>
+      </div>
+      <div style="font-size:.85rem;font-weight:bold;margin-bottom:8px;">RBP行列エンジン</div>
+      ${engineRow('js', 'JavaScript', 'ブラウザ内で計算。全67剤DB・本番ロジック。どのURLでも動作', false)}
+      ${engineRow('python', 'Python（サーバー）', 'サーバーPoCエンジン。サンプル13剤DB・簡略スコア', true)}
+      ${engineRow('haskell', 'Haskell（サーバー）', 'サーバーPoCエンジン。サンプル13剤DB・簡略スコア', true)}
+      <div id="engineAvailabilityNote" style="font-size:.78rem;color:#666;margin-top:6px;">⏳ サーバーエンジンの利用可否を確認中…</div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  overlay.querySelector('#closeSettings').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+  // Python/Haskellはserver.pyがあるURLでのみ有効化する
+  checkServerEngineAvailable().then(ok => {
+    const note = overlay.querySelector('#engineAvailabilityNote');
+    if (!note) return;
+    if (ok) {
+      note.innerHTML = '✅ サーバーエンジン利用可（server.py 接続OK）';
+    } else {
+      note.innerHTML = '⚠ このURLではPython/Haskellは利用できません。'
+        + 'サーバーエンジンは社内サーバー <strong>http://192.168.131.161:9999</strong> で開いた場合のみ動作します'
+        + '（公開サーバーはCloudflare Pagesのため、サーバー側プロセスを実行できません）。';
+      note.style.color = '#a15c00';
+      overlay.querySelectorAll('input[data-server-only]').forEach(input => {
+        input.disabled = true;
+        input.closest('label').style.opacity = '.55';
+        input.closest('label').style.cursor = 'not-allowed';
+      });
+    }
+  });
 }
 
 // サーバーPoCエンジン（python/haskell）の結果カードHTML
