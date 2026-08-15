@@ -134,7 +134,7 @@ let sprays = [];          // [{ date: "YYYY-MM-DD", ids: ["P01","P02"], pests: [
 // EB_VECTORS/EB_MATRIX/EB_NAMESへマージする。取得失敗時も起動をブロックしない。
 async function loadCustomEvalBoxes() {
   try {
-    const res = await fetch('data/eval_boxes_custom.json');
+    const res = await fetch(API_BASE + '/eval-boxes/custom');
     if (!res.ok) return;
     const custom = await res.json();
     for (const [id, box] of Object.entries(custom)) {
@@ -150,6 +150,23 @@ async function loadCustomEvalBoxes() {
 
 // ── Server-sync helpers ──────────────────────────────────────
 const API_BASE = '/api';
+
+// サーバーから病害虫データを取得（失敗時は data/diseases.js の DISEASES をそのまま使用）
+async function loadServerDiseases() {
+  try {
+    const res = await fetch(API_BASE + '/diseases');
+    if (!res.ok) return;
+    const json = await res.json();
+    if (Array.isArray(json.diseases) && json.diseases.length > 0) {
+      // DISEASES がまだ定義されていない場合のみ上書き（const なのでエラーになるのを回避）
+      if (typeof DISEASES === 'undefined') {
+        window.DISEASES = json.diseases;
+      }
+    }
+  } catch (e) {
+    console.warn('サーバーからの病害虫データ読み込みに失敗、ローカル版を使用します', e);
+  }
+}
 
 async function fetchRecordsFromServer() {
   try {
@@ -219,6 +236,7 @@ async function syncAllRecordsToServer() {
     } catch(e2) {}
   }
   await loadCustomEvalBoxes();
+  await loadServerDiseases();
   renderCalendar();
 })();
 
