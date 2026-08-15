@@ -2,7 +2,7 @@
   "name": "RBP 防除スケジュール",
   "short_name": "防除スケジ",
   "description": "病害虫予報・薬剤仕様決定RBPによる防除スケジュール管理アプリ",
-  "start_url": "./schedule_app.html",
+  "start_url": "./index.html",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#f5f5dc",

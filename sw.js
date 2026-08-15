@@ -2,8 +2,9 @@
 const CACHE_NAME = 'rbp-schedule-v1';
 
 const ASSETS = [
-  './schedule_app.html',
+  './index.html',
   './schedule_app.css',
+  './qr-code.png',
   './framework/engine.js',
   './framework/mirror.js',
   './framework/rbp_core.js',
@@ -58,7 +59,7 @@ self.addEventListener('fetch', (event) => {
         return networkResponse;
       })
       .catch(() =>
-        caches.match(event.request).then((cached) => cached || caches.match('./schedule_app.html'))
+        caches.match(event.request).then((cached) => cached || caches.match('./index.html'))
       )
   );
 });
@@ -76,5 +77,5 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  event.waitUntil(clients.openWindow('./schedule_app.html'));
+  event.waitUntil(clients.openWindow('./index.html'));
 });

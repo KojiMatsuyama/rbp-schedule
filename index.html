@@ -22,6 +22,7 @@
     <button onclick="changeYear(1)">▶</button>
     <button id="installHeaderBtn" onclick="handleInstallClick()" title="ホーム画面に追加" style="background:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.5);color:white;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:1.1rem;">📲</button>
     <button id="themeToggle" onclick="toggleTheme()" title="テーマ切替">🌓</button>
+    <img id="qrCode" src="qr-code.png" alt="QR Code" style="width:48px;height:48px;border-radius:4px;cursor:pointer;" title="スマホでスキャン">
   </div>
 </header>
 
@@ -1021,6 +1022,45 @@ function showInstallGuideModal() {
   overlay.querySelector('#gotItBtn').addEventListener('click', () => overlay.remove());
   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
 }
+
+// ═══════════════════════════════════════════
+// QR Code Modal
+// ═══════════════════════════════════════════
+document.getElementById('qrCode').addEventListener('click', () => {
+  const existing = document.getElementById('qr-modal');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'qr-modal';
+  overlay.style.cssText = `
+    position: fixed; inset: 0; z-index: 99999;
+    background: rgba(0,0,0,.85);
+    display: flex; align-items: center; justify-content: center;
+    font-family: "Hiragino Sans", "Meiryo", sans-serif;
+    animation: fadeIn .2s ease;
+  `;
+
+  overlay.innerHTML = `
+    <div style="
+      background: white; border-radius: 16px;
+      padding: 32px; max-width: 320px; width: 90%;
+      box-shadow: 0 8px 32px rgba(0,0,0,.5);
+      text-align: center;
+    ">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+        <button id="closeQr" style="
+          background:transparent;color:#888;border:none;font-size:1.3rem;cursor:pointer;padding:4px 8px;
+        ">✕</button>
+      </div>
+      <img src="qr-code.png" alt="QR Code" style="width:240px;height:240px;display:block;margin:0 auto 16px;">
+      <p style="margin:0;font-size:.9rem;color:#333;">スマートフォンでスキャン<br>→ https://rbp-schedule.pages.dev</p>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  overlay.querySelector('#closeQr').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+});
 
 const styleSheet = document.createElement('style');
 styleSheet.textContent = `@keyframes fadeIn{from{opacity:0}to{opacity:1}}`;
