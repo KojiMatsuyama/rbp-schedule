@@ -921,10 +921,27 @@ function toggleTheme() {
 })();
 
 // ═══════════════════════════════════════════
+// Debug: show JS errors on screen (mobile diagnosis)
+// ═══════════════════════════════════════════
+window.addEventListener('error', (e) => {
+  let box = document.getElementById('debug-error-box');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'debug-error-box';
+    box.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#fee;z-index:999999;padding:8px;font-size:12px;font-family:monospace;max-height:200px;overflow:auto;border-bottom:2px solid red;';
+    document.body.prepend(box);
+  }
+  box.innerHTML += `<div>[ERR] ${e.message || e} at ${e.filename}:${e.lineno}</div>`;
+});
+
+// ═══════════════════════════════════════════
 // Service Worker Registration (PWA)
 // ═══════════════════════════════════════════
 let deferredPrompt = null;
 
+// TEMPORARILY DISABLE SERVICE WORKER FOR MOBILE DEBUGGING
+// Uncomment below to re-enable PWA offline support:
+/*
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js')
@@ -934,6 +951,7 @@ if ('serviceWorker' in navigator) {
       .catch((err) => console.warn('SW登録失敗:', err));
   });
 }
+*/
 
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
