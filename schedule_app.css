@@ -125,6 +125,33 @@ header .year-nav span { font-size: 1.1rem; min-width: 60px; text-align: center; 
   flex-direction: column;
   overflow: hidden;
 }
+
+/* Mobile bottom-sheet handle (inserted by JS on mobile only) */
+.mobile-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 0;
+  min-height: 44px;
+  flex-shrink: 0;
+  background: var(--accent);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.mobile-handle-bar {
+  width: 44px;
+  height: 5px;
+  background: rgba(255,255,255,.85);
+  border-radius: 3px;
+}
+.mobile-handle-label {
+  color: white;
+  font-size: .8rem;
+  font-weight: bold;
+}
 .panel-tabs {
   display: flex;
   border-bottom: 2px solid var(--border);
@@ -554,6 +581,7 @@ details.spec-alternatives summary, details.spec-excluded summary {
   .calendar-panel {
     border-right: none;
     border-bottom: 1px solid var(--border);
+    padding-bottom: 70px; /* keep last month above the closed sheet handle */
   }
 
   /* Month cards: single column */
@@ -561,21 +589,24 @@ details.spec-alternatives summary, details.spec-excluded summary {
     grid-template-columns: 1fr;
   }
 
-  /* Side panel: bottom half, always visible */
+  /* Side panel: bottom sheet, swipable up/down */
   .side-panel {
-    position: relative;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
     height: 50vh;
-    max-height: none;
-    border-radius: 0;
-    box-shadow: none;
-    transform: none;
-    overflow-y: auto;
+    max-height: 55vh;
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -4px 20px rgba(0,0,0,.25);
+    transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+    z-index: 1000;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
   .side-panel.open {
-    transform: none;
-  }
-  .side-panel::before {
-    display: none;
+    transform: translateY(0);
   }
 
   /* Panel tabs: horizontal scroll on tiny screens */
@@ -679,11 +710,12 @@ details.spec-alternatives summary, details.spec-excluded summary {
 
   .container {
     grid-template-columns: 1fr;
-    grid-template-rows: 1fr 1fr;
+    grid-template-rows: 1fr;
   }
   .calendar-panel {
     border-right: none;
     border-bottom: 1px solid var(--border);
+    padding-bottom: 70px; /* keep last month above the closed sheet handle */
   }
 
   .month-grid {
@@ -692,6 +724,22 @@ details.spec-alternatives summary, details.spec-excluded summary {
 
   .side-panel {
     border-top: 2px solid var(--border);
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 50vh;
+    max-height: 55vh;
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -4px 20px rgba(0,0,0,.25);
+    transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+    z-index: 1000;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .side-panel.open {
+    transform: translateY(0);
   }
 
   .pest-grid {
@@ -732,9 +780,22 @@ details.spec-alternatives summary, details.spec-excluded summary {
   }
 
   .side-panel {
-    position: relative;
-    height: auto;
-    border-radius: 0;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 40vh;
+    max-height: 40vh;
+    border-radius: 12px 12px 0 0;
+    box-shadow: 0 -4px 20px rgba(0,0,0,.25);
+    transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+    z-index: 1000;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .side-panel.open {
+    transform: translateY(0);
   }
 }
 

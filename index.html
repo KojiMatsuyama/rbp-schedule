@@ -321,6 +321,8 @@ function selectDate(dateKey) {
   renderCalendar();
   renderDetail();
   switchTab('detail');
+  // On mobile, bring up the bottom sheet so the detail form is visible
+  if (window.openMobilePanel) window.openMobilePanel();
 }
 
 function renderDetail() {
@@ -955,41 +957,143 @@ function toggleTheme() {
 }
 
 // ═══════════════════════════════════════════
-// Mobile: Slide-up side panel
+// Mobile: Slide-up side panel (bottom sheet)
+//
+// Design: a handle bar is inserted as the FIRST child of the panel
+// (normal flow, no negative margins). When "closed", the panel is
+// translated down so that ONLY the handle remains visible at the
+// bottom of the screen. When "open", translateY(0).
+// The handle can be dragged up/down, or tapped to toggle.
 // ═══════════════════════════════════════════
+window.openMobilePanel = null; // set below on mobile; called from selectDate()
+
 (function initMobilePanel() {
-  const isMobile = () => window.innerWidth <= 768;
+  // Must match the CSS breakpoints that make .side-panel position:fixed:
+  // (max-width: 768px) OR (max-height: 500px landscape)
+  const isMobile = () => window.innerWidth <= 768 ||
+    (window.innerHeight <= 500 && window.innerWidth > window.innerHeight);
+  if (!isMobile()) return;
 
-  function openSidePanel() {
-    if (isMobile()) {
-      document.querySelector('.side-panel')?.classList.add('open');
-    }
+  const panel = document.querySelector('.side-panel');
+  if (!panel) return;
+
+  let isOpen = false;
+  let isDragging = false;
+  let dragActive = false;   // a touch started on the handle
+  let dragStartY = 0;
+  let dragStartTranslate = 0;
+  let currentTranslate = 0; // 0 = open, closedTranslate() = closed
+
+  // ── Handle bar (first child of the panel, normal flow) ──
+  const handle = document.createElement('div');
+  handle.className = 'mobile-handle';
+  handle.innerHTML = '<div class="mobile-handle-bar"></div><span class="mobile-handle-label">▲ パネル</span>';
+  panel.insertBefore(handle, panel.firstChild);
+
+  function closedTranslate() {
+    // Slide the panel down so only the handle stays on screen
+    return Math.max(0, panel.offsetHeight - handle.offsetHeight);
   }
-  function closeSidePanel() {
-    if (isMobile()) {
-      document.querySelector('.side-panel')?.classList.remove('open');
-    }
+
+  function setTranslate(y, animate) {
+    currentTranslate = Math.max(0, Math.min(closedTranslate(), y));
+    panel.style.transition = animate ? 'transform .3s cubic-bezier(.2,.8,.2,1)' : 'none';
+    panel.style.transform = `translateY(${currentTranslate}px)`;
   }
 
-  // Open side panel by default on mobile
-  openSidePanel();
+  function updateHandleLabel() {
+    const label = handle.querySelector('.mobile-handle-label');
+    if (label) label.textContent = isOpen ? '▼ 閉じる' : '▲ パネル';
+  }
 
-  // Tap calendar panel to open/close side panel on mobile
-  document.querySelector('.calendar-panel')?.addEventListener('click', () => {
-    if (isMobile()) {
-      document.querySelector('.side-panel')?.classList.toggle('open');
-    }
+  function openPanel() {
+    isOpen = true;
+    setTranslate(0, true);
+    panel.classList.add('open');
+    updateHandleLabel();
+  }
+
+  function closePanel() {
+    isOpen = false;
+    setTranslate(closedTranslate(), true);
+    panel.classList.remove('open');
+    updateHandleLabel();
+  }
+
+  function togglePanel() {
+    if (isOpen) closePanel(); else openPanel();
+  }
+
+  window.openMobilePanel = openPanel;
+
+  // ── Tap handle to toggle ──
+  handle.addEventListener('click', () => {
+    if (!isDragging) togglePanel();
   });
 
-  // Swipe down to dismiss on mobile
-  let touchStartY = 0;
-  document.querySelector('.side-panel')?.addEventListener('touchstart', (e) => {
-    touchStartY = e.touches[0].clientY;
+  // ── Drag handle to slide the sheet ──
+  handle.addEventListener('touchstart', (e) => {
+    dragActive = true;
+    isDragging = false;
+    dragStartY = e.touches[0].clientY;
+    dragStartTranslate = currentTranslate;
   }, { passive: true });
-  document.querySelector('.side-panel')?.addEventListener('touchmove', (e) => {
-    const dy = e.touches[0].clientY - touchStartY;
-    if (dy > 80) closeSidePanel();
+
+  handle.addEventListener('touchmove', (e) => {
+    if (!dragActive) return;
+    const dy = e.touches[0].clientY - dragStartY; // + = downward
+    if (Math.abs(dy) > 5) isDragging = true;
+    if (!isDragging) return;
+    setTranslate(dragStartTranslate + dy, false);
   }, { passive: true });
+
+  handle.addEventListener('touchend', (e) => {
+    if (!dragActive) return;
+    dragActive = false;
+    if (!isDragging) return; // plain tap → click handler toggles
+
+    const dy = e.changedTouches[0].clientY - dragStartY;
+    // Direction of the gesture decides; fall back to nearest snap point
+    if (dy > 30) {
+      closePanel();
+    } else if (dy < -30) {
+      openPanel();
+    } else if (currentTranslate > closedTranslate() / 2) {
+      closePanel();
+    } else {
+      openPanel();
+    }
+    // Reset isDragging AFTER the click event fires (click follows touchend)
+    setTimeout(() => { isDragging = false; }, 50);
+  }, { passive: true });
+
+  // ── Swipe down on the tab bar also closes the sheet ──
+  let tabTouchY = null;
+  const tabBar = panel.querySelector('.panel-tabs');
+  tabBar?.addEventListener('touchstart', (e) => {
+    tabTouchY = e.touches[0].clientY;
+  }, { passive: true });
+  tabBar?.addEventListener('touchend', (e) => {
+    if (tabTouchY === null) return;
+    const dy = e.changedTouches[0].clientY - tabTouchY;
+    tabTouchY = null;
+    if (dy > 60) closePanel();   // clear downward swipe
+    else if (dy < -60) openPanel();
+  }, { passive: true });
+
+  // ── Start OPEN (import tab is the default workflow on mobile) ──
+  // Defer until layout is done so offsetHeight is correct
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    setTranslate(0, false);
+    isOpen = true;
+    panel.classList.add('open');
+    updateHandleLabel();
+  }));
+
+  // ── Keep snap position on resize/orientation change ──
+  window.addEventListener('resize', () => {
+    setTranslate(isOpen ? 0 : closedTranslate(), false);
+  });
 })();
 
 // ═══════════════════════════════════════════
