@@ -1,5 +1,5 @@
 /* sw.js — Service Worker for RBP 防除スケジュール */
-const CACHE_NAME = 'rbp-schedule-v1';
+const CACHE_NAME = 'rbp-schedule-v2';
 
 const ASSETS = [
   './index.html',
@@ -42,25 +42,49 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-/* ── Fetch: network-first, fall back to cache ── */
+/* ── Fetch: cache-first for data/static, network-first for HTML ── */
 self.addEventListener('fetch', (event) => {
-  /* Skip non-GET, non-resource URLs */
   if (event.request.method !== 'GET') return;
   if (/^https?:\/\/.*\.(svg|woff2?)$/i.test(event.request.url)) return;
 
+  const url = new URL(event.request.url, self.location.origin);
+  const isDataOrStatic = url.pathname.endsWith('.js') ||
+                         url.pathname.endsWith('.css') ||
+                         url.pathname.endsWith('.png') ||
+                         url.pathname.endsWith('.json') ||
+                         url.pathname.endsWith('.ico');
+
   event.respondWith(
-    fetch(event.request)
-      .then((networkResponse) => {
-        /* Cache the latest version */
-        if (networkResponse && networkResponse.status === 200) {
-          const clone = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+    (async () => {
+      if (isDataOrStatic) {
+        /* Data/static files: serve from cache immediately */
+        const cached = await caches.match(event.request);
+        if (cached) return cached;
+        /* If not in cache, fetch and cache it */
+        try {
+          const resp = await fetch(event.request);
+          if (resp.status === 200) {
+            const cache = await caches.open(CACHE_NAME);
+            cache.put(event.request, resp.clone());
+          }
+          return resp;
+        } catch {
+          return new Response('', { status: 404 });
         }
-        return networkResponse;
-      })
-      .catch(() =>
-        caches.match(event.request).then((cached) => cached || caches.match('./index.html'))
-      )
+      } else {
+        /* HTML: network-first, fall back to cache */
+        try {
+          const netResp = await fetch(event.request);
+          if (netResp.status === 200) {
+            const cache = await caches.open(CACHE_NAME);
+            cache.put(event.request, netResp.clone());
+          }
+          return netResp;
+        } catch {
+          return caches.match('./index.html');
+        }
+      }
+    })()
   );
 });
 
