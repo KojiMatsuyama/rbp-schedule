@@ -1439,10 +1439,18 @@ let pesticideSearchQuery = '';
 
 async function loadPesticides() {
   try {
-    const res = await fetch('/api/pesticides');
+    console.log('[loadPesticides] fetching /api/pesticides...');
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
+    const res = await fetch('/api/pesticides', { signal: controller.signal });
+    clearTimeout(timer);
+    console.log('[loadPesticides] response status:', res.status);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     pesticideData = data.pesticides || [];
+    console.log('[loadPesticides] loaded', pesticideData.length, 'pesticides');
   } catch (e) {
+    console.error('[loadPesticides] FAILED:', e.name, e.message);
     alert('薬剤DBの読み込みに失敗しました: ' + e.message);
   }
 }
