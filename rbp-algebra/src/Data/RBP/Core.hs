@@ -1,6 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE StrictData #-}
 {-|
 Module      : Data.RBP.Core
 Description : RBP waterway propagation engine — domain-independent core.
@@ -8,8 +7,8 @@ Description : RBP waterway propagation engine — domain-independent core.
 This is the pure algebraic engine. It knows NOTHING about diseases,
 pesticides, or agriculture. It only knows:
 
-  1. A \"flow\" is a vector of Ints
-  2. A \"bridge\" transforms flow via Hadamard product with a weight
+  1. A "flow" is a vector of Ints
+  2. A "bridge" transforms flow via Hadamard product with a weight
   3. Bridges execute in level order (strictly increasing)
   4. Zero flow = blocked (algebraic, not boolean)
 
@@ -28,8 +27,17 @@ module Data.RBP.Core
 
 import Data.RBP.Types
 import qualified Data.Vector.Unboxed as U
-import Data.List (sortBy)
+import Data.List (sortBy, foldl')
 import Data.Ord (comparing)
+
+------------------------------------------------------------------------------
+-- Helper: safe list indexing
+------------------------------------------------------------------------------
+
+safeIndex :: [a] -> Int -> Maybe a
+safeIndex [] _  = Nothing
+safeIndex (x:_) 0 = Just x
+safeIndex (_:xs) i = safeIndex xs (i - 1)
 
 ------------------------------------------------------------------------------
 -- Validation: prove invariants before execution
@@ -49,27 +57,19 @@ the fold is guaranteed to be acyclic and forward-only.
 -}
 validateBridges :: [Bridge] -> Either String ()
 validateBridges bridges =
-  let errs = concat
+  let sorted = sortBy (comparing bLevel) bridges
+      errs = concat
         [ [ "BRIDGE " ++ pretty (bid b) ++ ": direction must be ForwardOnly"
           | b <- bridges, bDirection b /= ForwardOnly ]
         , [ "BRIDGE " ++ pretty (bid b) ++ ": level " ++ show (bLevel b)
               ++ " not strictly greater than previous"
-          | b <- sorted, idx > 0, bLevel b <= levelPrev ]
+          | (b, idx) <- zip sorted [0..], idx > 0
+          , bLevel b <= levelAt (idx - 1) ]
         ]
-      sorted = sortBy (comparing bLevel) bridges
-      levelPrev = case sorted !!? (idx - 1) of
+      levelAt i = case safeIndex sorted i of
         Just b' -> bLevel b'
         Nothing -> -1
   in if null errs then Right () else Left (head errs)
-  where
-    idx = length $ takeWhile (\b -> bLevel b <= bLevel (sorted !! idx)) sorted
-
-(!?) :: [a] -> Int -> Maybe a
-xs !!? i
-  | i < 0     = Nothing
-  | otherwise  = case drop i xs of
-                   []     -> Nothing
-                   (x:_)  -> Just x
 
 ------------------------------------------------------------------------------
 -- Engine: fold bridges over flow
@@ -104,18 +104,19 @@ runLineThroughBridges initialFlow bridges ctx =
   in result
   where
     step (FlowResult flow state trace) bridge =
-      let weightAction = bWeightFn bridge ctx
+      let (EV rawFlow) = flow
           bw = uniformWeight weightAction (vectorDim flow)
-          wVec = U.replicate (vectorDim flow) (fromIntegral bw)
-          newFlow = hadamard flow wVec
-          blocked = isZeroVector newFlow && isFlowing state
+          wVec = U.replicate (vectorDim rawFlow) (fromIntegral bw)
+          newRaw = hadamard rawFlow wVec
+          newFlow = EV newRaw
+          blocked = isZeroVector newRaw && isFlowing state
 
           traceEntry = BridgeTrace
             { btBridgeId   = bid bridge
             , btLevel      = bLevel bridge
             , btWeight     = bw
-            , btPassed     = not (isZeroVector newFlow)
-            , btAttenuated = not (isZeroVector newFlow) && bw < 1.0
+            , btPassed     = not (isZeroVector newRaw)
+            , btAttenuated = not (isZeroVector newRaw) && bw < 1.0
             }
 
           newState = case (state, blocked) of
@@ -123,3 +124,5 @@ runLineThroughBridges initialFlow bridges ctx =
             _               -> state
 
       in FlowResult newFlow newState (trace ++ [traceEntry])
+      where
+        weightAction = bWeightFn bridge ctx

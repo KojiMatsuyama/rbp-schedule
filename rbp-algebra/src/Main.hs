@@ -1,6 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE StrictData #-}
 {-|
 Module      : Main
 Description : RBP Algebraic Engine — full demonstration with sample data.

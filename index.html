@@ -148,38 +148,14 @@ async function loadCustomEvalBoxes() {
 
 // Load from localStorage
 (async function init() {
-  // Diagnostic info on screen
-  const diag = document.createElement('div');
-  diag.id = 'diag-box';
-  diag.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#fff3cd;z-index:999999;padding:6px;font-size:11px;font-family:monospace;max-height:150px;overflow:auto;border-bottom:2px solid orange;';
-  function log(msg) { diag.innerHTML += msg + '<br>'; }
-  document.body.prepend(diag);
-
   try {
-    log('🔧 Init start');
-    log('DISEASES: ' + (typeof DISEASES + ' len=' + (DISEASES ? DISEASES.length : '?')));
-    log('PESTICIDE_DB: ' + (typeof PESTICIDE_DB + ' len=' + (PESTICIDE_DB ? PESTICIDE_DB.length : '?')));
-    log('EB_VECTORS: ' + (typeof EB_VECTORS + ' keys=' + (EB_VECTORS ? Object.keys(EB_VECTORS).length : '?')));
-    log('EB_MATRIX: ' + (typeof EB_MATRIX + ' len=' + (EB_MATRIX ? EB_MATRIX.length : '?')));
-    log('classifyAndRegisterVector: ' + (typeof classifyAndRegisterVector));
-    log('renderCalendar: ' + (typeof renderCalendar));
-    log('switchTab: ' + (typeof switchTab));
-
     const saved = localStorage.getItem('rbp_schedule_records');
     if (saved) records = JSON.parse(saved);
     const savedSprays = localStorage.getItem('rbp_schedule_sprays');
     if (savedSprays) sprays = JSON.parse(savedSprays);
-    log('localStorage loaded, records=' + Object.keys(records).length);
-
-    await loadCustomEvalBoxes();
-    log('custom eval boxes loaded');
-
-    renderCalendar();
-    log('renderCalendar done');
-    log('✅ Ready');
-  } catch(e) {
-    log('❌ INIT ERROR: ' + e.message + ' | ' + e.stack);
-  }
+  } catch(e) {}
+  await loadCustomEvalBoxes();
+  renderCalendar();
 })();
 
 function saveRecords() {

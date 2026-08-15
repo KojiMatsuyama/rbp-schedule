@@ -1,6 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE StrictData #-}
 {-|
 Module      : Data.RBP.Bridges
 Description : The 6-stage SPEC-BRIDGE waterway definition.

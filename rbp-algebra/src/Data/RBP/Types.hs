@@ -1,8 +1,8 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE StrictData #-}
 {-|
 Module      : Data.RBP.Types
 Description : Core algebraic types for the RBP (Reflect Block Pattern) engine.
@@ -59,9 +59,13 @@ module Data.RBP.Types
   , PrescriptionResult (..)
   , PrescriptionStatus (..)
     -- * Utility
+  , Pretty (..)
   , vectorDim
   , dotProduct
   , cosineSimilarity
+  , ForwardOnly (..)
+  , hadamard
+  , isZeroVector
   ) where
 
 import qualified Data.Map.Strict as Map
@@ -130,7 +134,9 @@ vectorDim (EV v) = U.length v
 -- | Unique identifier for an EVAL_BOX (e.g., EB-01, EB-23).
 newtype EvalBoxId = EBId String
   deriving stock (Show, Eq, Ord)
-  deriving newtype (Pretty)
+
+instance Pretty EvalBoxId where
+  pretty (EBId s) = s
 
 -- | An evaluation box: a semantic cluster of disease combinations.
 -- The vector IS the boundary — matching against it classifies meaning.
@@ -179,7 +185,9 @@ data Pesticide = Pesticide
 
 newtype PesticideId = PID String
   deriving stock (Show, Eq, Ord)
-  deriving newtype (Pretty)
+
+instance Pretty PesticideId where
+  pretty (PID s) = s
 
 -- | Result of TARGET_MATRIX × entryVector for a single pesticide.
 -- The number of overlapping disease dimensions.
@@ -218,7 +226,9 @@ uniformWeight action dim = BW $ case action of
 -- | Unique identifier for a SPEC-BRIDGE gate.
 newtype BridgeId = BID String
   deriving stock (Show, Eq, Ord)
-  deriving newtype (Pretty)
+
+instance Pretty BridgeId where
+  pretty (BID s) = s
 
 -- | A BRIDGE gate: a conditional weight function over a pipeline.
 --
@@ -239,23 +249,29 @@ data Bridge = Bridge
   , bPenalty     :: Maybe (String, Double)   -- ^ (axis, delta) for scoring
   , bWarningFn   :: BridgeContext -> String  -- ^ Warning text when attenuated
   , bDescription :: String
-  } deriving stock (Show, Eq)
+  }
+
+instance Show Bridge where
+  show b = "Bridge { bid = " ++ show (bid b)
+         ++ ", bLevel = " ++ show (bLevel b)
+         ++ ", bDescription = " ++ show (bDescription b)
+         ++ " }"
 
 -- | Direction is an invariant — always Forward.
 -- This is a phantom type that proves no backward flow exists.
-newtype ForwardOnly = ForwardOnly deriving stock (Show, Eq)
+data ForwardOnly = ForwardOnly deriving stock (Show, Eq)
 
 -- | Domain-specific context passed to bridge weight/reason functions.
 data BridgeContext = BridgeContext
   { bcPesticide    :: Pesticide
   , bcEntryVector  :: EntryVector
   , bcTargetMatch  :: TargetMatch
-  , bcUsageState   :: Map PesticideId Int   -- ^ Applications per pesticide this year
+  , bcUsageState   :: Map.Map PesticideId Int   -- ^ Applications per pesticide this year
   , bcLastSprayDate :: Maybe Int   -- ^ YYYYMMDD or Nothing
   , bcLastPesticideIds :: [PesticideId]
   , bcLastPesticides   :: [Pesticide]   -- ^ Last sprayed pesticides (for mixing check)
   , bcIntervalDays :: Maybe Int             -- ^ Days since last spray
-  , bcRotationState :: Map String Int        -- ^ Continuous uses per system
+  , bcRotationState :: Map.Map String Int        -- ^ Continuous uses per system
   } deriving stock (Show, Eq)
 
 -- | Trace entry for one bridge passage.

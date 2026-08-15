@@ -561,31 +561,21 @@ details.spec-alternatives summary, details.spec-excluded summary {
     grid-template-columns: 1fr;
   }
 
-  /* Side panel: bottom sheet style */
+  /* Side panel: bottom half, always visible */
   .side-panel {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 55vh;
-    max-height: 400px;
-    border-radius: 16px 16px 0 0;
-    box-shadow: 0 -4px 20px rgba(0,0,0,.2);
-    z-index: 100;
-    transform: translateY(calc(100% - 48px));
-    transition: transform 0.3s ease;
+    position: relative;
+    height: 50vh;
+    max-height: none;
+    border-radius: 0;
+    box-shadow: none;
+    transform: none;
+    overflow-y: auto;
   }
   .side-panel.open {
-    transform: translateY(0);
+    transform: none;
   }
   .side-panel::before {
-    content: '';
-    display: block;
-    width: 40px;
-    height: 4px;
-    background: #ccc;
-    border-radius: 2px;
-    margin: 8px auto 0;
+    display: none;
   }
 
   /* Panel tabs: horizontal scroll on tiny screens */
