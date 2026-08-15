@@ -13,7 +13,16 @@ import os
 import sqlite3
 import subprocess
 import sys
-from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
+from http.server import HTTPServer, SimpleHTTPRequestHandler
+from socketserver import ThreadingMixIn
+
+
+class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
+    daemon_threads = True
+    allow_reuse_address = True
+
+    def server_activate(self):
+        self.socket.listen(128)
 
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 os.chdir(APP_ROOT)
@@ -531,19 +540,10 @@ class Handler(SimpleHTTPRequestHandler):
 
 def main():
     init_db()
-    # Dual-stack: bind to both IPv4 and IPv6 to prevent browser IPv6 connect hangs
-    import socket
-    server_v4 = ThreadingHTTPServer(("0.0.0.0", 9999), Handler)
-    server_v6 = ThreadingHTTPServer(("::", 9999), Handler)
-    server_v6.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
-    print(f"Serving on 0.0.0.0:9999 + [::]:9999 — DB: {DB_PATH}")
-    import threading
-    t4 = threading.Thread(target=server_v4.serve_forever, daemon=True)
-    t6 = threading.Thread(target=server_v6.serve_forever, daemon=True)
-    t4.start()
-    t6.start()
-    t4.join()
-    t6.join()
+    # Listen backlog increased to 128 (class attr) to prevent browser connect stalls
+    server = ThreadingHTTPServer(("0.0.0.0", 9999), Handler)
+    print(f"Serving on 0.0.0.0:9999 — DB: {DB_PATH}")
+    server.serve_forever()
 
 
 if __name__ == "__main__":
