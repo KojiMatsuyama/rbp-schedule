@@ -23,6 +23,7 @@
     <button id="installHeaderBtn" onclick="handleInstallClick()" title="ホーム画面に追加" style="background:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.5);color:white;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:1.1rem;">📲</button>
     <button id="themeToggle" onclick="toggleTheme()" title="テーマ切替">🌓</button>
     <button id="settingsBtn" onclick="openSettingsModal()" title="設定（RBPエンジン切替）">⚙</button>
+    <button id="maintBtn" onclick="openPesticideMaintenance()" title="薬剤DBメンテナンス" style="background:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.5);color:white;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:1.1rem;">💊</button>
     <img id="qrCode" src="qr-code.png" alt="QR Code" style="width:48px;height:48px;border-radius:4px;cursor:pointer;" title="スマホでスキャン">
   </div>
 </header>
@@ -544,13 +545,14 @@ function renderServerEngineResult(data) {
     : '';
 
   if (data.status !== 'SUCCESS' || !data.best) {
+    const dbDesc = data.sampleDb ? `サンプル${data.pesticideCount}剤DB` : `${data.pesticideCount}剤DB`;
     const msg = data.status === 'NO_PESTICIDE_DEFINED'
-      ? '対応する薬剤がサンプルDBに定義されていません'
+      ? `対応する薬剤が${dbDesc}に定義されていません`
       : data.status === 'ALL_BLOCKED_BY_CONSTRAINTS'
         ? '制約により選択可能な薬剤がありません'
         : `結果なし（${data.status}）`;
     return `${ebHTML}<p class="spec-badge warn" style="display:block;">⚠ ${msg}</p>
-      <p style="font-size:.72rem;color:var(--muted);">※ ${engineLabel} PoCエンジン（サンプル${data.pesticideCount}剤DB）による判定</p>`;
+      <p style="font-size:.72rem;color:var(--muted);">※ ${engineLabel}エンジン（${dbDesc}）による判定</p>`;
   }
 
   function setLine(set) {
@@ -578,7 +580,7 @@ function renderServerEngineResult(data) {
     </div>
     ${altsHTML}
     <p style="font-size:.72rem;color:var(--muted);margin-top:6px;">
-      ※ ${engineLabel} PoCエンジン（サンプル${data.pesticideCount}剤DB・簡略スコア）のため、JavaScript版と結果が異なる場合があります。承認して記録する場合はJavaScriptエンジンをご利用ください。</p>`;
+      ※ ${engineLabel}エンジン（${data.sampleDb ? `サンプル${data.pesticideCount}剤DB・簡略スコア` : `${data.pesticideCount}剤DB`}）による判定。${data.sampleDb ? 'JavaScript版と結果が異なる場合があります。承認して記録する場合はJavaScriptエンジンをご利用ください。' : ''}</p>`;
 }
 
 // サーバーPoCエンジンへ処方計算を依頼し、#serverEngineResult を書き換える
@@ -1408,6 +1410,465 @@ function showInstallGuideModal() {
   overlay.querySelector('#closeInstallGuide').addEventListener('click', () => overlay.remove());
   overlay.querySelector('#gotItBtn').addEventListener('click', () => overlay.remove());
   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+}
+
+// ═══════════════════════════════════════════
+// 薬剤DBメンテナンス
+// ═══════════════════════════════════════════
+let pesticideData = [];
+let pesticideFilterCategory = 'all';
+let pesticideSearchQuery = '';
+
+async function loadPesticides() {
+  try {
+    const res = await fetch('/api/pesticides');
+    const data = await res.json();
+    pesticideData = data.pesticides || [];
+  } catch (e) {
+    alert('薬剤DBの読み込みに失敗しました: ' + e.message);
+  }
+}
+
+function getCategoryLabel(cat) {
+  const map = { fungicide: '殺菌剤', insecticide: '殺虫剤', acaricide: '殺ダニ剤' };
+  return map[cat] || cat;
+}
+
+async function openPesticideMaintenance() {
+  const existing = document.getElementById('pesticide-maintenance-modal');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'pesticide-maintenance-modal';
+  overlay.style.cssText = `
+    position: fixed; inset: 0; z-index: 99999;
+    background: rgba(0,0,0,.85);
+    display: flex; align-items: center; justify-content: center;
+    font-family: "Hiragino Sans", "Meiryo", sans-serif;
+    animation: fadeIn .2s ease;
+  `;
+
+  const categoryOptions = [
+    { value: 'all', label: '全部類' },
+    { value: 'fungicide', label: '殺菌剤' },
+    { value: 'insecticide', label: '殺虫剤' },
+    { value: 'acaricide', label: '殺ダニ剤' },
+  ];
+
+  overlay.innerHTML = `
+    <div style="
+      background: white; border-radius: 16px;
+      padding: 0; max-width: 720px; width: 95%; height: 85vh;
+      box-shadow: 0 8px 32px rgba(0,0,0,.5);
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    ">
+      <!-- Header -->
+      <div style="
+        display:flex;justify-content:space-between;align-items:center;
+        padding:16px 20px;border-bottom:1px solid #eee;flex-shrink:0;
+      ">
+        <strong style="font-size:1.05rem;">💊 薬剤DBメンテナンス</strong>
+        <button id="closeMaint" style="background:transparent;color:#888;border:none;font-size:1.3rem;cursor:pointer;padding:4px 8px;">✕</button>
+      </div>
+
+      <!-- Toolbar -->
+      <div style="
+        display:flex;gap:8px;padding:12px 20px;border-bottom:1px solid #eee;flex-shrink:0;flex-wrap:wrap;align-items:center;
+      ">
+        <input id="pestSearchInput" type="text" placeholder="検索..."
+          style="flex:1;min-width:120px;padding:6px 10px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;"
+          oninput="filterPesticides()">
+        <select id="pestCatFilter" onchange="filterPesticides()"
+          style="padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+          ${categoryOptions.map(o => `<option value="${o.value}">${o.label}</option>`).join('')}
+        </select>
+        <button onclick="showAddPesticideForm()" class="btn btn-primary btn-sm" style="white-space:nowrap;">＋ 追加</button>
+        <button onclick="exportPesticides()" class="btn btn-outline btn-sm" style="white-space:nowrap;">📥 エクスポート</button>
+      </div>
+
+      <!-- Drug list -->
+      <div id="pesticideList" style="flex:1;overflow-y:auto;padding:8px 20px;">
+        <div style="text-align:center;padding:24px;color:#999;">読込中…</div>
+      </div>
+
+      <!-- Detail / Edit area (collapsible) -->
+      <div id="pestDetailPanel" style="
+        display:none;border-top:1px solid #eee;padding:16px 20px;
+        max-height:40vh;overflow-y:auto;flex-shrink:0;background:#fafafa;
+      "></div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  overlay.querySelector('#closeMaint').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.remove();
+  });
+
+  // Load data and render list
+  await loadPesticides();
+  renderPesticideList();
+}
+
+// Global overlay-click handler for pesticide maintenance modal
+document.addEventListener('click', (e) => {
+  const m = document.getElementById('pesticide-maintenance-modal');
+  if (m && e.target === m) m.remove();
+});
+
+function filterPesticides() {
+  pesticideSearchQuery = document.getElementById('pestSearchInput').value.toLowerCase();
+  pesticideFilterCategory = document.getElementById('pestCatFilter').value;
+  renderPesticideList();
+}
+
+function getFilteredPesticides() {
+  return pesticideData.filter(p => {
+    const matchCat = pesticideFilterCategory === 'all' || p.category === pesticideFilterCategory;
+    const q = pesticideSearchQuery;
+    const matchSearch = !q ||
+      (p.name || '').toLowerCase().includes(q) ||
+      (p.activeIngredient || '').toLowerCase().includes(q) ||
+      (p.id || '').toLowerCase().includes(q) ||
+      (p.systemCode || '').toLowerCase().includes(q) ||
+      (p.targetNames || []).some(t => t.toLowerCase().includes(q));
+    return matchCat && matchSearch;
+  });
+}
+
+function renderPesticideList() {
+  const list = document.getElementById('pesticideList');
+  if (!list) return;
+  const filtered = getFilteredPesticides();
+
+  if (filtered.length === 0) {
+    list.innerHTML = '<div style="text-align:center;padding:24px;color:#999;">該当する薬剤がありません</div>';
+    return;
+  }
+
+  let html = `<div style="font-size:.78rem;color:#888;margin-bottom:8px;">${filtered.length}剤</div>`;
+  filtered.forEach(p => {
+    const catLabel = getCategoryLabel(p.category);
+    const targets = (p.targetNames || []).slice(0, 3).join(', ');
+    const moreTag = (p.targetNames || []).length > 3 ? ` +${(p.targetNames || []).length - 3}` : '';
+    html += `
+      <div style="
+        display:flex;align-items:center;gap:10px;padding:10px 12px;
+        border:1px solid #eee;border-radius:8px;margin-bottom:6px;
+        cursor:pointer;transition:border-color .15s;
+      " onmouseover="this.style.borderColor='#4a7c59'" onmouseout="this.style.borderColor='#eee'"
+        onclick="showPesticideDetail('${p.id}')">
+        <div style="min-width:36px;text-align:center;font-weight:bold;color:var(--accent);font-size:.85rem;">${p.id}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:bold;font-size:.9rem;">${p.name || '?'}</div>
+          <div style="font-size:.75rem;color:#666;">${p.activeIngredient || ''}${targets ? ' ｜ ' + targets + moreTag : ''}</div>
+        </div>
+        <span style="
+          font-size:.7rem;padding:2px 8px;border-radius:10px;
+          background:#e8f5e8;color:#2e7d32;font-weight:bold;white-space:nowrap;
+        ">${catLabel}</span>
+      </div>`;
+  });
+  list.innerHTML = html;
+}
+
+function showPesticideDetail(id) {
+  const p = pesticideData.find(x => x.id === id);
+  if (!p) return;
+
+  const panel = document.getElementById('pestDetailPanel');
+  if (!panel) return;
+
+  const fields = [
+    { key: 'id', label: 'ID', readonly: true },
+    { key: 'name', label: '商品名' },
+    { key: 'activeIngredient', label: '有効成分' },
+    { key: 'category', label: '種類', type: 'select', options: ['fungicide', 'insecticide', 'acaricide'] },
+    { key: 'phiDays', label: 'PHI日数' },
+    { key: 'maxApplications', label: '最大使用回数' },
+    { key: 'toxicityClass', label: '毒性区分' },
+    { key: 'system', label: '作用機作' },
+    { key: 'systemCode', label: 'システムコード' },
+    { key: 'mixingRestriction', label: '混用注意' },
+  ];
+
+  const targetNamesStr = (p.targetNames || []).join('\n');
+  const mixingBanStr = (p.mixingBanTargets || []).join('\n');
+
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <strong style="font-size:.95rem;">📋 ${p.name} (${p.id}) — 編集</strong>
+      <div style="display:flex;gap:6px;">
+        <button onclick="savePesticide('${p.id}')" class="btn btn-primary btn-sm">💾 保存</button>
+        <button onclick="deletePesticide('${p.id}')" class="btn btn-danger btn-sm">🗑 削除</button>
+        <button onclick="hideDetailPanel()" style="background:transparent;border:none;color:#888;cursor:pointer;font-size:1.1rem;padding:4px 8px;">✕</button>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;">
+      ${fields.map(f => `
+        <div>
+          <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">${f.label}</label>
+          ${f.type === 'select'
+            ? `<select id="edit_${f.key}" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+                ${(f.options||[]).map(opt => `<option value="${opt}" ${p[f.key]===opt?'selected':''}>${getCategoryLabel(opt)}</option>`).join('')}
+               </select>`
+            : `<input id="edit_${f.key}" type="text" value="${escapeAttr(String(p[f.key] || ''))}" ${f.readonly ? 'readonly style="background:#f5f5f5;"' : 'style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;"'}>`
+          }
+        </div>
+      `).join('')}
+    </div>
+    <div style="margin-top:10px;">
+      <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">対象病害虫（改行区切り）</label>
+      <textarea id="edit_targetNames" rows="2" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;font-family:inherit;">${escapeHtml(targetNamesStr)}</textarea>
+    </div>
+    <div style="margin-top:10px;">
+      <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">混用禁止対象（改行区切り）</label>
+      <textarea id="edit_mixingBanTargets" rows="2" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;font-family:inherit;">${escapeHtml(mixingBanStr)}</textarea>
+    </div>
+    <div style="margin-top:10px;">
+      <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">ターゲットベクトル（コンマ区切り 0/1）</label>
+      <input id="edit_targetVector" type="text" value="${(p.targetVector||[]).join(',')}" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;font-family:monospace;" placeholder="1,0,0,0,0,0,0,0,0,0">
+    </div>
+  `;
+
+  // Scroll to detail panel
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function hideDetailPanel() {
+  const panel = document.getElementById('pestDetailPanel');
+  if (panel) panel.style.display = 'none';
+}
+
+function escapeAttr(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function savePesticide(id) {
+  const getField = (key) => document.getElementById('edit_' + key)?.value ?? '';
+
+  const targetVectorRaw = getField('targetVector');
+  let targetVector;
+  try {
+    targetVector = targetVectorRaw.split(',').map(s => {
+      const v = parseInt(s.trim(), 10);
+      if (v !== 0 && v !== 1) throw new Error('0または1を入力');
+      return v;
+    });
+    if (targetVector.length !== 10) throw new Error('10要素必要');
+  } catch (e) {
+    alert('ターゲットベクトルの形式が不正です: ' + e.message);
+    return;
+  }
+
+  const targetNames = getField('targetNames').split('\n').filter(s => s.trim()).map(s => s.trim());
+  const mixingBanTargets = getField('mixingBanTargets').split('\n').filter(s => s.trim()).map(s => s.trim());
+
+  const body = {
+    id,
+    name: getField('name'),
+    activeIngredient: getField('activeIngredient'),
+    category: getField('category'),
+    phiDays: parseFloat(getField('phiDays')) || 0,
+    maxApplications: parseFloat(getField('maxApplications')) || 0,
+    toxicityClass: getField('toxicityClass'),
+    system: getField('system'),
+    systemCode: getField('systemCode'),
+    mixingRestriction: getField('mixingRestriction'),
+    targetVector,
+    targetNames,
+    mixingBanTargets,
+  };
+
+  try {
+    const res = await fetch(`/api/pesticides/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert('保存に失敗しました: ' + (data.error || res.statusText));
+      return;
+    }
+    await loadPesticides();
+    renderPesticideList();
+    showPesticideDetail(id); // refresh detail
+    alert('保存しました！');
+  } catch (e) {
+    alert('通信エラー: ' + e.message);
+  }
+}
+
+async function deletePesticide(id) {
+  if (!confirm(`薬剤 ${id} を削除してもよろしいですか？`)) return;
+
+  try {
+    const res = await fetch(`/api/pesticides/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) {
+      alert('削除に失敗しました: ' + (data.error || res.statusText));
+      return;
+    }
+    await loadPesticides();
+    renderPesticideList();
+    hideDetailPanel();
+    alert('削除しました！');
+  } catch (e) {
+    alert('通信エラー: ' + e.message);
+  }
+}
+
+function showAddPesticideForm() {
+  const panel = document.getElementById('pestDetailPanel');
+  if (!panel) return;
+
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <strong style="font-size:.95rem;">➕ 新規薬剤追加</strong>
+      <button onclick="hideDetailPanel()" style="background:transparent;border:none;color:#888;cursor:pointer;font-size:1.1rem;padding:4px 8px;">✕</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;">
+      <div>
+        <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">ID *</label>
+        <input id="edit_id" type="text" placeholder="P68" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+      </div>
+      <div>
+        <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">商品名 *</label>
+        <input id="edit_name" type="text" placeholder="例：ベルクート" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+      </div>
+      <div>
+        <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">有効成分 *</label>
+        <input id="edit_activeIngredient" type="text" placeholder="例：アゾキシストロビン" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+      </div>
+      <div>
+        <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">種類 *</label>
+        <select id="edit_category" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+          <option value="fungicide">殺菌剤</option>
+          <option value="insecticide">殺虫剤</option>
+          <option value="acaricide">殺ダニ剤</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">PHI日数</label>
+        <input id="edit_phiDays" type="number" step="0.1" placeholder="1" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+      </div>
+      <div>
+        <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">最大使用回数</label>
+        <input id="edit_maxApplications" type="number" step="0.1" placeholder="3" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+      </div>
+      <div>
+        <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">毒性区分</label>
+        <input id="edit_toxicityClass" type="text" placeholder="普通物" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+      </div>
+      <div>
+        <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">作用機作</label>
+        <input id="edit_system" type="text" placeholder="QoI（ストロビルリン）" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+      </div>
+      <div>
+        <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">システムコード</label>
+        <input id="edit_systemCode" type="text" placeholder="FRAC11" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+      </div>
+      <div>
+        <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">混用注意</label>
+        <input id="edit_mixingRestriction" type="text" placeholder="銅剤と混合不可" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+      </div>
+    </div>
+    <div style="margin-top:10px;">
+      <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">対象病害虫（改行区切り）*</label>
+      <textarea id="edit_targetNames" rows="2" placeholder="炭疽&#10;うどんこ" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;font-family:inherit;"></textarea>
+    </div>
+    <div style="margin-top:10px;">
+      <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">混用禁止対象（改行区切り）</label>
+      <textarea id="edit_mixingBanTargets" rows="2" placeholder="銅剤&#10;硫黄剤" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;font-family:inherit;"></textarea>
+    </div>
+    <div style="margin-top:10px;">
+      <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">ターゲットベクトル（コンマ区切り 0/1）*</label>
+      <input id="edit_targetVector" type="text" value="0,0,0,0,0,0,0,0,0,0" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;font-family:monospace;" placeholder="1,0,0,0,0,0,0,0,0,0">
+    </div>
+    <div style="margin-top:12px;display:flex;gap:6px;">
+      <button onclick="addPesticide()" class="btn btn-primary btn-sm">✓ 追加</button>
+    </div>
+  `;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function addPesticide() {
+  const getField = (key) => document.getElementById('edit_' + key)?.value ?? '';
+  const id = getField('id').trim();
+  if (!id) { alert('IDを入力してください'); return; }
+
+  const targetVectorRaw = getField('targetVector');
+  let targetVector;
+  try {
+    targetVector = targetVectorRaw.split(',').map(s => {
+      const v = parseInt(s.trim(), 10);
+      if (v !== 0 && v !== 1) throw new Error('0または1を入力');
+      return v;
+    });
+    if (targetVector.length !== 10) throw new Error('10要素必要');
+  } catch (e) {
+    alert('ターゲットベクトルの形式が不正です: ' + e.message);
+    return;
+  }
+
+  const targetNames = getField('targetNames').split('\n').filter(s => s.trim()).map(s => s.trim());
+  if (targetNames.length === 0) { alert('対象病害虫を至少少入力してください'); return; }
+
+  const mixingBanTargets = getField('mixingBanTargets').split('\n').filter(s => s.trim()).map(s => s.trim());
+
+  const body = {
+    id,
+    name: getField('name').trim(),
+    activeIngredient: getField('activeIngredient').trim(),
+    category: getField('category'),
+    phiDays: parseFloat(getField('phiDays')) || 0,
+    maxApplications: parseFloat(getField('maxApplications')) || 0,
+    toxicityClass: getField('toxicityClass').trim(),
+    system: getField('system').trim(),
+    systemCode: getField('systemCode').trim(),
+    mixingRestriction: getField('mixingRestriction').trim(),
+    targetVector,
+    targetNames,
+    mixingBanTargets,
+  };
+
+  try {
+    const res = await fetch('/api/pesticides', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert('追加に失敗しました: ' + (data.error || res.statusText));
+      return;
+    }
+    await loadPesticides();
+    renderPesticideList();
+    hideDetailPanel();
+    alert(`追加しました！ (${id})`);
+  } catch (e) {
+    alert('通信エラー: ' + e.message);
+  }
+}
+
+function exportPesticides() {
+  if (pesticideData.length === 0) { alert('データがありません'); return; }
+  const blob = new Blob([JSON.stringify(pesticideData, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `pesticides_export_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ═══════════════════════════════════════════

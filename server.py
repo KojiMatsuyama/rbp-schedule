@@ -19,6 +19,7 @@ APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 os.chdir(APP_ROOT)
 
 CUSTOM_EVAL_BOXES_PATH = os.path.join(APP_ROOT, 'data', 'eval_boxes_custom.json')
+PESTICIDES_PATH = os.path.join(APP_ROOT, 'data', 'pesticides.json')
 VECTOR_DIM = 10
 
 # --- POST /api/prescribe: RBPエンジン切替（python / haskell） ---
@@ -84,6 +85,19 @@ def save_custom_eval_boxes(data):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
+# --- 薬剤DB CRUD ---
+def load_pesticides():
+    if not os.path.exists(PESTICIDES_PATH):
+        return []
+    with open(PESTICIDES_PATH, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+
+def save_pesticides(data):
+    with open(PESTICIDES_PATH, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
 class Handler(SimpleHTTPRequestHandler):
     def end_headers(self):
         # キャッシュ無効化（コード修正が即ブラウザに反映されるように）
@@ -98,7 +112,94 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def do_GET(self):
+        if self.path == '/api/pesticides':
+            self._send_json(200, {'pesticides': load_pesticides()})
+            return
+        if self.path.startswith('/api/pesticides/'):
+            drug_id = self.path.split('/')[-1]
+            drugs = load_pesticides()
+            found = next((d for d in drugs if d['id'] == drug_id), None)
+            if found:
+                self._send_json(200, found)
+            else:
+                self._send_json(404, {'error': f'pesticide {drug_id} not found'})
+            return
+        # Non-API: serve static files via parent class
+        super().do_GET()
+
+    def do_PUT(self):
+        if self.path.startswith('/api/pesticides/'):
+            drug_id = self.path.split('/')[-1]
+            try:
+                length = int(self.headers.get('Content-Length', 0))
+                raw = self.rfile.read(length) if length > 0 else b''
+                body = json.loads(raw.decode('utf-8')) if raw else {}
+            except (ValueError, json.JSONDecodeError):
+                self._send_json(400, {'error': 'invalid JSON body'})
+                return
+
+            drugs = load_pesticides()
+            idx = next((i for i, d in enumerate(drugs) if d['id'] == drug_id), None)
+            if idx is None:
+                self._send_json(404, {'error': f'pesticide {drug_id} not found'})
+                return
+
+            # Merge: keep existing fields, overwrite provided ones
+            drugs[idx].update(body)
+            drugs[idx]['id'] = drug_id  # ID不変
+            save_pesticides(drugs)
+            self._send_json(200, {'status': 'updated', 'id': drug_id})
+            return
+        self._send_json(404, {'error': 'not found'})
+        return
+
+    def do_DELETE(self):
+        if self.path.startswith('/api/pesticides/'):
+            drug_id = self.path.split('/')[-1]
+            drugs = load_pesticides()
+            before = len(drugs)
+            drugs = [d for d in drugs if d['id'] != drug_id]
+            if len(drugs) == before:
+                self._send_json(404, {'error': f'pesticide {drug_id} not found'})
+                return
+            save_pesticides(drugs)
+            self._send_json(200, {'status': 'deleted', 'id': drug_id})
+            return
+        self._send_json(404, {'error': 'not found'})
+        return
+
     def do_POST(self):
+        if self.path == '/api/pesticides':
+            try:
+                length = int(self.headers.get('Content-Length', 0))
+                raw = self.rfile.read(length) if length > 0 else b''
+                body = json.loads(raw.decode('utf-8')) if raw else {}
+            except (ValueError, json.JSONDecodeError):
+                self._send_json(400, {'error': 'invalid JSON body'})
+                return
+
+            drugs = load_pesticides()
+            if any(d['id'] == body.get('id') for d in drugs):
+                self._send_json(409, {'error': f'pesticide {body.get("id")} already exists'})
+                return
+
+            # Validate required fields
+            required = ['id', 'name', 'activeIngredient', 'category', 'targetVector', 'targetNames']
+            missing = [f for f in required if f not in body]
+            if missing:
+                self._send_json(400, {'error': f'missing fields: {missing}'})
+                return
+            if not isinstance(body['targetVector'], list) or len(body['targetVector']) != VECTOR_DIM:
+                self._send_json(400, {'error': f'targetVector must be {VECTOR_DIM}-length array'})
+            if not isinstance(body['targetNames'], list):
+                self._send_json(400, {'error': 'targetNames must be an array'})
+
+            drugs.append(body)
+            save_pesticides(drugs)
+            self._send_json(200, {'status': 'created', 'id': body['id']})
+            return
+
         if self.path not in ('/api/eval-boxes', '/api/prescribe'):
             self._send_json(404, {'error': 'not found'})
             return

@@ -2,12 +2,8 @@
 RBP Algebraic Engine — JSON API wrapper
 ========================================
 server.py の POST /api/prescribe (engine=python) から呼ばれる入口。
-main.py のデモ用パイプライン（サンプル13剤DB）をそのまま使い、
-entryVector を受け取って処方結果を JSON 化可能な dict で返す。
-
-注意: PoCエンジンであり、薬剤DBは data/pesticides.js の全67剤ではなく
-main.py のサンプル13剤。スコアリングも簡略版（減衰ペナルティなし）のため、
-JS版（rbp/prescription.js）と結果が異なる場合がある。
+main.py のパイプライン（実データ67剤DB）を使い、entryVector を受け取って
+処方結果を JSON 化可能な dict で返す。
 
 CLI テスト: python3 api.py '[0,1,1,1,0,1,0,0,0,0]'
 """
@@ -21,12 +17,31 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from rbp_types import EntryVector, PrescriptionStatus, PrescriptionSet
+from data_loader import load_pesticides, load_eval_boxes
 from main import (
-    sample_pesticides, sample_eval_boxes, match_eval_box,
+    match_eval_box,
     build_prescription, empty_safety_ctx,
 )
 
 VECTOR_DIM = 10
+
+# Lazy-loaded real data (loaded once on first call)
+_pesticides_cache: list | None = None
+_eval_boxes_cache: list | None = None
+
+
+def _get_pesticides() -> list:
+    global _pesticides_cache
+    if _pesticides_cache is None:
+        _pesticides_cache = load_pesticides()
+    return _pesticides_cache
+
+
+def _get_eval_boxes() -> list:
+    global _eval_boxes_cache
+    if _eval_boxes_cache is None:
+        _eval_boxes_cache = load_eval_boxes()
+    return _eval_boxes_cache
 
 
 def _set_to_dict(ps: PrescriptionSet) -> dict:
@@ -48,14 +63,14 @@ def prescribe(entry_vector) -> dict:
         return {'error': f'entryVector must be a {VECTOR_DIM}-length array of 0/1'}
 
     ev = EntryVector.from_list(entry_vector)
-    pesticides = sample_pesticides()
+    pesticides = _get_pesticides()
 
-    eb_status, eb_detail = match_eval_box(ev, sample_eval_boxes())
+    eb_status, eb_detail = match_eval_box(ev, _get_eval_boxes())
     result = build_prescription(ev, pesticides, empty_safety_ctx(ev))
 
     return {
         'engine': 'python',
-        'sampleDb': True,
+        'sampleDb': False,
         'pesticideCount': len(pesticides),
         'evalBox': {'status': eb_status, 'detail': eb_detail},
         'status': result.status.name,
