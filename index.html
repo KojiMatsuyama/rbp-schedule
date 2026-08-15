@@ -926,6 +926,9 @@ function toggleTheme() {
     }
   }
 
+  // Open side panel by default on mobile
+  openSidePanel();
+
   // Tap calendar panel to open/close side panel on mobile
   document.querySelector('.calendar-panel')?.addEventListener('click', () => {
     if (isMobile()) {
