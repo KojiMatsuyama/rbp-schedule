@@ -1509,6 +1509,8 @@ let pesticideFilterCategory = 'all';
 let pesticideSearchQuery = '';
 
 async function loadPesticides() {
+  // Try server first (local network:192.168.131.161:9999), fall back to bundled DB.
+  // Cloudflare Pages has no /api/pesticides endpoint, so this always falls back there.
   try {
     console.log('[loadPesticides] fetching /api/pesticides...');
     const controller = new AbortController();
@@ -1519,10 +1521,13 @@ async function loadPesticides() {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     pesticideData = data.pesticides || [];
-    console.log('[loadPesticides] loaded', pesticideData.length, 'pesticides');
+    console.log('[loadPesticides] loaded', pesticideData.length, 'pesticides from server');
   } catch (e) {
-    console.error('[loadPesticides] FAILED:', e.name, e.message);
-    alert('薬剤DBの読み込みに失敗しました: ' + e.message);
+    console.warn('[loadPesticides] server unavailable, using bundled PESTICIDE_DB:', e.message);
+    if (typeof PESTICIDE_DB !== 'undefined' && Array.isArray(PESTICIDE_DB)) {
+      pesticideData = PESTICIDE_DB.slice();
+      console.log('[loadPesticides] fallback loaded', pesticideData.length, 'pesticides from bundled DB');
+    }
   }
 }
 
