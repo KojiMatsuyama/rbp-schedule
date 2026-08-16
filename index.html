@@ -7,6 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="schedule_app.css">
 <!-- iOS PWA support -->
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="防除スケジ">
@@ -1525,10 +1526,9 @@ async function loadPesticides() {
     pesticideData = data.pesticides || [];
     console.log('[loadPesticides] loaded', pesticideData.length, 'pesticides from server');
   } catch (e) {
-    console.warn('[loadPesticides] server unavailable, using bundled PESTICIDE_DB:', e.message);
+    // Cloudflare Pages has no /api/pesticides — use bundled DB silently
     if (typeof PESTICIDE_DB !== 'undefined' && Array.isArray(PESTICIDE_DB)) {
       pesticideData = PESTICIDE_DB.slice();
-      console.log('[loadPesticides] fallback loaded', pesticideData.length, 'pesticides from bundled DB');
     }
   }
 }
