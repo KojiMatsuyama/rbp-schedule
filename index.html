@@ -149,6 +149,7 @@ async function loadCustomEvalBoxes() {
   try {
     const res = await fetch(API_BASE + '/eval-boxes/custom');
     if (!res.ok) return;
+    if (!res.headers.get('content-type')?.includes('application/json')) return;
     const custom = await res.json();
     for (const [id, box] of Object.entries(custom)) {
       if (EB_VECTORS[id]) continue; // 既に読み込み済み（再読込等）
@@ -157,7 +158,7 @@ async function loadCustomEvalBoxes() {
       EB_NAMES[id] = box.name;
     }
   } catch (e) {
-    console.warn('カスタムEVAL_BOXの読み込みに失敗しました', e);
+    // Cloudflare Pages has no /api endpoints — silent, no warning
   }
 }
 
@@ -169,6 +170,7 @@ async function loadServerDiseases() {
   try {
     const res = await fetch(API_BASE + '/diseases');
     if (!res.ok) return;
+    if (!res.headers.get('content-type')?.includes('application/json')) return;
     const json = await res.json();
     if (Array.isArray(json.diseases) && json.diseases.length > 0) {
       // DISEASES がまだ定義されていない場合のみ上書き（const なのでエラーになるのを回避）
@@ -177,7 +179,7 @@ async function loadServerDiseases() {
       }
     }
   } catch (e) {
-    console.warn('サーバーからの病害虫データ読み込みに失敗、ローカル版を使用します', e);
+    // Cloudflare Pages has no /api endpoints — silent, no warning
   }
 }
 
