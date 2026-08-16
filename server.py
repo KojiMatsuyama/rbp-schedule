@@ -65,7 +65,8 @@ def init_db():
         CREATE TABLE IF NOT EXISTS diseases (
             id INTEGER PRIMARY KEY,
             name TEXT NOT NULL,
-            type TEXT NOT NULL CHECK(type IN ('disease', 'pest'))
+            type TEXT NOT NULL CHECK(type IN ('disease', 'pest')),
+            icon TEXT
         );
 
         CREATE TABLE IF NOT EXISTS eval_boxes (
@@ -450,8 +451,8 @@ class Handler(SimpleHTTPRequestHandler):
                 self._send_json(400, {"error": 'type must be "disease" or "pest"'})
 
             conn.execute(
-                "INSERT INTO diseases (id, name, type) VALUES (?, ?, ?)",
-                (int(body["id"]), body["name"], body["type"]),
+                "INSERT INTO diseases (id, name, type, icon) VALUES (?, ?, ?, ?)",
+                (int(body["id"]), body["name"], body["type"], body.get("icon")),
             )
             conn.commit()
             conn.close()

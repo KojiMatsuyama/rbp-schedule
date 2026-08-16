@@ -37,6 +37,60 @@ header .year-nav button {
 header .year-nav button:hover { background: rgba(255,255,255,.35); }
 header .year-nav span { font-size: 1.1rem; min-width: 60px; text-align: center; }
 
+/* Header dropdown menu */
+.header-menu-wrapper {
+  position: relative;
+}
+.header-menu-btn {
+  background: rgba(255,255,255,.25) !important;
+  border: 1px solid rgba(255,255,255,.5) !important;
+  color: white;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1.1rem;
+}
+.header-menu-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.2);
+  min-width: 200px;
+  z-index: 1000;
+  overflow: hidden;
+  color: #111111;
+}
+.header-menu-dropdown.open {
+  display: block;
+}
+.header-menu-dropdown *,
+.header-menu-item {
+  color: #111111 !important;
+}
+.header-menu-item {
+  display: block;
+  width: 100%;
+  padding: 10px 16px;
+  text-align: left;
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-size: .85rem;
+  transition: background .15s;
+  border-bottom: 1px solid #f0f0f0;
+}
+.header-menu-item:last-child {
+  border-bottom: none;
+}
+.header-menu-item:hover {
+  background: var(--accent-light);
+  color: var(--accent) !important;
+}
+
 /* Layout */
 .container {
   display: grid;
@@ -152,26 +206,65 @@ header .year-nav span { font-size: 1.1rem; min-width: 60px; text-align: center; 
   font-size: .8rem;
   font-weight: bold;
 }
-.panel-tabs {
-  display: flex;
+/* Collapsible menu bar */
+.panel-menu-bar {
   border-bottom: 2px solid var(--border);
+  background: var(--card);
 }
-.panel-tab {
-  flex: 1;
-  padding: 10px;
-  text-align: center;
+.menu-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 16px;
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-size: .9rem;
+  font-weight: bold;
+  color: var(--accent);
+  transition: background .2s;
+}
+.menu-toggle:hover {
+  background: var(--accent-light);
+}
+#menuChevron {
+  transition: transform .2s;
+  font-size: .7rem;
+}
+#menuChevron.rotated {
+  transform: rotate(180deg);
+}
+.menu-dropdown {
+  display: none;
+  background: var(--card);
+}
+.menu-dropdown.open {
+  display: block;
+}
+.menu-item {
+  display: block;
+  width: 100%;
+  padding: 10px 16px;
+  text-align: left;
   cursor: pointer;
   border: none;
   background: none;
   font-size: .85rem;
-  font-weight: bold;
-  color: var(--muted);
-  transition: all .2s;
+  color: var(--text);
+  transition: background .2s;
+  border-bottom: 1px solid #eee;
 }
-.panel-tab.active {
+.menu-item:last-child {
+  border-bottom: none;
+}
+.menu-item:hover {
+  background: var(--accent-light);
+}
+.menu-item.active {
   color: var(--accent);
-  border-bottom: 2px solid var(--accent);
-  margin-bottom: -2px;
+  background: var(--accent-light);
+  font-weight: bold;
 }
 .panel-content {
   flex: 1;
@@ -609,14 +702,14 @@ details.spec-alternatives summary, details.spec-excluded summary {
     transform: translateY(0);
   }
 
-  /* Panel tabs: horizontal scroll on tiny screens */
-  .panel-tabs {
+  /* Menu bar: horizontal scroll on tiny screens */
+  .panel-menu-bar {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
   }
-  .panel-tabs::-webkit-scrollbar { display: none; }
-  .panel-tab {
+  .panel-menu-bar::-webkit-scrollbar { display: none; }
+  .menu-toggle {
     white-space: nowrap;
     font-size: .75rem;
     padding: 8px 6px;
@@ -806,7 +899,7 @@ details.spec-alternatives summary, details.spec-excluded summary {
     min-height: 40px;
     padding: 6px 4px;
   }
-  .panel-tab {
+  .menu-toggle {
     padding: 12px 8px;
   }
   .pest-check {

@@ -20,10 +20,14 @@
     <button onclick="changeYear(-1)">◀</button>
     <span id="yearDisplay"></span>
     <button onclick="changeYear(1)">▶</button>
-    <button id="installHeaderBtn" onclick="handleInstallClick()" title="ホーム画面に追加" style="background:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.5);color:white;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:1.1rem;">📲</button>
-    <button id="themeToggle" onclick="toggleTheme()" title="テーマ切替">🌓</button>
-    <button id="settingsBtn" onclick="openSettingsModal()" title="設定（RBPエンジン切替）">⚙</button>
-    <button id="maintBtn" onclick="openPesticideMaintenance()" title="薬剤DBメンテナンス" style="background:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.5);color:white;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:1.1rem;">💊</button>
+    <div class="header-menu-wrapper">
+      <button id="headerMenuToggle" class="header-menu-btn" onclick="toggleHeaderMenu()" title="メニュー">☰</button>
+      <div class="header-menu-dropdown" id="headerMenu">
+        <button class="header-menu-item" onclick="handleInstallClick();closeHeaderMenu()">📲 ホーム画面に追加</button>
+        <button class="header-menu-item" onclick="toggleTheme();closeHeaderMenu()">🌓 テーマ切替</button>
+        <button class="header-menu-item" onclick="openSettingsModal();closeHeaderMenu()">⚙ 設定（エンジン切替）</button>
+      </div>
+    </div>
     <img id="qrCode" src="qr-code.png" alt="QR Code" style="width:48px;height:48px;border-radius:4px;cursor:pointer;" title="スマホでスキャン">
   </div>
 </header>
@@ -40,11 +44,20 @@
 
   <!-- Side Panel -->
   <div class="side-panel">
-    <div class="panel-tabs">
-      <button class="panel-tab" onclick="switchTab('detail')">📋 日次詳細</button>
-      <button class="panel-tab" onclick="switchTab('schedule')">📅 スケジュール</button>
-      <button class="panel-tab" onclick="switchTab('history')">🧴 防除履歴</button>
-      <button class="panel-tab active" onclick="switchTab('import')">📥 インポート</button>
+    <div class="panel-menu-bar">
+      <button class="menu-toggle" id="menuToggle" onclick="toggleMenu()">
+        <span id="menuLabel">📋 日次詳細</span>
+        <span id="menuChevron">▼</span>
+      </button>
+      <div class="menu-dropdown" id="panelMenu">
+        <button class="menu-item" onclick="switchTab('detail');closeMenu()">📋 日次詳細</button>
+        <button class="menu-item" onclick="switchTab('schedule');closeMenu()">📅 スケジュール</button>
+        <button class="menu-item" onclick="switchTab('history');closeMenu()">🧴 防除履歴</button>
+        <button class="menu-item" onclick="switchTab('import');closeMenu()">📥 インポート</button>
+        <hr style="border:none;border-top:1px solid #eee;margin:4px 0;">
+        <button class="menu-item" onclick="openDiseaseMaster();closeMenu()">🦠 病害虫マスター</button>
+        <button class="menu-item" onclick="openPesticideMaintenance();closeMenu()">💊 薬剤マスター</button>
+      </div>
     </div>
     <div class="panel-content">
       <!-- Detail Tab -->
@@ -237,6 +250,7 @@ async function syncAllRecordsToServer() {
   }
   await loadCustomEvalBoxes();
   await loadServerDiseases();
+  await loadPesticides();
   renderCalendar();
 })();
 
@@ -373,12 +387,14 @@ function renderDetail() {
   pestHTML += '<div class="pest-group-label">病害 (4)</div>';
   diseaseLabels.forEach(p => {
     const checked = pests.includes(p.name) ? 'checked' : '';
-    pestHTML += `<label class="pest-check"><input type="checkbox" data-idx="${p.id}" ${checked} onchange="saveRecord()"> ${p.name}</label>`;
+    const icon = p.icon || '🌱';
+    pestHTML += `<label class="pest-check"><input type="checkbox" data-idx="${p.id}" ${checked} onchange="saveRecord()"> ${icon} ${p.name}</label>`;
   });
   pestHTML += '<div class="pest-group-label">害虫 (6)</div>';
   pestLabels.forEach(p => {
     const checked = pests.includes(p.name) ? 'checked' : '';
-    pestHTML += `<label class="pest-check"><input type="checkbox" data-idx="${p.id}" ${checked} onchange="saveRecord()"> ${p.name}</label>`;
+    const icon = p.icon || '🐛';
+    pestHTML += `<label class="pest-check"><input type="checkbox" data-idx="${p.id}" ${checked} onchange="saveRecord()"> ${icon} ${p.name}</label>`;
   });
   pestHTML += '</div>';
 
@@ -985,16 +1001,71 @@ function renderSprayHistory() {
 // ═══════════════════════════════════════════
 // Tabs
 // ═══════════════════════════════════════════
-function switchTab(tabName) {
-  document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+const TAB_LABELS = { detail: '📋 日次詳細', schedule: '📅 スケジュール', history: '🧴 防除履歴', import: '📥 インポート' };
 
-  const tabs = { detail: 0, schedule: 1, history: 2, import: 3 };
-  document.querySelectorAll('.panel-tab')[tabs[tabName]].classList.add('active');
+function switchTab(tabName) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-' + tabName).classList.add('active');
+  // Update menu label & highlight
+  const label = document.getElementById('menuLabel');
+  if (label) label.textContent = TAB_LABELS[tabName] || tabName;
+  const menuItems = document.querySelectorAll('.menu-item');
+  const tabs = { detail: 0, schedule: 1, history: 2, import: 3 };
+  menuItems.forEach((item, i) => {
+    item.classList.toggle('active', i === tabs[tabName]);
+  });
 
   if (tabName === 'schedule') renderSchedule();
   if (tabName === 'history') renderSprayHistory();
+}
+
+function toggleMenu() {
+  const menu = document.getElementById('panelMenu');
+  menu.classList.toggle('open');
+  const chevron = document.getElementById('menuChevron');
+  if (chevron) chevron.classList.toggle('rotated');
+}
+
+function closeMenu() {
+  const menu = document.getElementById('panelMenu');
+  menu.classList.remove('open');
+}
+
+// Close menu when clicking outside
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('panelMenu');
+  const toggle = e.target.closest('.menu-toggle');
+  if (!toggle && menu && menu.classList.contains('open')) {
+    menu.classList.remove('open');
+  }
+});
+
+// Header dropdown menu
+function toggleHeaderMenu() {
+  const menu = document.getElementById('headerMenu');
+  menu.classList.toggle('open');
+}
+
+function closeHeaderMenu() {
+  const menu = document.getElementById('headerMenu');
+  menu.classList.remove('open');
+}
+
+// Close header menu when clicking outside
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('headerMenu');
+  const toggle = e.target.closest('#headerMenuToggle');
+  if (!toggle && menu && menu.classList.contains('open')) {
+    menu.classList.remove('open');
+  }
+});
+
+function showQRCode() {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;animation:fadeIn .2s ease;cursor:pointer;';
+  overlay.onclick = () => overlay.remove();
+  overlay.innerHTML = '<img src="qr-code.png" alt="QR Code" style="width:240px;height:240px;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.5);">';
+  document.body.appendChild(overlay);
 }
 
 // ═══════════════════════════════════════════
@@ -1460,6 +1531,63 @@ function getCategoryLabel(cat) {
   return map[cat] || cat;
 }
 
+function openDiseaseMaster() {
+  const overlay = document.createElement('div');
+  overlay.id = 'disease-master-modal';
+  overlay.style.cssText = `
+    position: fixed; inset: 0; z-index: 99999;
+    background: rgba(0,0,0,.85);
+    display: flex; align-items: center; justify-content: center;
+    font-family: "Hiragino Sans", "Meiryo", sans-serif;
+    animation: fadeIn .2s ease;
+  `;
+
+  const diseaseIcons = { 0: '🍅', 1: '🌫️', 2: '🍚', 3: '🕷️', 4: '🦋', 5: '🐛', 6: '🪳', 7: '🐌', 8: '🐜', 9: '🪽' };
+
+  overlay.innerHTML = `
+    <div style="
+      background: white; border-radius: 16px;
+      padding: 0; max-width: 520px; width: 95%; height: 70vh;
+      box-shadow: 0 8px 32px rgba(0,0,0,.5);
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    ">
+      <div style="
+        display:flex;justify-content:space-between;align-items:center;
+        padding:16px 20px;border-bottom:1px solid #eee;flex-shrink:0;
+      ">
+        <strong style="font-size:1.05rem;">🦠 病害虫マスター</strong>
+        <button id="closeDiseaseMaster" style="background:transparent;color:#888;border:none;font-size:1.3rem;cursor:pointer;padding:4px 8px;">✕</button>
+      </div>
+      <div id="diseaseMasterList" style="flex:1;overflow-y:auto;padding:12px 20px;"></div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  overlay.querySelector('#closeDiseaseMaster').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+  // Render list
+  const list = overlay.querySelector('#diseaseMasterList');
+  const diseases = typeof DISEASES !== 'undefined' ? DISEASES : [];
+  let html = '';
+  diseases.forEach(d => {
+    const icon = diseaseIcons[d.id] || '❓';
+    const typeLabel = d.type === 'disease' ? '病害' : '害虫';
+    html += `
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid #eee;border-radius:8px;margin-bottom:8px;">
+        <span style="font-size:1.5rem;width:36px;text-align:center;">${icon}</span>
+        <div style="flex:1;">
+          <strong>${d.name}</strong>
+          <span style="font-size:.75rem;color:#888;margin-left:8px;">[${typeLabel}]</span>
+          <div style="font-size:.7rem;color:#aaa;">ID: ${d.id}</div>
+        </div>
+      </div>
+    `;
+  });
+  list.innerHTML = html;
+}
+
 async function openPesticideMaintenance() {
   const existing = document.getElementById('pesticide-maintenance-modal');
   if (existing) existing.remove();
@@ -1900,41 +2028,44 @@ function exportPesticides() {
 // ═══════════════════════════════════════════
 // QR Code Modal
 // ═══════════════════════════════════════════
-document.getElementById('qrCode').addEventListener('click', () => {
-  const existing = document.getElementById('qr-modal');
-  if (existing) existing.remove();
+const qrCodeEl = document.getElementById('qrCode');
+if (qrCodeEl) {
+  qrCodeEl.addEventListener('click', () => {
+    const existing = document.getElementById('qr-modal');
+    if (existing) existing.remove();
 
-  const overlay = document.createElement('div');
-  overlay.id = 'qr-modal';
-  overlay.style.cssText = `
-    position: fixed; inset: 0; z-index: 99999;
-    background: rgba(0,0,0,.85);
-    display: flex; align-items: center; justify-content: center;
-    font-family: "Hiragino Sans", "Meiryo", sans-serif;
-    animation: fadeIn .2s ease;
-  `;
+    const overlay = document.createElement('div');
+    overlay.id = 'qr-modal';
+    overlay.style.cssText = `
+      position: fixed; inset: 0; z-index: 99999;
+      background: rgba(0,0,0,.85);
+      display: flex; align-items: center; justify-content: center;
+      font-family: "Hiragino Sans", "Meiryo", sans-serif;
+      animation: fadeIn .2s ease;
+    `;
 
-  overlay.innerHTML = `
-    <div style="
-      background: white; border-radius: 16px;
-      padding: 32px; max-width: 320px; width: 90%;
-      box-shadow: 0 8px 32px rgba(0,0,0,.5);
-      text-align: center;
-    ">
-      <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
-        <button id="closeQr" style="
-          background:transparent;color:#888;border:none;font-size:1.3rem;cursor:pointer;padding:4px 8px;
-        ">✕</button>
+    overlay.innerHTML = `
+      <div style="
+        background: white; border-radius: 16px;
+        padding: 32px; max-width: 320px; width: 90%;
+        box-shadow: 0 8px 32px rgba(0,0,0,.5);
+        text-align: center;
+      ">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+          <button id="closeQr" style="
+            background:transparent;color:#888;border:none;font-size:1.3rem;cursor:pointer;padding:4px 8px;
+          ">✕</button>
+        </div>
+        <img src="qr-code.png" alt="QR Code" style="width:240px;height:240px;display:block;margin:0 auto 16px;">
+        <p style="margin:0;font-size:.9rem;color:#333;">スマートフォンでスキャン<br>→ https://rbp-schedule.pages.dev</p>
       </div>
-      <img src="qr-code.png" alt="QR Code" style="width:240px;height:240px;display:block;margin:0 auto 16px;">
-      <p style="margin:0;font-size:.9rem;color:#333;">スマートフォンでスキャン<br>→ https://rbp-schedule.pages.dev</p>
-    </div>
-  `;
+    `;
 
-  document.body.appendChild(overlay);
-  overlay.querySelector('#closeQr').addEventListener('click', () => overlay.remove());
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
-});
+    document.body.appendChild(overlay);
+    overlay.querySelector('#closeQr').addEventListener('click', () => overlay.remove());
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  });
+}
 
 const styleSheet = document.createElement('style');
 styleSheet.textContent = `@keyframes fadeIn{from{opacity:0}to{opacity:1}}`;
