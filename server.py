@@ -167,7 +167,18 @@ class Handler(SimpleHTTPRequestHandler):
             conn = get_db()
             rows = conn.execute("SELECT * FROM pesticides ORDER BY id").fetchall()
             conn.close()
-            self._send_json(200, {"pesticides": [dict(r) for r in rows]})
+            result = []
+            for r in rows:
+                d = dict(r)
+                # Parse JSON-string columns back to arrays
+                for col in ("targetVector", "targetNames", "mixingBanTargets"):
+                    if d.get(col) and isinstance(d[col], str):
+                        try:
+                            d[col] = json.loads(d[col])
+                        except (json.JSONDecodeError, TypeError):
+                            pass
+                result.append(d)
+            self._send_json(200, {"pesticides": result})
             return
 
         if self.path.startswith("/api/pesticides/"):
@@ -176,7 +187,14 @@ class Handler(SimpleHTTPRequestHandler):
             row = conn.execute("SELECT * FROM pesticides WHERE id=?", (drug_id,)).fetchone()
             conn.close()
             if row:
-                self._send_json(200, dict(row))
+                d = dict(row)
+                for col in ("targetVector", "targetNames", "mixingBanTargets"):
+                    if d.get(col) and isinstance(d[col], str):
+                        try:
+                            d[col] = json.loads(d[col])
+                        except (json.JSONDecodeError, TypeError):
+                            pass
+                self._send_json(200, d)
             else:
                 self._send_json(404, {"error": f"pesticide {drug_id} not found"})
             return
