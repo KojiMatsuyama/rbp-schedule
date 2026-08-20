@@ -70,7 +70,10 @@ def run_line_through_bridges(
             raise TypeError(f"Unknown weight action type: {type(raw_action)}")
 
         # Hadamard product: element-wise multiply
-        new_flow_data = tuple(int(f * weight) for f in flow.data)
+        # round() (not int()/truncation) to match the Haskell reference engine
+        # (Data.RBP.Core.hadamard uses `round`), so weight=0.7 (toxicity
+        # attenuation) survives as attenuated flow=1, not a full block.
+        new_flow_data = tuple(round(f * weight) for f in flow.data)
         new_flow = EntryVector(new_flow_data)
 
         blocked = (new_flow.active_count == 0) and is_flowing(state)

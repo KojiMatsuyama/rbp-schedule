@@ -22,10 +22,10 @@ module Main where
 
 import Data.RBP.Types
 import Data.RBP.Core (runLineThroughBridges)
-import Data.RBP.Bridges (specBridges, hasMixingConflict, setHasInternalMixingConflict)
+import Data.RBP.Bridges (specBridges, setHasInternalMixingConflict, buildMixingReason)
 import Data.RBP.DataLoader (loadPesticides, loadEvalBoxes, samplePesticidesFallback, sampleEvalBoxesFallback)
 import qualified Data.Map.Strict as Map
-import Data.List (sortBy, nub, intercalate)
+import Data.List (sortBy, nub, intercalate, find)
 import Data.Ord (Down (..), comparing)
 import qualified Data.Vector.Unboxed as U
 import System.Environment (getArgs)
@@ -99,6 +99,91 @@ scorePrescriptionSet pesticides ev =
       total = effectiveness + safetyBase + resistanceBase
   in total
 
+------------------------------------------------------------------------------
+-- Full scoring breakdown (effectiveness / safety / resistance) for the
+-- --prescribe JSON API — ports Python's rbp-algebra-python/main.py's
+-- _score_set_full. scorePrescriptionSet above is left as-is for runDemo.
+------------------------------------------------------------------------------
+
+data Breakdown = Breakdown
+  { bdEffectiveness  :: Double
+  , bdMirrorId       :: Double
+  , bdCoverageRatio  :: Double
+  , bdMatchCount     :: Int
+  , bdTargetSum      :: Int
+  , bdSafety         :: Double
+  , bdSafetyWarnings :: [String]
+  , bdResistance     :: Double
+  , bdResistanceNote :: String
+  , bdTotalScore     :: Double
+  }
+
+findBridgeByLevel :: Double -> Maybe Bridge
+findBridgeByLevel lvl = find (\b -> bLevel b == lvl) specBridges
+
+scoreSetBreakdown
+  :: [Pesticide]
+  -> EntryVector
+  -> Map.Map PesticideId FlowResult   -- ^ flowingMap: pid -> FlowResult, for pesticides that reached L6
+  -> [(Pesticide, FlowResult)]        -- ^ pool: connected pesticides not blocked at USAGE (redundancy check)
+  -> Breakdown
+scoreSetBreakdown pesticides entryV flowingMap pool =
+  let unionVec      = computeUnionCoverage pesticides entryV
+      matchCount    = dotProductInt (evToIntVector unionVec) (evToIntVector entryV)
+      targetSum     = countActive entryV
+      coverageRatio = if targetSum > 0
+                        then fromIntegral matchCount / fromIntegral targetSum
+                        else 0 :: Double
+      mirrorId      = cosineSimilarity (evToIntVector unionVec) (evToIntVector entryV)
+      effectiveness = mirrorId * 10 + coverageRatio * 5
+
+      penaltyEvents =
+        [ (axis, delta, bWarningFn bridge (emptySafetyCtx { bcPesticide = p, bcEntryVector = entryV }))
+        | p <- pesticides
+        , Just fr <- [Map.lookup (pid p) flowingMap]
+        , t <- frTrace fr, btAttenuated t
+        , Just bridge <- [findBridgeByLevel (btLevel t)]
+        , Just (axis, delta) <- [bPenalty bridge]
+        ]
+      safetyEvents     = [ (d, w) | (axis, d, w) <- penaltyEvents, axis == "safety" ]
+      resistanceEvents = [ (d, w) | (axis, d, w) <- penaltyEvents, axis == "resistance" ]
+      safetyWarnings   = map snd safetyEvents
+      safetyScore      = max 0.0 (20.0 + sum (map fst safetyEvents))
+
+      nonRotationCodes = ["MIX", "PHYSICAL"]
+      (comboAdjustment, resistanceNote) = case pesticides of
+        [a, b]
+          | systemCode a `notElem` nonRotationCodes
+          , systemCode b `notElem` nonRotationCodes ->
+              let isSameSystem = systemCode a == systemCode b
+                  isRedundant = any
+                    (\(sp, _) ->
+                       dotProductInt
+                         (evToIntVector (computeUnionCoverage [sp] entryV))
+                         (evToIntVector entryV)
+                         >= matchCount)
+                    pool
+              in if isSameSystem
+                   then (-20.0 :: Double, "同一系統の組み合わせ：抵抗性リスク低減効果なし")
+                   else if not isRedundant
+                          then (0.0, "異なる系統（" ++ systemCode a ++ "／" ++ systemCode b ++ "）の組み合わせ：抵抗性管理上有効")
+                          else (0.0, "")
+        _ -> (0.0, "")
+      resistanceScore = max 0.0 (15.0 + sum (map fst resistanceEvents) + comboAdjustment)
+      totalScore      = effectiveness + safetyScore + resistanceScore
+  in Breakdown
+       { bdEffectiveness  = effectiveness
+       , bdMirrorId       = mirrorId
+       , bdCoverageRatio  = coverageRatio
+       , bdMatchCount     = matchCount
+       , bdTargetSum      = targetSum
+       , bdSafety         = safetyScore
+       , bdSafetyWarnings = safetyWarnings
+       , bdResistance     = resistanceScore
+       , bdResistanceNote = resistanceNote
+       , bdTotalScore     = totalScore
+       }
+
 matchEvalBox :: EntryVector -> [EvalBox] -> Either String (Maybe EvalBoxId)
 matchEvalBox ev boxes =
   let matches = filter (exactMatch ev) boxes
@@ -167,10 +252,66 @@ jArr xs = "[" ++ intercalate "," xs ++ "]"
 jNum :: Show a => a -> String
 jNum n = show n
 
+jBool :: Bool -> String
+jBool b = if b then "true" else "false"
+
 parseCsvInts :: String -> [Int]
 parseCsvInts s =
   let ws = words (map (\c -> if c == ',' then ' ' else c) s)
   in [ n | w <- ws, Just n <- [readMaybe w] ]
+
+isBlockedAt :: String -> FlowState -> Bool
+isBlockedAt bidStr (Blocked bid' _) = pretty bid' == bidStr
+isBlockedAt _      Flowing          = False
+
+lineTraceJson :: (Pesticide, FlowResult) -> String
+lineTraceJson (p, fr) = jObj
+  [ ("pesticide", jStr (pretty (pid p)))
+  , ("pesticide_name", jStr (pname p))
+  , ("levels", jArr (map (jNum . btLevel) (frTrace fr)))
+  , ("weights", jArr (map (jNum . bridgeWeightValue . btWeight) (frTrace fr)))
+  , ("blocked", jBool (isBlocked (frState fr)))
+  , ("blocked_at", case frState fr of
+       Blocked bid' _ -> jStr (pretty bid')
+       Flowing        -> "null")
+  ]
+
+excludedIndividualJson :: (Pesticide, BridgeId, String) -> String
+excludedIndividualJson (p, bid', reason) = jObj
+  [ ("pesticidePid", jStr (pretty (pid p)))
+  , ("pesticideName", jStr (pname p))
+  , ("bridgeId", jStr (pretty bid'))
+  , ("reason", jStr reason)
+  ]
+
+excludedSetJson :: (Pesticide, Pesticide, [String]) -> String
+excludedSetJson (a, b, reasons) = jObj
+  [ ("pesticidePids", jArr [jStr (pretty (pid a)), jStr (pretty (pid b))])
+  , ("pesticideNames", jArr [jStr (pname a), jStr (pname b)])
+  , ("gateId", jStr "SPEC-BRIDGE-MIXING-SET")
+  , ("reasons", jArr (map jStr reasons))
+  ]
+
+breakdownJson :: Breakdown -> String
+breakdownJson bd = jObj
+  [ ("effectiveness", jObj
+      [ ("raw", jNum (bdEffectiveness bd))
+      , ("mirrorId", jNum (bdMirrorId bd))
+      , ("coverageRatio", jNum (bdCoverageRatio bd))
+      , ("matchCount", jNum (bdMatchCount bd))
+      , ("targetSum", jNum (bdTargetSum bd))
+      ])
+  , ("safety", jObj
+      [ ("raw", jNum (bdSafety bd))
+      , ("warnings", jArr (map jStr (bdSafetyWarnings bd)))
+      ])
+  , ("resistance", jObj
+      [ ("raw", jNum (bdResistance bd))
+      , ("note", jStr (bdResistanceNote bd))
+      ])
+  , ("mixingOk", jBool True)
+  , ("mixingReasons", jArr [])
+  ]
 
 -- | Run prescription with given data sources.
 prescribeWith :: EntryVector -> [Pesticide] -> [EvalBox] -> String
@@ -181,44 +322,78 @@ prescribeWith entryV pesticides evalBoxes =
         , bcTargetMatch = TM (countOverlap (targetVector p) entryV)
         }
       lineResults = [ (p, runLineThroughBridges entryV specBridges (mkCtx p)) | p <- pesticides ]
-      flowing = [ p | (p, fr) <- lineResults, not (isBlocked (frState fr)) ]
-      pairSets = [ [a, b] | (i, a) <- zip [(0 :: Int) ..] flowing, b <- drop (i + 1) flowing ]
-      candidates = map (: []) flowing ++ pairSets
-      validSets = filter (not . setHasInternalMixingConflict) candidates
-      scored = sortBy (comparing (Down . snd))
-                 [ (s, scorePrescriptionSet s entryV) | s <- validSets ]
+
+      -- connected = passed L1 TARGET; flowing = connected AND reached L6; pool = connected minus USAGE-blocked
+      connected = [ (p, fr) | (p, fr) <- lineResults, not (isBlockedAt "SPEC-BRIDGE-TARGET" (frState fr)) ]
+      flowing   = [ (p, fr) | (p, fr) <- connected, not (isBlocked (frState fr)) ]
+      pool      = [ (p, fr) | (p, fr) <- connected, not (isBlockedAt "SPEC-BRIDGE-USAGE" (frState fr)) ]
+
+      flowingMap = Map.fromList [ (pid p, fr) | (p, fr) <- flowing ]
+
+      excludedIndividual =
+        [ (p, bid', reason) | (p, fr) <- connected, Blocked bid' reason <- [frState fr] ]
+
+      flowingPesticides = map fst flowing
+      pairSets   = [ [a, b] | (i, a) <- zip [(0 :: Int) ..] flowingPesticides, b <- drop (i + 1) flowingPesticides ]
+      candidates = map (: []) flowingPesticides ++ pairSets
+
+      classifySet s
+        | [a, b] <- s, setHasInternalMixingConflict s = Left (a, b, buildMixingReason a b)
+        | otherwise = Right s
+      classified   = map classifySet candidates
+      excludedSets = [ (a, b, rs) | Left (a, b, rs) <- classified ]
+      validSets    = [ s | Right s <- classified ]
+
+      sortKey (s, bd) =
+        ( Down (bdMirrorId bd), Down (bdTotalScore bd), length s
+        , intercalate "," (map (pretty . pid) s) )
+      scored = sortBy (comparing sortKey)
+                 [ (s, scoreSetBreakdown s entryV flowingMap pool) | s <- validSets ]
+
       ebJson = case matchEvalBox entryV evalBoxes of
         Right Nothing    -> "{\"status\": \"UNDEFINED\", \"detail\": null}"
         Right (Just eid) -> "{\"status\": \"MATCH\", \"detail\": \"" ++ pretty eid ++ "\"}"
         Left err         -> "{\"status\": \"ERROR\", \"detail\": \"" ++ jsonEscape err ++ "\"}"
-      setJson (s, score) =
-        let unionVec = computeUnionCoverage s entryV
-            matchCount = dotProductInt (evToIntVector unionVec) (evToIntVector entryV)
-            targetSum = countActive entryV
-            coverage = if targetSum > 0
-                         then fromIntegral matchCount / fromIntegral targetSum
-                         else 0 :: Double
-            mirrorId = cosineSimilarity (evToIntVector unionVec) (evToIntVector entryV)
-        in "{ \"pesticides\": " ++ jArr [ jObj [ ("id", jStr (pretty (pid p)))
-                                               , ("name", jStr (pname p))
-                                               , ("system", jStr (system p)) ]
-                                         | p <- s ] ++
-           ", \"matchCount\": " ++ jNum matchCount ++
-           ", \"coverageRatio\": " ++ jNum coverage ++
-           ", \"mirrorId\": " ++ jNum mirrorId ++
-           ", \"totalScore\": " ++ jNum score ++ " }"
-      (statusStr, bestJson, altsJson)
-        | null flowing = ("NO_PESTICIDE_DEFINED", "null", jArr [])
-        | null scored  = ("ALL_BLOCKED_BY_CONSTRAINTS", "null", jArr [])
-        | otherwise    = ( "SUCCESS"
-                         , setJson (head scored)
-                         , jArr (map setJson (take 10 (drop 1 scored))) )
-  in "{ \"engine\": \"haskell\", \"sampleDb\": false, \"pesticideCount\": "
-     ++ jNum (length pesticides) ++
-     ", \"evalBox\": " ++ ebJson ++
-     ", \"status\": \"" ++ statusStr ++ "\"" ++
-     ", \"best\": " ++ bestJson ++
-     ", \"alternatives\": " ++ altsJson ++ " }"
+      setJson (s, bd) = jObj
+        [ ("pesticides", jArr [ jObj [ ("id", jStr (pretty (pid p)))
+                                     , ("name", jStr (pname p))
+                                     , ("system", jStr (system p)) ]
+                               | p <- s ])
+        , ("matchCount", jNum (bdMatchCount bd))
+        , ("coverageRatio", jNum (bdCoverageRatio bd))
+        , ("mirrorId", jNum (bdMirrorId bd))
+        , ("totalScore", jNum (bdTotalScore bd))
+        , ("breakdown", breakdownJson bd)
+        ]
+      (statusStr, bestJson, altsJson, lineTracesJ, exclIndivJ, exclSetsJ)
+        | null connected = ( "NO_PESTICIDE_DEFINED", "null", jArr []
+                            , jArr [], jArr [], jArr [] )
+        | null flowing   = ( "ALL_BLOCKED_BY_CONSTRAINTS", "null", jArr []
+                            , jArr []
+                            , jArr (map excludedIndividualJson excludedIndividual)
+                            , jArr [] )
+        | null scored    = ( "ALL_BLOCKED_BY_CONSTRAINTS", "null", jArr []
+                            , jArr (map lineTraceJson connected)
+                            , jArr (map excludedIndividualJson excludedIndividual)
+                            , jArr (map excludedSetJson excludedSets) )
+        | otherwise      = ( "SUCCESS"
+                            , setJson (head scored)
+                            , jArr (map setJson (take 10 (drop 1 scored)))
+                            , jArr (map lineTraceJson connected)
+                            , jArr (map excludedIndividualJson excludedIndividual)
+                            , jArr (map excludedSetJson excludedSets) )
+  in jObj
+       [ ("engine", jStr "haskell")
+       , ("sampleDb", jBool False)
+       , ("pesticideCount", jNum (length pesticides))
+       , ("evalBox", ebJson)
+       , ("status", jStr statusStr)
+       , ("best", bestJson)
+       , ("alternatives", altsJson)
+       , ("lineTraces", lineTracesJ)
+       , ("excludedIndividual", exclIndivJ)
+       , ("excludedSets", exclSetsJ)
+       ]
 
 ------------------------------------------------------------------------------
 -- Main

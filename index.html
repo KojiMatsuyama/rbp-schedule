@@ -27,6 +27,9 @@
         <button class="header-menu-item" onclick="handleInstallClick();closeHeaderMenu()">📲 ホーム画面に追加</button>
         <button class="header-menu-item" onclick="toggleTheme();closeHeaderMenu()">🌓 テーマ切替</button>
         <button class="header-menu-item" onclick="openSettingsModal();closeHeaderMenu()">⚙ 設定（エンジン切替）</button>
+        <hr style="border:none;border-top:1px solid #eee;margin:4px 0;">
+        <button class="header-menu-item" onclick="window.location.href='/chat';closeHeaderMenu()">🤖 AIアシスタント</button>
+        <button class="header-menu-item" onclick="window.location.href='/designer';closeHeaderMenu()">🔷 グラフデザイナー</button>
       </div>
     </div>
     <img id="qrCode" src="qr-code.png" alt="QR Code" style="width:48px;height:48px;border-radius:4px;cursor:pointer;" title="スマホでスキャン">
@@ -2078,5 +2081,6 @@ const styleSheet = document.createElement('style');
 styleSheet.textContent = `@keyframes fadeIn{from{opacity:0}to{opacity:1}}`;
 document.head.appendChild(styleSheet);
 </script>
+
 </body>
 </html>

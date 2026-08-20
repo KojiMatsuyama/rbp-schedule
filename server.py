@@ -10,9 +10,12 @@
 import glob
 import json
 import os
+import re
 import sqlite3
 import subprocess
 import sys
+import threading
+import datetime
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from socketserver import ThreadingMixIn
 
@@ -136,6 +139,113 @@ def run_haskell_engine(entry_vector):
         return {"error": f"HaskellエンジンのJSON出力を解析できません: {proc.stdout[:200]}"}
 
 
+# ─── Conversation History Store ─────────────────────────────────
+# Thread-local storage for per-client conversation history
+import threading
+
+_conv_lock = threading.Lock()
+_conversations = {}  # client_id -> [(role, content), ...]
+
+
+def _get_conversation(client_id: str) -> list:
+    with _conv_lock:
+        return _conversations.setdefault(client_id, [])
+
+
+def _append_conversation(client_id: str, role: str, content: str):
+    with _conv_lock:
+        conv = _conversations.setdefault(client_id, [])
+        conv.append((role, content))
+        # Keep last 20 messages
+        if len(conv) > 20:
+            _conversations[client_id] = conv[-20:]
+
+
+# ─── LangGraph Token Store (Petri net model) ─────────────────────
+# トークン集約ノードの状態をメモリ上に保持。
+# クライアント（スケジュールタイマー / カレンダーUI）がトークンを投入。
+# 全トークンが揃うまでエージェントは待機。
+#
+# 実体は agentic_chat/tokens.py にあり、server.py と nodes.py が共有。
+
+from agentic_chat.tokens import set_token, get_token_state, reset_tokens, get_required_keys
+
+
+# ─── LangGraph Designer Storage ─────────────────────────────────
+import os
+import shutil
+
+GRAPHS_DIR = os.path.join(APP_ROOT, "data", "designer_graphs")
+os.makedirs(GRAPHS_DIR, exist_ok=True)
+
+_graph_lock = threading.Lock()
+
+
+def _save_graph(name: str, data: dict) -> str:
+    """Save a graph JSON file. Returns filename."""
+    filename = f"{slugify(name)}.json"
+    filepath = os.path.join(GRAPHS_DIR, filename)
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    return filename
+
+
+def _load_graph(filename: str) -> dict | None:
+    """Load a graph JSON file."""
+    filepath = os.path.join(GRAPHS_DIR, filename)
+    if not os.path.exists(filepath):
+        return None
+    with open(filepath, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _list_graphs() -> list:
+    """List all saved graph filenames with metadata."""
+    results = []
+    for fname in sorted(os.listdir(GRAPHS_DIR)):
+        if not fname.endswith(".json"):
+            continue
+        fpath = os.path.join(GRAPHS_DIR, fname)
+        stat = os.stat(fpath)
+        try:
+            with open(fpath, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            # Support both old (nodes/edges) and new (stages) formats
+            node_count = len(data.get("nodes", [])) or len(data.get("stages", []))
+            edge_count = len(data.get("edges", []))
+            name = data.get("_meta", {}).get("name", fname.replace(".json", ""))
+        except Exception:
+            name = fname.replace(".json", "")
+            node_count = "?"
+            edge_count = "?"
+        results.append({
+            "filename": fname,
+            "name": name,
+            "nodeCount": node_count,
+            "edgeCount": edge_count,
+            "size": stat.st_size,
+            "modified": datetime.datetime.fromtimestamp(stat.st_mtime).isoformat(),
+        })
+    return results
+
+
+def _delete_graph(filename: str) -> bool:
+    """Delete a graph file."""
+    filepath = os.path.join(GRAPHS_DIR, filename)
+    if os.path.exists(filepath):
+        os.remove(filepath)
+        return True
+    return False
+
+
+def slugify(s: str) -> str:
+    """Simple slugify: lowercase, alphanumeric + hyphens + unicode."""
+    import re
+    s = re.sub(r"[^\w\-]", "-", s).lower()
+    s = re.sub(r"-+", "-", s).strip("-")
+    return s or "untitled"
+
+
 # ─── Handlers ───────────────────────────────────────────────────
 
 class Handler(SimpleHTTPRequestHandler):
@@ -233,6 +343,18 @@ class Handler(SimpleHTTPRequestHandler):
             rows = conn.execute("SELECT * FROM records ORDER BY date").fetchall()
             conn.close()
             self._send_json(200, {"success": True, "data": [dict(r) for r in rows]})
+            return
+
+        if self.path == "/chat" or self.path == "/chat/":
+            self._serve_chat_page()
+            return
+
+        if self.path == "/designer" or self.path == "/designer/":
+            self._serve_designer_page()
+            return
+
+        if self.path == "/api/tokens/check":
+            self._handle_tokens_check()
             return
 
         # Non-API: serve static files via parent class
@@ -486,7 +608,7 @@ class Handler(SimpleHTTPRequestHandler):
             self._send_json(200, {"status": "created", "date": date})
             return
 
-        if self.path not in ("/api/eval-boxes", "/api/prescribe"):
+        if self.path not in ("/api/eval-boxes", "/api/prescribe", "/api/chat/message", "/api/chat-webhook", "/api/designer/save", "/api/designer/list", "/api/designer/load", "/api/designer/delete", "/api/tokens/set", "/api/tokens/reset"):
             self._send_json(404, {"error": "not found"})
             return
 
@@ -498,8 +620,40 @@ class Handler(SimpleHTTPRequestHandler):
             self._send_json(400, {"error": "invalid JSON body"})
             return
 
+        if self.path == "/api/chat/message":
+            self._handle_chat_message(body)
+            return
+
         if self.path == "/api/prescribe":
             self._handle_prescribe(body)
+            return
+
+        if self.path == "/api/chat-webhook":
+            self._handle_chat_webhook(body)
+            return
+
+        if self.path == "/api/designer/save":
+            self._handle_designer_save(body)
+            return
+
+        if self.path == "/api/designer/list":
+            self._handle_designer_list()
+            return
+
+        if self.path == "/api/designer/load":
+            self._handle_designer_load(body)
+            return
+
+        if self.path == "/api/designer/delete":
+            self._handle_designer_delete(body)
+            return
+
+        if self.path == "/api/tokens/set":
+            self._handle_tokens_set(body)
+            return
+
+        if self.path == "/api/tokens/reset":
+            self._handle_tokens_reset(body)
             return
 
         box_id = body.get("id")
@@ -555,6 +709,194 @@ class Handler(SimpleHTTPRequestHandler):
 
         status = 500 if isinstance(result, dict) and result.get("error") else 200
         self._send_json(status, result)
+
+    # ── Chat AI ──────────────────────────────────────────────────
+
+    def _serve_chat_page(self):
+        """Serve the chat UI page."""
+        chat_path = os.path.join(APP_ROOT, "chat.html")
+        try:
+            with open(chat_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            body = content.encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+            self.send_header("Pragma", "no-cache")
+            self.end_headers()
+            self.wfile.write(body)
+        except FileNotFoundError:
+            self._send_json(404, {"error": "chat.html not found"})
+
+    def _serve_designer_page(self):
+        """Serve the LangGraph Designer page."""
+        designer_path = os.path.join(APP_ROOT, "langgraph_designer.html")
+        try:
+            with open(designer_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            body = content.encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+            self.send_header("Pragma", "no-cache")
+            self.end_headers()
+            self.wfile.write(body)
+        except FileNotFoundError:
+            self._send_json(404, {"error": "langgraph_designer.html not found"})
+
+    def _handle_chat_message(self, body):
+        """Handle chat message → Claude API."""
+        message = body.get("message", "").strip()
+        if not message:
+            self._send_json(400, {"error": "message is required"})
+            return
+
+        # Detect Slack notification intent and inject conversation context
+        slack_intent_keywords = [
+            # Japanese
+            "slackに通知", "slackに送信", "slackに送って", "slackに投げて",
+            "メンバーに通知", "メンバーに共有", "チームに共有", "Slackで共有",
+            "通知して", "共有して",
+            # English
+            "slack", "notify", "notification", "share",
+            "member", "team",
+        ]
+        is_slack_request = any(kw in message.lower() for kw in slack_intent_keywords)
+
+        try:
+            from agentic_chat import run as agentic_run
+            # Use client IP as thread_id for LangGraph conversation history
+            thread_id = self.client_address[0] if self.client_address else "default"
+            response = agentic_run(
+                message,
+                is_slack_request=is_slack_request,
+                thread_id=thread_id,
+            )
+            self._send_json(200, {"response": response})
+        except ImportError as e:
+            self._send_json(503, {
+                "response": f"⛔ agentic_chat モジュールが読み込めません。\n\n詳細: {str(e)}"
+            })
+        except Exception as e:
+            self._send_json(500, {"error": f"チャットエラー: {str(e)[:200]}"})
+
+    def _handle_chat_webhook(self, body):
+        """Handle Slack webhook message send request."""
+        text = body.get("text", "").strip()
+        title = body.get("title", "").strip()
+        sections = body.get("sections", [])
+
+        if not text and not title:
+            self._send_json(400, {"error": "text or title is required"})
+            return
+
+        if not text:
+            text = title
+
+        try:
+            from chat_client import send_message, send_message_with_card
+            if sections:
+                result = send_message_with_card(title or text, sections)
+            else:
+                result = send_message(text)
+
+            if result.get("success"):
+                self._send_json(200, {"status": "sent"})
+            else:
+                self._send_json(500, {"error": result.get("error", "不明なエラー")})
+        except ImportError:
+            self._send_json(503, {"error": "chat_client モジュールが見つかりません"})
+        except Exception as e:
+            self._send_json(500, {"error": f"送信中にエラーが発生しました: {str(e)[:200]}"})
+
+    # ─── LangGraph Designer API ───────────────────────────────────
+
+    def _handle_designer_save(self, body):
+        """Save a graph to disk."""
+        name = body.get("name", "").strip()
+        data = body.get("data")
+        if not name or not data:
+            self._send_json(400, {"error": "name and data are required"})
+            return
+        try:
+            with _graph_lock:
+                filename = _save_graph(name, data)
+            self._send_json(200, {"ok": True, "filename": filename})
+        except Exception as e:
+            self._send_json(500, {"error": f"保存中にエラー: {str(e)[:200]}"})
+
+    def _handle_designer_list(self):
+        """List all saved graphs."""
+        try:
+            with _graph_lock:
+                graphs = _list_graphs()
+            self._send_json(200, {"graphs": graphs})
+        except Exception as e:
+            self._send_json(500, {"error": f"一覧取得中にエラー: {str(e)[:200]}"})
+
+    def _handle_designer_load(self, body):
+        """Load a specific graph."""
+        filename = body.get("filename", "").strip()
+        if not filename:
+            self._send_json(400, {"error": "filename is required"})
+            return
+        try:
+            with _graph_lock:
+                data = _load_graph(filename)
+            if data is None:
+                self._send_json(404, {"error": "graph not found"})
+                return
+            self._send_json(200, {"data": data})
+        except Exception as e:
+            self._send_json(500, {"error": f"読取中にエラー: {str(e)[:200]}"})
+
+    def _handle_designer_delete(self, body):
+        """Delete a saved graph."""
+        filename = body.get("filename", "").strip()
+        if not filename:
+            self._send_json(400, {"error": "filename is required"})
+            return
+        try:
+            with _graph_lock:
+                ok = _delete_graph(filename)
+            if not ok:
+                self._send_json(404, {"error": "graph not found"})
+                return
+            self._send_json(200, {"ok": True})
+        except Exception as e:
+            self._send_json(500, {"error": f"削除中にエラー: {str(e)[:200]}"})
+
+    # ─── Token Management API ─────────────────────────────────────
+
+    def _handle_tokens_check(self):
+        """GET /api/tokens/check — Current token state."""
+        self._send_json(200, get_token_state())
+
+    def _handle_tokens_set(self, body):
+        """POST /api/tokens/set — Set a single token."""
+        key = body.get("key", "").strip()
+        value = body.get("value", "").strip()
+        valid_keys = sorted(get_required_keys())
+        if not key or key not in valid_keys:
+            self._send_json(400, {"error": f"key must be one of: {valid_keys}"})
+            return
+        if not value:
+            self._send_json(400, {"error": "value is required"})
+            return
+        result = set_token(key, value)
+        if "error" in result:
+            self._send_json(400, result)
+            return
+        self._send_json(200, result)
+
+    def _handle_tokens_reset(self, body):
+        """POST /api/tokens/reset — Reset all tokens."""
+        result = reset_tokens()
+        self._send_json(200, result)
 
 
 def main():

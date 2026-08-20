@@ -266,9 +266,22 @@ class FlowResult:
 
 @dataclass
 class ScoreBreakdown:
-    effectiveness: float
-    safety: float
-    resistance: float
+    """Detailed score breakdown for a prescription set."""
+    effectiveness: float = 0.0
+    safety: float = 0.0
+    resistance: float = 0.0
+    # Raw sub-components
+    coverage_ratio: float = 0.0
+    match_count: int = 0
+    target_sum: int = 0
+    mirror_id: float = 0.0
+    # Warning messages from bridge penalties
+    warnings: list[str] = field(default_factory=list)
+    # Resistance management note (e.g. "different system combo")
+    resistance_note: str = ""
+    # Mixing info
+    mixing_ok: bool = True
+    mixing_reasons: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -282,6 +295,7 @@ class PrescriptionSet:
     resistance_score: float
     total_score: float
     warnings: list[str] = field(default_factory=list)
+    breakdown: ScoreBreakdown = field(default_factory=ScoreBreakdown)
 
 
 class PrescriptionStatus(Enum):
@@ -291,8 +305,32 @@ class PrescriptionStatus(Enum):
 
 
 @dataclass
+class ExcludedIndividual:
+    """A single pesticide excluded by a bridge gate."""
+    pesticide_pid: str
+    pesticide_name: str
+    bridge_id: str
+    reason: str
+
+
+@dataclass
+class ExcludedSet:
+    """A multi-pesticide set excluded by a set-level gate."""
+    pesticide_pids: list[str]
+    pesticide_names: list[str]
+    gate_id: str
+    reasons: list[str] = field(default_factory=list)
+
+
+@dataclass
 class PrescriptionResult:
     best: PrescriptionSet | None
     alternatives: list[PrescriptionSet]
     status: PrescriptionStatus
     bridge_trace: list[BridgeTrace] = field(default_factory=list)
+    # Per-pesticide bridge traces (full detail for ALL connected lines)
+    line_traces: list[dict] = field(default_factory=list)
+    # Excluded individual pesticides with reasons
+    excluded_individual: list[ExcludedIndividual] = field(default_factory=list)
+    # Excluded multi-pesticide sets with reasons
+    excluded_sets: list[ExcludedSet] = field(default_factory=list)

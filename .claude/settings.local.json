@@ -44,7 +44,16 @@
       "Bash(curl -fsSL https://deb.nodesource.com/setup_22.x)",
       "Bash(bash -)",
       "Bash(curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh)",
-      "Bash(bash)"
+      "Bash(bash)",
+      "Bash(python3 db_setup.py)",
+      "Bash(python3 -c ' *)",
+      "Bash(python3)",
+      "Bash(kill 3894723)",
+      "Bash(python3 server.py)",
+      "Bash(curl -s http://localhost:9999/)",
+      "Bash(curl -s http://localhost:9999/api/chat/message -H 'Content-Type: application/json' -d '{\"message\": \"2025年2月21日に散布する薬剤を選定して\"}')",
+      "Bash(python3 -m json.tool)",
+      "Bash(pkill -f \"python3 server.py\")"
     ],
     "additionalDirectories": [
       "/home/ko_matsuyama/app/STB",

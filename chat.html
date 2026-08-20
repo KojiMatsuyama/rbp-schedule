@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AIアシスタント — RBP防除スケジューラ</title>
+<style>
+:root {
+  --bg: #f5f5dc;
+  --card: #fffef5;
+  --border: #c8b88a;
+  --accent: #4a7c59;
+  --accent-light: #e8f0e4;
+  --danger: #c0392b;
+  --text: #2c2c2c;
+  --muted: #888;
+  --user-bg: #d4edda;
+  --ai-bg: #ffffff;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: "Hiragino Sans", "Meiryo", sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header */
+.chat-header {
+  background: linear-gradient(135deg, #3a6b42, #4a7c59);
+  color: white;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0,0,0,.15);
+}
+.chat-header h1 { font-size: 1.1rem; }
+.chat-header .back-btn {
+  background: rgba(255,255,255,.2);
+  border: 1px solid rgba(255,255,255,.4);
+  color: white;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: .85rem;
+}
+
+/* Chat area */
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.message {
+  max-width: 85%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: .9rem;
+  line-height: 1.5;
+  word-wrap: break-word;
+}
+.message.user {
+  align-self: flex-end;
+  background: var(--user-bg);
+  border: 1px solid #b7dfbf;
+  border-bottom-right-radius: 4px;
+}
+.message.ai {
+  align-self: flex-start;
+  background: var(--ai-bg);
+  border: 1px solid var(--border);
+  border-bottom-left-radius: 4px;
+}
+.message.ai pre {
+  background: #f0f0f0;
+  padding: 8px;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: .8rem;
+  margin: 6px 0;
+  white-space: pre-wrap;
+}
+.message.ai ul, .message.ai ol {
+  margin: 4px 0 4px 20px;
+}
+.message.ai li {
+  margin: 2px 0;
+}
+.message.ai strong {
+  color: var(--accent);
+}
+.message.ai table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 6px 0;
+  font-size: .8rem;
+}
+.message.ai th, .message.ai td {
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  text-align: left;
+}
+.message.ai th {
+  background: var(--accent-light);
+}
+
+.typing-indicator {
+  align-self: flex-start;
+  padding: 10px 14px;
+  background: var(--ai-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  border-bottom-left-radius: 4px;
+  font-size: .85rem;
+  color: var(--muted);
+}
+.typing-indicator span {
+  animation: blink 1.4s infinite both;
+}
+.typing-indicator span:nth-child(2) { animation-delay: .2s; }
+.typing-indicator span:nth-child(3) { animation-delay: .4s; }
+@keyframes blink {
+  0%, 80%, 100% { opacity: 0; }
+  40% { opacity: 1; }
+}
+
+/* Input area */
+.chat-input-area {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--card);
+  flex-shrink: 0;
+}
+.chat-input-row {
+  display: flex;
+  gap: 8px;
+}
+.chat-input-row input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  font-size: .9rem;
+  outline: none;
+  background: white;
+}
+.chat-input-row input:focus {
+  border-color: var(--accent);
+}
+.chat-input-row button {
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 24px;
+  padding: 10px 20px;
+  font-size: .9rem;
+  cursor: pointer;
+  font-weight: bold;
+}
+.chat-input-row button:hover {
+  background: #3a6b42;
+}
+.chat-input-row button:disabled {
+  background: #aaa;
+  cursor: not-allowed;
+}
+
+/* Quick actions */
+.quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.quick-action-btn {
+  background: var(--accent-light);
+  border: 1px solid var(--eb-border);
+  border-radius: 16px;
+  padding: 6px 12px;
+  font-size: .78rem;
+  cursor: pointer;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.quick-action-btn:hover {
+  background: var(--eb-border);
+}
+
+/* Welcome message */
+.welcome-msg {
+  text-align: center;
+  padding: 20px;
+  color: var(--muted);
+  font-size: .85rem;
+}
+.welcome-msg h2 {
+  color: var(--accent);
+  margin-bottom: 8px;
+  font-size: 1.1rem;
+}
+
+/* Email modal */
+.webhook-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+}
+.webhook-overlay.open {
+  display: flex;
+}
+.webhook-modal {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  width: 90%;
+  max-width: 480px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.2);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.webhook-modal h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--accent);
+}
+.webhook-modal label {
+  font-size: .82rem;
+  color: var(--text);
+  font-weight: bold;
+}
+.webhook-modal input,
+.webhook-modal textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: .85rem;
+  font-family: inherit;
+  background: white;
+  resize: vertical;
+}
+.webhook-modal textarea {
+  min-height: 120px;
+}
+.webhook-modal input:focus,
+.webhook-modal textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.webhook-modal .webhook-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.webhook-modal .btn-send {
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 20px;
+  padding: 8px 20px;
+  font-size: .85rem;
+  cursor: pointer;
+  font-weight: bold;
+}
+.webhook-modal .btn-send:hover {
+  background: #3a6b42;
+}
+.webhook-modal .btn-cancel {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 8px 20px;
+  font-size: .85rem;
+  cursor: pointer;
+}
+.webhook-modal .btn-cancel:hover {
+  background: #eee;
+}
+.webhook-status {
+  font-size: .8rem;
+  padding: 6px 10px;
+  border-radius: 8px;
+}
+.webhook-status.success {
+  background: #d4edda;
+  color: #155724;
+}
+.webhook-status.error {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+/* Token panel */
+.token-panel {
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.token-toggle {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--border);
+  padding: 8px 16px;
+  font-size: .82rem;
+  color: var(--accent);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: inherit;
+}
+.token-toggle:hover { background: var(--accent-light); }
+.token-toggle .arrow { transition: transform .2s; display: inline-block; }
+.token-toggle.open .arrow { transform: rotate(180deg); }
+.token-body {
+  display: none;
+  padding: 12px 16px 16px;
+}
+.token-body.open { display: block; }
+.token-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.token-field label {
+  display: block;
+  font-size: .75rem;
+  color: var(--text-dim, #888);
+  margin-bottom: 3px;
+  font-weight: bold;
+}
+.token-field input {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: .82rem;
+  font-family: inherit;
+  background: white;
+}
+.token-field input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.token-field input.filled {
+  border-color: #4caf50;
+  background: #f1f8e9;
+}
+.token-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: .78rem;
+}
+.token-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.token-dot.ready { background: #4caf50; }
+.token-dot.pending { background: #ff9800; }
+.token-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.token-actions button {
+  padding: 6px 14px;
+  border-radius: 16px;
+  font-size: .78rem;
+  cursor: pointer;
+  font-weight: bold;
+  font-family: inherit;
+  border: 1px solid var(--border);
+}
+.btn-token-set {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+.btn-token-set:hover { background: #3a6b42; }
+.btn-token-reset {
+  background: transparent;
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.btn-token-reset:hover { background: #fce4e4; }
+.token-msg {
+  font-size: .75rem;
+  padding: 5px 8px;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+.token-msg.success { background: #d4edda; color: #155724; }
+.token-msg.error { background: #f8d7da; color: #721c24; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .message { max-width: 92%; }
+  .chat-header h1 { font-size: .95rem; }
+  .token-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="chat-header">
+  <h1>🌿 AIアシスタント</h1>
+  <button class="back-btn" onclick="window.location.href='/'">← 戻る</button>
+</div>
+
+<div class="chat-messages" id="chatMessages">
+  <!-- Pre-rendered typing indicator for DOM check -->
+  <div class="typing-indicator" id="typingIndicatorStatic" style="display:none;">
+    考えています<span>.</span><span>.</span><span>.</span>
+  </div>
+  <div class="welcome-msg">
+    <h2>🌿 RBP防除スケジューラ AI</h2>
+    <p>病害虫・薬剤・防除履歴についてお尋ねください</p>
+    <div class="quick-actions" style="margin-top:16px;justify-content:center;">
+      <button class="quick-action-btn" onclick="sendQuick('アブラムシに効く薬剤を教えて')">🐜 アブラムシ対策</button>
+      <button class="quick-action-btn" onclick="sendQuick('今月の防除履歴を教えて')">📅 今月の履歴</button>
+      <button class="quick-action-btn" onclick="sendQuick('殺菌剤の一覧を出して')">🧴 殺菌剤一覧</button>
+      <button class="quick-action-btn" onclick="sendQuick('今日の季節のアドバイス')">🌤 季節のアドバイス</button>
+    </div>
+  </div>
+</div>
+
+<div class="chat-input-area">
+  <div class="chat-input-row">
+    <input type="text" id="chatInput" placeholder="質問を入力..."
+           onkeydown="if(event.key==='Enter')sendMessage()">
+    <button id="sendBtn" onclick="sendMessage()">送信</button>
+  </div>
+  <div class="quick-actions">
+    <button class="quick-action-btn" onclick="sendQuick('薬剤の一覧を出して')">💊 薬剤一覧</button>
+    <button class="quick-action-btn" onclick="sendQuick('病害虫マスターを見せて')">🦠 病害虫マスター</button>
+    <button class="quick-action-btn" onclick="sendQuick('防除履歴を今月分教えて')">📋 今月の履歴</button>
+    <button class="quick-action-btn" onclick="sendQuick('炭疽病と灰色かび病に効く薬剤は？')">🔍 症状から検索</button>
+    <button class="quick-action-btn" onclick="openWebhookModal()" style="background:#4a148c;border-color:#7b1fa2;color:#fff;">💬 Slack送信</button>
+  </div>
+</div>
+
+<!-- Token Panel -->
+<div class="token-panel">
+  <button class="token-toggle" id="tokenToggle" onclick="toggleTokenPanel()">
+    <span>🎫 トークン投入（状態集約）</span>
+    <span class="arrow">▼</span>
+  </button>
+  <div class="token-body" id="tokenBody">
+    <div class="token-status-bar">
+      <span class="token-dot" id="tokenDot"></span>
+      <span id="tokenStatusText">読み込み中...</span>
+    </div>
+    <div id="tokenMsg"></div>
+    <div class="token-grid">
+      <div class="token-field">
+        <label for="tok_schedule">📅 スケジュール</label>
+        <input type="text" id="tok_schedule" placeholder="2026-08-20T09:00:00">
+      </div>
+      <div class="token-field">
+        <label for="tok_crop">🌱 作物種</label>
+        <input type="text" id="tok_crop" placeholder="きゅうり">
+      </div>
+      <div class="token-field">
+        <label for="tok_environment">🏡 栽培環境</label>
+        <input type="text" id="tok_environment" placeholder="温室">
+      </div>
+      <div class="token-field">
+        <label for="tok_growth_stage">🌿 生育段階</label>
+        <input type="text" id="tok_growth_stage" placeholder="育苗中">
+      </div>
+    </div>
+    <div class="token-actions">
+      <button class="btn-token-reset" onclick="resetTokens()">リセット</button>
+      <button class="btn-token-set" onclick="applyTokens()">設定</button>
+    </div>
+  </div>
+</div>
+
+<!-- Slack Webhook Modal -->
+<div class="webhook-overlay" id="webhookOverlay" onclick="if(event.target===this)closeWebhookModal()">
+  <div class="webhook-modal">
+    <h3>💬 Slack に送信</h3>
+    <label for="webhookTitle">タイトル</label>
+    <input type="text" id="webhookTitle" placeholder="例: 今週の防除アドバイス">
+    <label for="webhookText">本文</label>
+    <textarea id="webhookText" placeholder="Slackに送信するメッセージを入力..."></textarea>
+    <div id="webhookStatus"></div>
+    <div class="webhook-actions">
+      <button class="btn-cancel" onclick="closeWebhookModal()">キャンセル</button>
+      <button class="btn-send" id="webhookSendBtn" onclick="sendWebhook()">送信</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_BASE = '/api';
+let isLoading = false;
+
+function scrollToBottom() {
+  const el = document.getElementById('chatMessages');
+  el.scrollTop = el.scrollHeight;
+}
+
+function addMessage(role, content) {
+  const container = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = `message ${role}`;
+  div.innerHTML = content;
+  container.appendChild(div);
+  scrollToBottom();
+  return div;
+}
+
+function addTypingIndicator() {
+  const container = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = 'typing-indicator';
+  div.id = 'typingIndicator';
+  div.innerHTML = '考えています<span>.</span><span>.</span><span>.</span>';
+  container.appendChild(div);
+  scrollToBottom();
+}
+
+function removeTypingIndicator() {
+  const el = document.getElementById('typingIndicator');
+  if (el) el.remove();
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function parsePipeTable(text) {
+  /**
+   * Parse a markdown-style pipe table from raw text (before HTML escaping).
+   * Returns { html, rest } where html is the <table> string and rest is
+   * the remainder of the text. Returns null if no table found.
+   */
+  const lines = text.split('\n');
+  let i = 0;
+
+  // Find header line: must contain '|'
+  while (i < lines.length && !lines[i].includes('|')) i++;
+  if (i >= lines.length) return null;
+
+  const headerLine = lines[i].trim();
+  if (!headerLine.startsWith('|')) return null;
+
+  // Next line must be a separator: |---| or |:---| or |:-:| etc.
+  const sepIdx = i + 1;
+  if (sepIdx >= lines.length) return null;
+  const sepLine = lines[sepIdx].trim();
+  const isSep = /^\|[\s:]*-+[\s:]*\|/.test(sepLine);
+  if (!isSep) return null;
+
+  // Collect body lines (consecutive lines containing '|')
+  const bodyLines = [];
+  let j = sepIdx + 1;
+  while (j < lines.length && lines[j].trim().startsWith('|')) {
+    bodyLines.push(lines[j].trim());
+    j++;
+  }
+  if (bodyLines.length === 0) return null;
+
+  // Parse header cells
+  const headers = headerLine.split('|').slice(1, -1).map(c => c.trim()).filter(Boolean);
+
+  // Parse body cells
+  const rows = bodyLines.map(line =>
+    line.split('|').slice(1, -1).map(c => c.trim()).filter(Boolean)
+  ).filter(row => row.length > 0);
+
+  // Build HTML table
+  let table = '<table><thead><tr>';
+  headers.forEach(h => { table += `<th>${h}</th>`; });
+  table += '</tr></thead><tbody>';
+  rows.forEach(row => {
+    table += '<tr>';
+    row.forEach(cell => { table += `<td>${cell}</td>`; });
+    table += '</tr>';
+  });
+  table += '</tbody></table>';
+
+  return { html, rest: lines.slice(j).join('\n') };
+}
+
+function formatResponse(text) {
+  // Step 1: Unwrap fenced code blocks FIRST (before any escaping)
+  // Split by ``` lines, keep even-indexed parts (outside code blocks)
+  // and odd-indexed parts (inside code blocks) — we want BOTH
+  let cleaned = text;
+  cleaned = cleaned.split('\n').map(line => {
+    const trimmed = line.trim();
+    if (trimmed === '```' || /^```[a-zA-Z]/.test(trimmed)) return '';
+    return line;
+  }).join('\n');
+
+  // Step 2: Decode HTML entities and unescape pipe characters
+  // AI sometimes escapes pipes as \| inside/outside code blocks
+  cleaned = cleaned.replace(/&#124;/g, '|').replace(/&amp;/g, '&');
+  cleaned = cleaned.replace(/\\\|/g, '|');
+
+  // Step 3: Process line by line — extract tables, format rest
+  const lines = cleaned.split('\n');
+  let htmlParts = [];
+  let buf = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+
+    // Check if this line starts a table (contains '|' and next line is separator)
+    if (line.includes('|') && i + 1 < lines.length) {
+      const sepLine = lines[i + 1].trim();
+      if (/^\|[\s:]*-+[\s:]*\|/.test(sepLine)) {
+        // Flush accumulated text
+        if (buf.length > 0) {
+          htmlParts.push('<br>' + buf.map(l => escapeHtml(l)).join('<br>') + '<br>');
+          buf = [];
+        }
+
+        // Collect table body
+        const headerCells = line.split('|').slice(1, -1).map(c => c.trim()).filter(Boolean);
+        const bodyLines = [];
+        let j = i + 2;
+        while (j < lines.length && lines[j].trim().startsWith('|')) {
+          bodyLines.push(lines[j].trim());
+          j++;
+        }
+
+        if (bodyLines.length > 0) {
+          const rows = bodyLines.map(bl =>
+            bl.split('|').slice(1, -1).map(c => c.trim()).filter(Boolean)
+          ).filter(r => r.length > 0);
+
+          let tbl = '<table><thead><tr>';
+          headerCells.forEach(h => { tbl += `<th>${h}</th>`; });
+          tbl += '</tr></thead><tbody>';
+          rows.forEach(row => {
+            tbl += '<tr>';
+            row.forEach(cell => { tbl += `<td>${cell}</td>`; });
+            tbl += '</tr>';
+          });
+          tbl += '</tbody></table>';
+          htmlParts.push(tbl);
+          i = j;
+          continue;
+        }
+      }
+    }
+
+    buf.push(line);
+    i++;
+  }
+
+  // Flush remaining text
+  if (buf.length > 0) {
+    htmlParts.push(buf.map(l => escapeHtml(l)).join('<br>'));
+  }
+
+  let result = htmlParts.join('');
+
+  // Step 4: Apply bold formatting
+  result = result.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+  return result;
+}
+
+async function sendMessage() {
+  const input = document.getElementById('chatInput');
+  const text = input.value.trim();
+  if (!text || isLoading) return;
+
+  input.value = '';
+  addMessage('user', text);
+  isLoading = true;
+  document.getElementById('sendBtn').disabled = true;
+  addTypingIndicator();
+
+  try {
+    const res = await fetch(API_BASE + '/chat/message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text }),
+    });
+
+    removeTypingIndicator();
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'サーバーエラー' }));
+      addMessage('ai', `<span style="color:red;">⛔ ${escapeHtml(err.error || 'エラーが発生しました')}</span>`);
+      return;
+    }
+
+    const data = await res.json();
+    const formatted = formatResponse(data.response);
+    addMessage('ai', formatted);
+  } catch (e) {
+    removeTypingIndicator();
+    addMessage('ai', `<span style="color:red;">⛔ ネットワークエラー: ${escapeHtml(e.message)}</span>`);
+  } finally {
+    isLoading = false;
+    document.getElementById('sendBtn').disabled = false;
+    input.focus();
+  }
+}
+
+function sendQuick(text) {
+  document.getElementById('chatInput').value = text;
+  sendMessage();
+}
+
+// ── Google Chat Webhook Modal ────────────────────────────────────
+
+function openWebhookModal() {
+  document.getElementById('webhookOverlay').classList.add('open');
+  document.getElementById('webhookTitle').focus();
+  document.getElementById('webhookStatus').innerHTML = '';
+}
+
+function closeWebhookModal() {
+  document.getElementById('webhookOverlay').classList.remove('open');
+  document.getElementById('webhookTitle').value = '';
+  document.getElementById('webhookText').value = '';
+}
+
+async function sendWebhook() {
+  const title = document.getElementById('webhookTitle').value.trim();
+  const text = document.getElementById('webhookText').value.trim();
+  const btn = document.getElementById('webhookSendBtn');
+  const statusEl = document.getElementById('webhookStatus');
+
+  if (!text) {
+    statusEl.innerHTML = '<div class="webhook-status error">本文を入力してください。</div>';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '送信中...';
+  statusEl.innerHTML = '';
+
+  try {
+    const res = await fetch(API_BASE + '/chat-webhook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, text }),
+    });
+
+    const data = await res.json();
+
+    if (res.ok && data.status === 'sent') {
+      statusEl.innerHTML = '<div class="webhook-status success">✅ Slackに送信完了！</div>';
+      setTimeout(closeWebhookModal, 1500);
+    } else {
+      statusEl.innerHTML = `<div class="webhook-status error">⛔ ${escapeHtml(data.error || '送信に失敗しました')}</div>`;
+      btn.disabled = false;
+      btn.textContent = '送信';
+    }
+  } catch (e) {
+    statusEl.innerHTML = `<div class="webhook-status error">⛔ ネットワークエラー: ${escapeHtml(e.message)}</div>`;
+    btn.disabled = false;
+    btn.textContent = '送信';
+  }
+}
+
+// ── Token Panel ────────────────────────────────────────────────
+
+const TOKEN_KEYS = ['schedule', 'crop', 'environment', 'growth_stage'];
+const TOK_LABELS = {
+  schedule: '📅 スケジュール',
+  crop: '🌱 作物種',
+  environment: '🏡 栽培環境',
+  growth_stage: '🌿 生育段階',
+};
+
+function toggleTokenPanel() {
+  const btn = document.getElementById('tokenToggle');
+  const body = document.getElementById('tokenBody');
+  btn.classList.toggle('open');
+  body.classList.toggle('open');
+}
+
+function showTokenMsg(text, ok) {
+  const el = document.getElementById('tokenMsg');
+  el.innerHTML = `<div class="token-msg ${ok ? 'success' : 'error'}">${text}</div>`;
+  setTimeout(() => { el.innerHTML = ''; }, 4000);
+}
+
+async function refreshTokenState() {
+  try {
+    const res = await fetch(API_BASE + '/tokens/check');
+    const data = await res.json();
+    const dot = document.getElementById('tokenDot');
+    const txt = document.getElementById('tokenStatusText');
+
+    if (data.ready) {
+      dot.className = 'token-dot ready';
+      txt.textContent = '✅ 全トークン揃った — 発火可能';
+    } else {
+      dot.className = 'token-dot pending';
+      const filled = TOKEN_KEYS.filter(k => data.tokens[k]).length;
+      txt.textContent = `⏳ ${filled}/${TOKEN_KEYS.length} — 残り: ${TOKEN_KEYS.filter(k => !data.tokens[k]).map(k => TOK_LABELS[k]).join(', ')}`;
+    }
+
+    // Fill inputs with current values
+    TOKEN_KEYS.forEach(key => {
+      const inp = document.getElementById('tok_' + key);
+      if (inp) {
+        inp.value = data.tokens[key] || '';
+        inp.classList.toggle('filled', !!data.tokens[key]);
+      }
+    });
+  } catch (e) {
+    document.getElementById('tokenStatusText').textContent = '❌ ステータス取得エラー';
+  }
+}
+
+async function applyTokens() {
+  const results = [];
+  const errors = [];
+
+  // Debug: print all field values
+  const allVals = {};
+  for (const key of TOKEN_KEYS) {
+    const inp = document.getElementById('tok_' + key);
+    allVals[key] = inp ? `"${inp.value}"` : 'INPUT_NOT_FOUND';
+  }
+  console.log('[token] ALL FIELD VALUES:', allVals);
+
+  for (const key of TOKEN_KEYS) {
+    const inp = document.getElementById('tok_' + key);
+    const val = inp ? inp.value.trim() : '';
+    console.log(`[token] key=${key} raw="${inp?.value}" trimmed="${val}" isEmpty=${!val}`);
+    if (!val) continue; // skip empty — leave as-is
+
+    console.log(`[token] setting ${key} = "${val}"`);
+
+    try {
+      const res = await fetch(API_BASE + '/tokens/set', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, value: val }),
+      });
+      const data = await res.json();
+      console.log(`[token] ${key} response:`, data);
+      if (res.ok && data.ok) {
+        results.push(`${TOK_LABELS[key]}: ${val}`);
+        inp.classList.add('filled');
+      } else {
+        errors.push(`${TOK_LABELS[key]}: ${data.error || 'エラー'}`);
+      }
+    } catch (e) {
+      errors.push(`${TOK_LABELS[key]}: ${e.message}`);
+      console.error(`[token] ${key} error:`, e);
+    }
+  }
+
+  if (errors.length > 0) {
+    showTokenMsg(`⛔ ${errors.join('; ')}`, false);
+  }
+  if (results.length > 0) {
+    showTokenMsg(`✅ ${results.join('; ')}`, true);
+  }
+
+  refreshTokenState();
+}
+
+async function resetTokens() {
+  if (!confirm('全トークンをリセットしますか？')) return;
+
+  try {
+    const res = await fetch(API_BASE + '/tokens/reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showTokenMsg('✅ 全トークンをリセットしました', true);
+      TOKEN_KEYS.forEach(key => {
+        const inp = document.getElementById('tok_' + key);
+        if (inp) { inp.value = ''; inp.classList.remove('filled'); }
+      });
+      refreshTokenState();
+    }
+  } catch (e) {
+    showTokenMsg(`⛔ ネットワークエラー: ${e.message}`, false);
+  }
+}
+
+// Focus input on load
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('chatInput').focus();
+  refreshTokenState();
+});
+</script>
+
+</body>
+</html>

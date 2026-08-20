@@ -1,0 +1,1707 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cognitive Framework Designer</title>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #242836;
+  --border: #2e3348;
+  --text: #e2e4ed;
+  --text-dim: #8b8fa3;
+  --accent: #6c8cff;
+  --accent-glow: rgba(108, 140, 255, 0.25);
+  --danger: #ff5c6c;
+  --success: #4ecb71;
+  --warn: #ffb84c;
+  --cog: #6c8cff;
+  --eval: #4ecb71;
+  --decide: #ffb84c;
+  --proj: #c084fc;
+  --exec: #f472b6;
+}
+
+body {
+  font-family: 'Segoe UI', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  width: 320px;
+  min-width: 320px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.sidebar-section {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebar-section h3 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  width: 100%;
+  justify-content: center;
+}
+.btn:hover { border-color: var(--accent); background: var(--accent-glow); }
+.btn-accent { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-accent:hover { opacity: 0.9; }
+.btn-danger { border-color: var(--danger); color: var(--danger); }
+.btn-danger:hover { background: rgba(255,92,108,0.15); }
+.btn-sm { padding: 4px 8px; font-size: 11px; width: auto; }
+
+.prop-group { margin-bottom: 10px; }
+.prop-group label {
+  display: block;
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-bottom: 3px;
+}
+.prop-input, .prop-select, .prop-textarea {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 12px;
+  outline: none;
+}
+.prop-input:focus, .prop-select:focus, .prop-textarea:focus { border-color: var(--accent); }
+.prop-textarea { resize: vertical; min-height: 50px; font-family: inherit; }
+.prop-select { cursor: pointer; }
+
+.empty-state {
+  text-align: center;
+  padding: 20px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+/* ── Main Area ── */
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Toolbar ── */
+.toolbar {
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.toolbar .spacer { flex: 1; }
+
+.tb-icon {
+  width: 32px; height: 32px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface2); color: var(--text);
+  font-size: 15px; cursor: pointer; transition: all 0.15s;
+  position: relative;
+}
+.tb-icon:hover { border-color: var(--accent); background: var(--accent-glow); }
+.tb-icon.accent { background: var(--accent); border-color: var(--accent); color: #fff; }
+.tb-icon.accent:hover { opacity: 0.9; }
+.tb-icon.danger { border-color: var(--danger); color: var(--danger); }
+.tb-icon.danger:hover { background: rgba(255,92,108,0.15); }
+
+.tb-dropdown { position: relative; }
+.tb-menu {
+  position: absolute; top: calc(100% + 4px); right: 0;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 4px; min-width: 160px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  display: none; z-index: 50;
+}
+.tb-menu.open { display: block; }
+.tb-menu-item {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; padding: 8px 10px; border: none; border-radius: 5px;
+  background: transparent; color: var(--text); font-size: 12px;
+  cursor: pointer; transition: background 0.1s;
+}
+.tb-menu-item:hover { background: var(--surface2); }
+.tb-menu-item .mi-icon { font-size: 14px; width: 20px; text-align: center; }
+.tb-menu-divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+/* ── Canvas View ── */
+.canvas-area {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background-color: var(--bg);
+}
+
+.dot-grid {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(var(--border) 1px, transparent 1px);
+  background-size: 20px 20px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* SVG connection lines */
+.canvas-svg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+.canvas-svg path.conn {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 2;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+.canvas-svg path.conn.branch {
+  stroke: var(--warn);
+  stroke-dasharray: 6 3;
+}
+.canvas-svg path.conn.manual {
+  stroke: var(--accent);
+  stroke-dasharray: none;
+}
+.canvas-svg path.conn:hover {
+  stroke: var(--danger);
+  stroke-width: 3;
+}
+
+/* Temp drawing line while connecting */
+.canvas-svg path.temp-conn {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-dasharray: 6 3;
+  pointer-events: none;
+}
+
+/* Draggable node */
+.canvas-node {
+  position: absolute;
+  width: 130px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: grab;
+  user-select: none;
+  z-index: 2;
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+.canvas-node:hover {
+  border-color: var(--accent);
+  box-shadow: 0 4px 16px rgba(108,140,255,0.15);
+}
+.canvas-node.dragging {
+  cursor: grabbing;
+  z-index: 10;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  border-color: var(--accent);
+}
+.canvas-node.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+.canvas-node.over-target {
+  border-color: var(--success);
+  box-shadow: 0 0 0 3px rgba(78,203,113,0.3);
+}
+
+.canvas-node-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.canvas-node-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.canvas-node-name {
+  font-size: 11px;
+  font-weight: 600;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.canvas-node-badge {
+  font-size: 8px;
+  background: rgba(255,184,76,0.2);
+  color: var(--warn);
+  padding: 1px 4px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.canvas-node-body {
+  padding: 4px 8px 6px;
+  font-size: 9px;
+  color: var(--text-dim);
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.canvas-node-actions {
+  display: flex;
+  gap: 2px;
+  padding: 4px 8px 6px;
+  justify-content: flex-end;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.canvas-node:hover .canvas-node-actions { opacity: 1; }
+.cn-btn {
+  width: 22px; height: 22px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border); border-radius: 4px;
+  background: var(--surface2); color: var(--text-dim);
+  font-size: 11px; cursor: pointer; transition: all 0.1s;
+}
+.cn-btn:hover { border-color: var(--accent); color: var(--text); }
+.cn-btn.del:hover { border-color: var(--danger); color: var(--danger); }
+
+/* Connector ports */
+.port {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: var(--surface);
+  cursor: crosshair;
+  z-index: 5;
+  transition: all 0.15s;
+}
+.port:hover {
+  transform: scale(1.4);
+  border-color: var(--accent);
+  background: var(--accent-glow);
+}
+.port.output {
+  right: -7px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.port.output:hover {
+  transform: translateY(-50%) scale(1.4);
+}
+.port.input {
+  left: -7px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.port.input:hover {
+  transform: translateY(-50%) scale(1.4);
+}
+.port.connected {
+  border-color: var(--accent);
+}
+.port.output.connected {
+  background: var(--accent);
+}
+.port.input.connected {
+  background: var(--accent);
+}
+
+/* Empty state */
+.canvas-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  font-size: 13px;
+  pointer-events: none;
+  z-index: 0;
+}
+.canvas-empty span { font-size: 11px; margin-top: 6px; }
+
+.stage-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+.stage-header:hover { background: var(--surface2); }
+
+.stage-badge {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.stage-name {
+  font-size: 14px;
+  font-weight: 600;
+  flex: 1;
+}
+
+.stage-desc {
+  font-size: 11px;
+  color: var(--text-dim);
+  flex: 1;
+}
+
+.stage-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.stage-body {
+  padding: 0 14px 12px;
+  display: none;
+}
+.stage-body.open { display: block; }
+
+/* ── Connector Arrow ── */
+.connector {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 18px;
+  padding: 2px 0;
+  user-select: none;
+}
+
+/* ── Config Items ── */
+.config-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--bg);
+  border-radius: 6px;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+.config-item .ci-label {
+  color: var(--text-dim);
+  min-width: 60px;
+}
+.config-item .ci-value {
+  flex: 1;
+  color: var(--text);
+}
+
+/* ── Branch List ── */
+.branch-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  background: var(--bg);
+  border-radius: 6px;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+.branch-item .bi-label {
+  color: var(--warn);
+  font-weight: 600;
+  min-width: 50px;
+}
+.branch-item .bi-target {
+  flex: 1;
+  color: var(--text);
+}
+
+/* ── Connection List in sidebar ── */
+.conn-list-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  background: var(--bg);
+  border-radius: 4px;
+  margin-bottom: 3px;
+  font-size: 11px;
+}
+.conn-list-item .cli-src, .conn-list-item .cli-tgt {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.conn-list-item .cli-arrow {
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.conn-list-item .cli-del {
+  width: 18px; height: 18px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none; border-radius: 3px;
+  background: transparent; color: var(--text-dim);
+  font-size: 12px; cursor: pointer; flex-shrink: 0;
+}
+.conn-list-item .cli-del:hover { background: rgba(255,92,108,0.2); color: var(--danger); }
+
+/* ── Modal ── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 100;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+.modal-overlay.active { display: flex; }
+
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 90vw;
+  max-width: 600px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.modal-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.modal-header h2 { font-size: 15px; }
+.modal-body { padding: 18px; overflow-y: auto; flex: 1; }
+.modal-footer {
+  padding: 10px 18px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.code-block {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  font-family: 'Fira Code', Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--text);
+  overflow-x: auto;
+}
+
+/* ── Saved Graphs ── */
+.saved-item {
+  padding: 8px;
+  background: var(--surface2);
+  border-radius: 6px;
+  margin-bottom: 6px;
+  font-size: 11px;
+}
+.saved-item .si-name { font-weight: 600; margin-bottom: 3px; }
+.saved-item .si-meta { color: var(--text-dim); margin-bottom: 5px; }
+.saved-item .si-actions { display: flex; gap: 4px; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- ═══ Sidebar ═══ -->
+<div class="sidebar">
+  <!-- Stage Templates -->
+  <div class="sidebar-section">
+    <h3>ステージを追加</h3>
+    <button class="btn" onclick="openStageModal('state')" style="margin-bottom:4px;text-align:left;">
+      <span style="color:#FF8C00">●</span> 状態 — トークン集約・発火判定
+    </button>
+    <button class="btn" onclick="openStageModal('cognition')" style="margin-bottom:4px;text-align:left;">
+      <span style="color:var(--cog)">●</span> 認知 — 情報を収集・認識
+    </button>
+    <button class="btn" onclick="openStageModal('evaluation')" style="margin-bottom:4px;text-align:left;">
+      <span style="color:var(--eval)">●</span> 評価 — 分析・判断
+    </button>
+    <button class="btn" onclick="openStageModal('decision')" style="margin-bottom:4px;text-align:left;">
+      <span style="color:var(--decide)">●</span> 決定 — 行動を決定
+    </button>
+    <button class="btn" onclick="openStageModal('projection')" style="margin-bottom:4px;text-align:left;">
+      <span style="color:var(--proj)">●</span> 投射 — 表現・変換
+    </button>
+    <button class="btn" onclick="openStageModal('execution')" style="margin-bottom:4px;text-align:left;">
+      <span style="color:var(--exec)">●</span> 実行 — 外部へ出力
+    </button>
+  </div>
+
+  <!-- Stage Config -->
+  <div class="sidebar-section">
+    <h3>ステージ設定</h3>
+    <div id="stage-config-panel">
+      <div class="empty-state">ステージを選択してください</div>
+    </div>
+  </div>
+
+  <!-- Connections Panel -->
+  <div class="sidebar-section">
+    <h3>手動接続 <span style="font-weight:normal;font-size:10px;color:var(--text-dim)">— ポートをドラッグして接続</span></h3>
+    <div id="connections-panel">
+      <div class="empty-state">接続はありません</div>
+    </div>
+  </div>
+
+  <!-- Saved Graphs -->
+  <div class="sidebar-section">
+    <h3>保存済み</h3>
+    <button class="btn btn-sm" onclick="refreshSaved()" style="margin-bottom:8px;">🔄 更新</button>
+    <div id="saved-panel">
+      <div class="empty-state">未保存</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Main ═══ -->
+<div class="main">
+  <div class="toolbar">
+    <button class="tb-icon accent" onclick="generateCode()" title="Python生成">🐍</button>
+    <button class="tb-icon" onclick="saveToServer()" title="サーバー保存">💾</button>
+    <div class="tb-dropdown">
+      <button class="tb-icon" onclick="toggleDropdown(this)" title="インポート／エクスポート">☰</button>
+      <div class="tb-menu">
+        <button class="tb-menu-item" onclick="document.getElementById('importInput').click()">
+          <span class="mi-icon">📥</span> インポート
+        </button>
+        <button class="tb-menu-item" onclick="exportJSON()">
+          <span class="mi-icon">📤</span> エクスポート
+        </button>
+        <div class="tb-menu-divider"></div>
+        <button class="tb-menu-item" onclick="clearAll()" style="color:var(--danger)">
+          <span class="mi-icon">🗑</span> 全削除
+        </button>
+      </div>
+    </div>
+    <input type="file" id="importInput" accept=".json" style="display:none" onchange="importJSON(event)">
+    <div class="spacer"></div>
+  </div>
+
+  <div class="canvas-area" id="canvasArea">
+    <div class="dot-grid"></div>
+    <div class="canvas-layer" id="canvasWorld">
+      <svg class="canvas-svg" id="canvasSvg"></svg>
+    </div>
+    <div class="canvas-empty" id="canvasEmpty">
+      左パネルからステージを追加してください
+      <span>ドラッグで移動 • ポートをドラッグして接続 • アークをクリックで削除 • スクロールでズーム • 左クリック+ドラッグでパン</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Stage Edit Modal ═══ -->
+<div class="modal-overlay" id="stageModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="stageModalTitle">ステージ設定</h2>
+      <button class="btn btn-sm" onclick="closeModal('stageModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="prop-group">
+        <label>タイプ</label>
+        <input class="prop-input" id="sm_type" readonly>
+      </div>
+      <div class="prop-group">
+        <label>名前</label>
+        <input class="prop-input" id="sm_name" placeholder="例: 病害情報収集">
+      </div>
+      <div class="prop-group">
+        <label>説明</label>
+        <textarea class="prop-textarea" id="sm_desc" placeholder="このステージの役割"></textarea>
+      </div>
+      <div class="prop-group">
+        <label>使用するツール</label>
+        <input class="prop-input" id="sm_tool" placeholder="例: search_pesticides, send_to_slack">
+      </div>
+      <div class="prop-group">
+        <label>LLM指示（オプション）</label>
+        <textarea class="prop-textarea" id="sm_instruction" placeholder="このステージでLLMに指示すること"></textarea>
+      </div>
+      <div class="prop-group">
+        <label>分岐（オプション） — このステージから複数の次のステージへ並列に飛ぶ場合、分岐を追加</label>
+        <div style="font-size:10px;color:var(--text-dim);margin-bottom:6px;line-height:1.4;">
+          例: 「RBP処方」→「メッセージ生成」+「在庫チェック」が同時実行。ラベルは分岐の名前、次はステージ名を選択。
+        </div>
+        <div id="branches_container"></div>
+        <button class="btn btn-sm" onclick="addBranchField()" style="margin-top:4px;">+ 分岐を追加</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('stageModal')">キャンセル</button>
+      <button class="btn btn-accent" onclick="saveStageEdit()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Code Modal ═══ -->
+<div class="modal-overlay" id="codeModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>🐍 生成コード</h2>
+      <button class="btn btn-sm" onclick="closeModal('codeModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="code-block" id="codeOutput"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="copyCode()">📋 コピー</button>
+      <button class="btn btn-accent" onclick="downloadCode()">⬇ ダウンロード</button>
+      <button class="btn" onclick="closeModal('codeModal')">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// Data Model
+// ═══════════════════════════════════════════
+
+let stages = [];
+let editingIdx = -1;
+let stageIdCounter = 0;
+
+// Unified edge storage: every edge (sequential, branch, manual) lives here
+// Format: { fromIdx: number, toIdx: number, type: 'sequential'|'branch'|'manual', branchLabel?: string, branchLocalIdx?: number }
+let allEdges = [];
+
+// Track which sequential pairs have been explicitly deleted
+// Key: "fromIdx-toIdx", Value: true
+let deletedSequentialPairs = new Set();
+
+const TYPE_META = {
+  state:       { label: '状態',   color: '#FF8C00',       desc: 'トークン集約・発火判定' },
+  cognition:   { label: '認知',   color: 'var(--cog)',   desc: '情報を収集・認識' },
+  evaluation:  { label: '評価',   color: 'var(--eval)',  desc: '分析・判断' },
+  decision:    { label: '決定',   color: 'var(--decide)', desc: '行動を決定' },
+  projection:  { label: '投射',   color: 'var(--proj)',  desc: '表現・変換' },
+  execution:   { label: '実行',   color: 'var(--exec)',  desc: '外部へ出力' },
+};
+
+// ═══════════════════════════════════════════
+// Stage CRUD
+// ═══════════════════════════════════════════
+
+function openStageModal(type) {
+  editingIdx = stages.length;
+  const st = TYPE_META[type];
+  document.getElementById('sm_type').value = `${st.label} (${type})`;
+  document.getElementById('sm_name').value = `${st.label}_${stages.length + 1}`;
+  document.getElementById('sm_desc').value = st.desc;
+  document.getElementById('sm_tool').value = '';
+  document.getElementById('sm_instruction').value = '';
+  document.getElementById('branches_container').innerHTML = '';
+  document.getElementById('stageModalTitle').textContent = `新しい${st.label}ステージ`;
+  openModal('stageModal');
+}
+
+function editStage(idx) {
+  editingIdx = idx;
+  const s = stages[idx];
+  const st = TYPE_META[s.type];
+  document.getElementById('sm_type').value = `${st.label} (${s.type})`;
+  document.getElementById('sm_name').value = s.name;
+  document.getElementById('sm_desc').value = s.description || '';
+  document.getElementById('sm_tool').value = s.tool || '';
+  document.getElementById('sm_instruction').value = s.instruction || '';
+
+  const bc = document.getElementById('branches_container');
+  bc.innerHTML = '';
+  (s.branches || []).forEach((b, bi) => addBranchField(b.label, b.next, idx));
+  document.getElementById('stageModalTitle').textContent = `${st.label}ステージを編集`;
+  openModal('stageModal');
+}
+
+function saveStageEdit() {
+  const name = document.getElementById('sm_name').value.trim();
+  if (!name) { alert('名前を入力してください'); return; }
+
+  const typeRaw = document.getElementById('sm_type').value;
+  const type = typeRaw.match(/\((.+)\)$/)?.[1] || 'cognition';
+
+  const branches = [];
+  document.querySelectorAll('#branches_container .branch-row').forEach(row => {
+    const label = row.querySelector('.bl').value.trim();
+    const target = row.querySelector('.bt').value.trim();
+    if (label && target) branches.push({ label, next: target });
+  });
+
+  const stage = {
+    id: `stage_${editingIdx >= stages.length ? ++stageIdCounter : stages[editingIdx]?.id?.replace('stage_', '') || ++stageIdCounter}`,
+    type,
+    name,
+    description: document.getElementById('sm_desc').value.trim(),
+    tool: document.getElementById('sm_tool').value.trim(),
+    instruction: document.getElementById('sm_instruction').value.trim(),
+    branches,
+  };
+
+  if (editingIdx >= stages.length) {
+    stages.push(stage);
+  } else {
+    stages[editingIdx] = stage;
+  }
+
+  closeModal('stageModal');
+  renderCanvas();
+}
+
+function removeStage(idx) {
+  if (!confirm(`"${stages[idx].name}"を削除しますか？`)) return;
+  stages.splice(idx, 1);
+  renderCanvas();
+}
+
+// ═══════════════════════════════════════════
+// Canvas: Free-layout with drag, zoom, pan
+// ═══════════════════════════════════════════
+
+let canvasZoom = 1;
+let panX = 0;
+let panY = 0;
+let isPanning = false;
+let panStartX = 0, panStartY = 0;
+let dragNode = null;
+let dragOffX = 0, dragOffY = 0;
+let isDraggingNode = false;
+
+// Connection dragging state
+let connDrag = {
+  active: false,
+  sourceIdx: -1,
+  startX: 0,
+  startY: 0,
+};
+
+// Seed random positions for new stages (spread around center)
+function randomInitialPosition(index, total) {
+  const area = document.getElementById('canvasArea');
+  const w = area.clientWidth;
+  const h = area.clientHeight;
+  const cx = w / 2 - 65;
+  const cy = h / 2 - 40;
+  const spreadX = Math.min(w * 0.35, 300);
+  const spreadY = Math.min(h * 0.35, 200);
+  const angle = (2 * Math.PI * index) / Math.max(total, 1) + Math.PI * 0.25;
+  const radius = 0.5 + 0.5 * ((index * 7 + 3) % 5) / 4;
+  return {
+    x: cx + Math.cos(angle) * spreadX * radius,
+    y: cy + Math.sin(angle) * spreadY * radius,
+  };
+}
+
+function renderCanvas() {
+  const area = document.getElementById('canvasArea');
+  const world = document.getElementById('canvasWorld');
+  const svg = document.getElementById('canvasSvg');
+  const empty = document.getElementById('canvasEmpty');
+
+  // Clear old nodes (keep svg inside world)
+  world.querySelectorAll('.canvas-node').forEach(el => el.remove());
+
+  if (!stages.length) {
+    empty.style.display = '';
+    svg.innerHTML = '';
+    applyTransform();
+    renderConnectionsPanel();
+    return;
+  }
+  empty.style.display = 'none';
+
+  // Assign random positions for new stages without x/y
+  stages.forEach((s, i) => {
+    if (s.x === undefined) {
+      const pos = randomInitialPosition(i, stages.length);
+      s.x = pos.x;
+      s.y = pos.y;
+    }
+  });
+
+  // Compute which ports have connections
+  const outputConnected = new Set(); // indices that have outgoing manual connections
+  const inputConnected = new Set();  // indices that have incoming manual connections
+  stages.forEach((s, i) => {
+    (s.connections || []).forEach(c => {
+      outputConnected.add(i);
+      const tgt = stages.findIndex(t => t.name === c.target);
+      if (tgt >= 0) inputConnected.add(tgt);
+    });
+  });
+
+  // Create node elements
+  stages.forEach((s, i) => {
+    const meta = TYPE_META[s.type] || TYPE_META.cognition;
+    const branchBadge = s.branches?.length
+      ? `<span class="canvas-node-badge">⫼ ${s.branches.length}分岐</span>`
+      : '';
+
+    const div = document.createElement('div');
+    div.className = 'canvas-node';
+    div.dataset.idx = i;
+    div.style.left = s.x + 'px';
+    div.style.top = s.y + 'px';
+
+    div.innerHTML = `
+      <div class="port input ${inputConnected.has(i) ? 'connected' : ''}" data-port-dir="input" data-idx="${i}"></div>
+      <div class="canvas-node-header">
+        <div class="canvas-node-dot" style="background:${meta.color}"></div>
+        <div class="canvas-node-name">${escHtml(s.name)}${branchBadge}</div>
+      </div>
+      <div class="canvas-node-body">${escHtml(s.description || meta.desc)}</div>
+      <div class="canvas-node-actions">
+        <button class="cn-btn" onclick="event.stopPropagation();editStage(${i})" title="編集">✏️</button>
+        <button class="cn-btn del" onclick="event.stopPropagation();removeStage(${i})" title="削除">🗑</button>
+      </div>
+      <div class="port output ${outputConnected.has(i) ? 'connected' : ''}" data-port-dir="output" data-idx="${i}"></div>
+    `;
+
+    // Mouse down on node header/body → drag node
+    div.addEventListener('mousedown', e => {
+      if (e.target.closest('.cn-btn')) return;
+      if (e.target.classList.contains('port')) return; // handled by port handler
+      dragNode = div;
+      const rect = div.getBoundingClientRect();
+      dragOffX = (e.clientX - rect.left) / canvasZoom;
+      dragOffY = (e.clientY - rect.top) / canvasZoom;
+      isDraggingNode = false;
+      div.classList.add('dragging');
+      e.preventDefault();
+      e.stopPropagation();
+    });
+
+    // Port handlers
+    div.querySelectorAll('.port').forEach(port => {
+      port.addEventListener('mousedown', e => {
+        e.stopPropagation();
+        e.preventDefault();
+        const dir = port.dataset.portDir;
+        const idx = parseInt(port.dataset.idx);
+        if (dir === 'output') {
+          // Start connection drag from output port
+          const nodeEl = document.querySelector(`.canvas-node[data-idx="${idx}"]`);
+          const nodeRect = nodeEl.getBoundingClientRect();
+          const areaRect = document.getElementById('canvasArea').getBoundingClientRect();
+          connDrag.active = true;
+          connDrag.sourceIdx = idx;
+          connDrag.startX = (nodeRect.right - areaRect.left - panX) / canvasZoom;
+          connDrag.startY = (nodeRect.top + nodeRect.height / 2 - areaRect.top - panY) / canvasZoom;
+        }
+      });
+    });
+
+    world.appendChild(div);
+  });
+
+  // Draw connections
+  drawConnections(svg);
+  renderConnectionsPanel();
+}
+
+function getNodePos(idx) {
+  const node = document.querySelector(`.canvas-node[data-idx="${idx}"]`);
+  if (node) {
+    return { x: parseFloat(node.style.left) || 0, y: parseFloat(node.style.top) || 0 };
+  }
+  return { x: stages[idx]?.x || 0, y: stages[idx]?.y || 0 };
+}
+
+function drawConnections(svg) {
+  svg.innerHTML = '';
+  const area = document.getElementById('canvasArea');
+  const areaRect = area.getBoundingClientRect();
+
+  const svgW = Math.ceil(area.clientWidth / canvasZoom) + 400;
+  const svgH = Math.ceil(area.clientHeight / canvasZoom) + 400;
+  svg.setAttribute('width', svgW);
+  svg.setAttribute('height', svgH);
+  svg.style.width = svgW + 'px';
+  svg.style.height = svgH + 'px';
+
+  const nodeW = 130;
+  const nodeH = 60;
+
+  // Rebuild allEdges from data sources
+  allEdges = [];
+
+  // 1) Sequential edges (grey) — i → i+1, unless overridden by manual
+  const manualSeqOverride = new Set();
+  stages.forEach((s, i) => {
+    (s.connections || []).forEach(c => {
+      const tgtIdx = stages.findIndex(t => t.name === c.target);
+      if (tgtIdx === i + 1) manualSeqOverride.add(`${i}-${tgtIdx}`);
+    });
+  });
+  for (let i = 0; i < stages.length - 1; i++) {
+    const key = `${i}-${(i + 1)}`;
+    if (!manualSeqOverride.has(key) && !deletedSequentialPairs.has(key)) {
+      allEdges.push({ fromIdx: i, toIdx: i + 1, type: 'sequential' });
+    }
+  }
+
+  // 2) Branch edges (yellow dashed)
+  stages.forEach((s, i) => {
+    (s.branches || []).forEach((b, bi) => {
+      const ti = stages.findIndex(t => t.name === b.next);
+      if (ti >= 0) {
+        allEdges.push({ fromIdx: i, toIdx: ti, type: 'branch', branchLabel: b.label, branchLocalIdx: bi });
+      }
+    });
+  });
+
+  // 3) Manual edges (blue solid)
+  stages.forEach((s, i) => {
+    (s.connections || []).forEach((c, ci) => {
+      const ti = stages.findIndex(t => t.name === c.target);
+      if (ti >= 0) {
+        allEdges.push({ fromIdx: i, toIdx: ti, type: 'manual' });
+      }
+    });
+  });
+
+  // Draw all edges
+  allEdges.forEach((edge, ei) => {
+    const sp = getNodePos(edge.fromIdx);
+    const tp = getNodePos(edge.toIdx);
+    const sx = sp.x + nodeW;
+    const sy = sp.y + nodeH / 2;
+    const tx = tp.x;
+    const ty = tp.y + nodeH / 2;
+    drawEdge(svg, sx, sy, tx, ty, edge, ei);
+  });
+}
+
+function drawEdge(svg, x1, y1, x2, y2, edge, edgeIdx) {
+  const dx = Math.abs(x2 - x1);
+  const cp = Math.max(dx * 0.4, 40);
+  const d = `M${x1},${y1} C${x1 + cp},${y1} ${x2 - cp},${y2} ${x2},${y2}`;
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', d);
+  let cls = 'conn';
+  if (edge.type === 'branch') cls += ' branch';
+  if (edge.type === 'manual') cls += ' manual';
+  path.setAttribute('class', cls);
+
+  // Click to delete
+  path.addEventListener('click', e => {
+    e.stopPropagation();
+    const label = edge.type === 'sequential' ? '自動' : edge.type === 'branch' ? '分岐' : '手動';
+    if (!confirm(`この${label}接続を削除しますか？`)) return;
+
+    // Sync back to data model
+    if (edge.type === 'branch') {
+      const s = stages[edge.fromIdx];
+      if (s.branches) s.branches = s.branches.filter((_, bi) => bi !== edge.branchLocalIdx);
+    } else if (edge.type === 'manual') {
+      const s = stages[edge.fromIdx];
+      if (s.connections) s.connections = s.connections.filter(c => c.target !== stages[edge.toIdx]?.name);
+    } else if (edge.type === 'sequential') {
+      deletedSequentialPairs.add(`${edge.fromIdx}-${edge.toIdx}`);
+    }
+
+    renderCanvas();
+  });
+  path.style.cursor = 'pointer';
+
+  svg.appendChild(path);
+}
+
+// Temp path element for drag preview
+let tempPathEl = null;
+
+function getTempPath() {
+  if (!tempPathEl) {
+    tempPathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    tempPathEl.setAttribute('class', 'temp-conn');
+  }
+  return tempPathEl;
+}
+
+function applyTransform() {
+  const world = document.getElementById('canvasWorld');
+  world.style.transform = `translate(${panX}px, ${panY}px) scale(${canvasZoom})`;
+}
+
+// Global mouse handlers
+document.addEventListener('mousemove', e => {
+  const area = document.getElementById('canvasArea');
+
+  // Connection dragging
+  if (connDrag.active) {
+    const areaRect = area.getBoundingClientRect();
+    const mx = (e.clientX - areaRect.left - panX) / canvasZoom;
+    const my = (e.clientY - areaRect.top - panY) / canvasZoom;
+
+    // Remove highlight from previous target
+    document.querySelectorAll('.canvas-node.over-target').forEach(el => el.classList.remove('over-target'));
+
+    // Find target node under cursor
+    const svg = document.getElementById('canvasSvg');
+    const srcPos = getNodePos(connDrag.sourceIdx);
+    const sx = srcPos.x + 130;
+    const sy = srcPos.y + 30;
+
+    // Draw temp line
+    let tp = getTempPath();
+    const dx = Math.abs(mx - sx);
+    const cp = Math.max(dx * 0.4, 40);
+    tp.setAttribute('d', `M${sx},${sy} C${sx + cp},${sy} ${mx - cp},${my} ${mx},${my}`);
+    if (!svg.contains(tp)) svg.appendChild(tp);
+
+    // Highlight target node if hovering over an input port area
+    const nodes = document.querySelectorAll('.canvas-node');
+    nodes.forEach(node => {
+      const idx = parseInt(node.dataset.idx);
+      if (idx === connDrag.sourceIdx) return;
+      const nx = parseFloat(node.style.left);
+      const ny = parseFloat(node.style.top);
+      // Check if cursor is near the left side (input port area) of this node
+      if (mx >= nx - 20 && mx <= nx + 30 && my >= ny && my <= ny + 60) {
+        node.classList.add('over-target');
+      }
+    });
+    return;
+  }
+
+  // Node dragging
+  if (dragNode) {
+    isDraggingNode = true;
+    const areaRect = area.getBoundingClientRect();
+    let x = (e.clientX - areaRect.left - panX) / canvasZoom - dragOffX;
+    let y = (e.clientY - areaRect.top - panY) / canvasZoom - dragOffY;
+    x = Math.max(0, x);
+    y = Math.max(0, y);
+    dragNode.style.left = x + 'px';
+    dragNode.style.top = y + 'px';
+    drawConnections(document.getElementById('canvasSvg'));
+  } else if (isPanning) {
+    const dx = e.clientX - panStartX;
+    const dy = e.clientY - panStartY;
+    panX += dx;
+    panY += dy;
+    panStartX = e.clientX;
+    panStartY = e.clientY;
+    applyTransform();
+  }
+});
+
+document.addEventListener('mouseup', e => {
+  // Finish connection drag
+  if (connDrag.active) {
+    const area = document.getElementById('canvasArea');
+    const areaRect = area.getBoundingClientRect();
+    const mx = (e.clientX - areaRect.left - panX) / canvasZoom;
+    const my = (e.clientY - areaRect.top - panY) / canvasZoom;
+
+    // Find target node
+    let targetIdx = -1;
+    document.querySelectorAll('.canvas-node.over-target').forEach(node => {
+      const idx = parseInt(node.dataset.idx);
+      if (idx !== connDrag.sourceIdx) targetIdx = idx;
+    });
+
+    // Also check if we released directly on a node
+    if (targetIdx < 0) {
+      const clickedNode = e.target.closest('.canvas-node');
+      if (clickedNode) {
+        const idx = parseInt(clickedNode.dataset.idx);
+        if (idx !== connDrag.sourceIdx) targetIdx = idx;
+      }
+    }
+
+    if (targetIdx >= 0) {
+      // Create connection
+      const srcStage = stages[connDrag.sourceIdx];
+      if (!srcStage.connections) srcStage.connections = [];
+      // Avoid duplicates
+      const exists = srcStage.connections.some(c => c.target === stages[targetIdx].name);
+      if (!exists) {
+        srcStage.connections.push({ target: stages[targetIdx].name });
+      }
+      renderCanvas();
+    }
+
+    // Clean up temp path
+    if (tempPathEl) {
+      tempPathEl.remove();
+      tempPathEl = null;
+    }
+
+    connDrag.active = false;
+    connDrag.sourceIdx = -1;
+    return;
+  }
+
+  // Finish node drag
+  if (dragNode) {
+    const idx = parseInt(dragNode.dataset.idx);
+    stages[idx].x = parseFloat(dragNode.style.left);
+    stages[idx].y = parseFloat(dragNode.style.top);
+    dragNode.classList.remove('dragging');
+    dragNode = null;
+  }
+  isPanning = false;
+});
+
+// Zoom with wheel
+document.getElementById('canvasArea').addEventListener('wheel', e => {
+  e.preventDefault();
+  const area = document.getElementById('canvasArea');
+  const areaRect = area.getBoundingClientRect();
+  const mouseX = e.clientX - areaRect.left;
+  const mouseY = e.clientY - areaRect.top;
+
+  const delta = e.deltaY > 0 ? -0.08 : 0.08;
+  const newZoom = Math.min(2.5, Math.max(0.2, canvasZoom + delta));
+
+  panX = mouseX - (mouseX - panX) * (newZoom / canvasZoom);
+  panY = mouseY - (mouseY - panY) * (newZoom / canvasZoom);
+  canvasZoom = newZoom;
+
+  applyTransform();
+}, { passive: false });
+
+// Pan
+document.getElementById('canvasArea').addEventListener('contextmenu', e => e.preventDefault());
+document.getElementById('canvasArea').addEventListener('mousedown', e => {
+  if (e.button === 1) {
+    isPanning = true;
+    panStartX = e.clientX;
+    panStartY = e.clientY;
+    e.preventDefault();
+    return;
+  }
+  if (e.button === 0 && !e.target.closest('.canvas-node') && !e.target.closest('.port')) {
+    isPanning = true;
+    panStartX = e.clientX;
+    panStartY = e.clientY;
+  }
+});
+
+// ═══════════════════════════════════════════
+// Connections Panel (Sidebar)
+// ═══════════════════════════════════════════
+
+function renderConnectionsPanel() {
+  const panel = document.getElementById('connections-panel');
+  const allConns = [];
+
+  stages.forEach((s, i) => {
+    (s.connections || []).forEach(c => {
+      allConns.push({ srcIdx: i, srcName: s.name, tgtName: c.target });
+    });
+  });
+
+  if (!allConns.length) {
+    panel.innerHTML = '<div class="empty-state">接続はありません<br><span style="font-size:10px">ノードの右ポートから左ポートへドラッグ</span></div>';
+    return;
+  }
+
+  panel.innerHTML = allConns.map((c, ci) => `
+    <div class="conn-list-item">
+      <span class="cli-src">${escHtml(c.srcName)}</span>
+      <span class="cli-arrow">→</span>
+      <span class="cli-tgt">${escHtml(c.tgtName)}</span>
+      <button class="cli-del" onclick="removeConnByIndex(${c.srcIdx}, '${escAttr(c.tgtName)}')" title="削除">×</button>
+    </div>
+  `).join('');
+}
+
+function removeConnByIndex(srcIdx, tgtName) {
+  if (!stages[srcIdx].connections) return;
+  stages[srcIdx].connections = stages[srcIdx].connections.filter(c => c.target !== tgtName);
+  renderCanvas();
+}
+
+// ═══════════════════════════════════════════
+// Stage Config Panel (Sidebar)
+// ═══════════════════════════════════════════
+
+function showStageConfig(idx) {
+  const s = stages[idx];
+  const meta = TYPE_META[s.type] || TYPE_META.cognition;
+  const connList = (s.connections || []).map(c => `→ ${c.target}`).join('<br>') || 'なし';
+
+  document.getElementById('stage-config-panel').innerHTML = `
+    <div class="prop-group">
+      <label>名前</label>
+      <input class="prop-input" value="${escAttr(s.name)}" onchange="stages[${idx}].name=this.value;renderCanvas()">
+    </div>
+    <div class="prop-group">
+      <label>説明</label>
+      <textarea class="prop-textarea" onchange="stages[${idx}].description=this.value;renderCanvas()">${escHtml(s.description||'')}</textarea>
+    </div>
+    <div class="prop-group">
+      <label>ツール</label>
+      <input class="prop-input" value="${escAttr(s.tool||'')}" onchange="stages[${idx}].tool=this.value;renderCanvas()" placeholder="search_pesticides">
+    </div>
+    <div class="prop-group">
+      <label>LLM指示</label>
+      <textarea class="prop-textarea" onchange="stages[${idx}].instruction=this.value;renderCanvas()" placeholder="このステージでの指示">${escHtml(s.instruction||'')}</textarea>
+    </div>
+    <div class="prop-group">
+      <label>手動接続先</label>
+      <div style="font-size:11px;color:var(--text-dim);white-space:pre-line;">${escHtml(connList)}</div>
+    </div>
+    <div style="margin-top:8px;">
+      <button class="btn" onclick="editStage(${idx})">✏️ 詳細設定（分岐等）</button>
+    </div>
+  `;
+}
+
+// ═══════════════════════════════════════════
+// Branch Fields
+// ═══════════════════════════════════════════
+
+function addBranchField(label='', target='', idx = -1) {
+  const bc = document.getElementById('branches_container');
+  const row = document.createElement('div');
+  row.className = 'branch-row';
+  row.style.cssText = 'display:flex;gap:4px;margin-bottom:4px;align-items:center;';
+
+  const selfName = document.getElementById('sm_name').value.trim();
+  let options = '<option value="">— ステージ選択 —</option>';
+  stages.forEach((s, si) => {
+    if (si === idx) return;
+    const sel = (s.name === target) ? 'selected' : '';
+    options += `<option value="${escAttr(s.name)}" ${sel}>${escHtml(s.name)}</option>`;
+  });
+
+  row.innerHTML = `
+    <input class="prop-input bl" style="width:70px" placeholder="ラベル" value="${escAttr(label)}">
+    <span style="color:var(--text-dim)">→</span>
+    <select class="prop-input bt" style="flex:1">${options}</select>
+    <button class="btn btn-sm btn-danger" onclick="this.parentElement.remove()">×</button>
+  `;
+  bc.appendChild(row);
+}
+
+// ═══════════════════════════════════════════
+// Code Generation
+// ═══════════════════════════════════════════
+
+function generateCode() {
+  if (!stages.length) { alert('ステージを追加してください'); return; }
+
+  const lines = [];
+  lines.push('# Auto-generated by Cognitive Framework Designer');
+  lines.push('from langgraph.graph import StateGraph, END');
+  lines.push('from typing import TypedDict, Literal, Any');
+  lines.push('');
+  lines.push('');
+  lines.push('# ── State ──');
+  lines.push('class ChatState(TypedDict):');
+  lines.push('    messages: list');
+  lines.push('    stage: str');
+  lines.push('    error: str | None');
+  lines.push('');
+  lines.push('');
+
+  lines.push('# ── Stage Functions ──');
+  stages.forEach((s, i) => {
+    const fn = camelCase(s.name);
+    const meta = TYPE_META[s.type] || TYPE_META.cognition;
+    lines.push(`# ${meta.label}: ${s.name}`);
+    lines.push(`def ${fn}(state: dict) -> dict:`);
+    if (s.description) lines.push(`    """${escPy(s.description)}"""`);
+    if (s.instruction) lines.push(`    # Instruction: ${escPy(s.instruction)}`);
+    if (s.tool) lines.push(`    # Tool: ${s.tool}`);
+    lines.push(`    # TODO: Implement ${s.name}`);
+    lines.push(`    return {`);
+    lines.push(`        "messages": state.get("messages", []),`);
+    lines.push(`        "stage": "${s.name}",`);
+    lines.push(`    }`);
+    lines.push('');
+    lines.push('');
+  });
+
+  // Collect all manual connections for graph edges
+  const manualEdges = []; // [{from: name, to: name}]
+  stages.forEach(s => {
+    (s.connections || []).forEach(c => {
+      manualEdges.push({ from: s.name, to: c.target });
+    });
+  });
+
+  // Router function for conditional stages
+  const conditionalStages = stages.filter(s => s.branches?.length);
+  if (conditionalStages.length) {
+    lines.push('# ── Routers ──');
+    conditionalStages.forEach(s => {
+      const fn = camelCase(s.name) + '_router';
+      lines.push(`def ${fn}(state: dict) -> str:`);
+      lines.push(`    """Route after ${s.name}"""`);
+      lines.push(`    # TODO: Implement routing logic`);
+      lines.push(`    if True:`);
+      if (s.branches?.[0]) {
+        const nextStage = stages.find(st => st.name === s.branches[0].next);
+        if (nextStage) lines.push(`        return "${camelCase(nextStage.name)}"`);
+      }
+      lines.push(`    return "__end__"`);
+      lines.push('');
+      lines.push('');
+    });
+  }
+
+  // Graph construction
+  lines.push('# ── Graph Construction ──');
+  lines.push('builder = StateGraph(ChatState)');
+  lines.push('');
+
+  stages.forEach((s, i) => {
+    const fn = camelCase(s.name);
+    lines.push(`builder.add_node("${fn}", ${fn})`);
+  });
+  lines.push('');
+
+  // Entry point
+  lines.push(`builder.set_entry_point("${camelCase(stages[0].name)}")`);
+  lines.push('');
+
+  // Build edges: manual connections first, then sequential, then conditional
+  const manualEdgeSet = new Set(manualEdges.map(e => `${e.from}→${e.to}`));
+
+  // Sequential edges — skip if overridden by manual connection
+  for (let i = 0; i < stages.length - 1; i++) {
+    const key = `${stages[i].name}→${stages[i+1].name}`;
+    if (manualEdgeSet.has(key)) continue;
+    lines.push(`builder.add_edge("${camelCase(stages[i].name)}", "${camelCase(stages[i+1].name)}")`);
+  }
+  lines.push('');
+
+  // Manual connection edges
+  if (manualEdges.length) {
+    lines.push('# ── Manual Edges ──');
+    manualEdges.forEach(e => {
+      lines.push(`builder.add_edge("${camelCase(e.from)}", "${camelCase(e.to)}")`);
+    });
+    lines.push('');
+  }
+
+  // Conditional edges for branched stages
+  if (conditionalStages.length) {
+    lines.push('# ── Conditional Routes ──');
+    conditionalStages.forEach(s => {
+      const fn = camelCase(s.name) + '_router';
+      lines.push(`def ${fn}(state: dict) -> str:`);
+      lines.push(`    """Route after ${s.name}"""`);
+      lines.push(`    # TODO: Implement routing logic based on state`);
+      const branchNames = s.branches.map(b => '"' + camelCase(stages.find(st => st.name === b.next)?.name) + '"').join(', ');
+      lines.push('    # Return one of: ' + branchNames);
+      lines.push(`    if True:`);
+      if (s.branches?.[0]) {
+        const nextStage = stages.find(st => st.name === s.branches[0].next);
+        if (nextStage) lines.push(`        return "${camelCase(nextStage.name)}"`);
+      }
+      lines.push(`    return "__end__"`);
+      lines.push('');
+    });
+    lines.push('');
+
+    conditionalStages.forEach(s => {
+      const fn = camelCase(s.name) + '_router';
+      const routeMap = {};
+      s.branches.forEach(b => {
+        const next = stages.find(st => st.name === b.next);
+        if (next) routeMap[b.label] = camelCase(next.name);
+      });
+      lines.push(`builder.add_conditional_edges(`);
+      lines.push(`    "${camelCase(s.name)}",`);
+      lines.push(`    ${fn},`);
+      lines.push(`    ${JSON.stringify(routeMap, null, 8)}`);
+      lines.push(`)`);
+    });
+    lines.push('');
+  }
+
+  // Connect leaf nodes → END
+  const leafStages = stages.filter(s => !s.branches?.length && !(s.connections?.length));
+  if (leafStages.length) {
+    lines.push('# ── Leaf connections ──');
+    leafStages.forEach(s => {
+      const isBranchTarget = [...stages].some(src =>
+        src.branches?.some(b => b.next === s.name) ||
+        src.connections?.some(c => c.target === s.name)
+      );
+      if (!isBranchTarget) {
+        lines.push(`builder.add_edge("${camelCase(s.name)}", END)`);
+      }
+    });
+    lines.push('');
+  }
+
+  // Compile
+  lines.push('# ── Compile ──');
+  lines.push('from langgraph.checkpoint.memory import MemorySaver');
+  lines.push('checkpointer = MemorySaver()');
+  lines.push('graph = builder.compile(checkpointer=checkpointer)');
+  lines.push('');
+  lines.push('');
+  lines.push('# ── Usage ──');
+  lines.push('# result = graph.invoke(');
+  lines.push('#     {"messages": [{"role": "user", "content": "..."}], "stage": ""},');
+  lines.push('#     {"configurable": {"thread_id": "abc123"}}');
+  lines.push('# )');
+
+  return lines.join('\n');
+}
+
+// ═══════════════════════════════════════════
+// Import / Export
+// ═══════════════════════════════════════════
+
+function exportJSON() {
+  const data = { stages, stageIdCounter };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'cognitive_framework.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importJSON(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      stages = data.stages || [];
+      stageIdCounter = data.stageIdCounter || stages.length;
+      renderCanvas();
+    } catch (err) {
+      alert('ファイルのパースに失敗: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function clearAll() {
+  if (!confirm('すべてのステージを削除しますか？')) return;
+  stages = [];
+  stageIdCounter = 0;
+  renderCanvas();
+  document.getElementById('stage-config-panel').innerHTML = '<div class="empty-state">ステージを選択してください</div>';
+}
+
+// ═══════════════════════════════════════════
+// Server Save / Load / List / Delete
+// ═══════════════════════════════════════════
+
+async function apiPost(path, body) {
+  const res = await fetch('/api/designer' + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return res.json();
+}
+
+function saveToServer() {
+  const name = prompt('グラフの名前:', stages[0]?.name || 'framework');
+  if (!name) return;
+  apiPost('/save', { name, data: { stages, stageIdCounter } }).then(res => {
+    if (res.ok) { alert('保存: ' + res.filename); refreshSaved(); }
+    else alert('保存失敗: ' + res.error);
+  });
+}
+
+function refreshSaved() {
+  fetch('/api/designer/list', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' })
+    .then(r => r.json()).then(res => {
+      const panel = document.getElementById('saved-panel');
+      if (!res.graphs?.length) {
+        panel.innerHTML = '<div class="empty-state">未保存</div>';
+        return;
+      }
+      panel.innerHTML = res.graphs.map(g => `
+        <div class="saved-item">
+          <div class="si-name">${escHtml(g.name)}</div>
+          <div class="si-meta">${g.modified?.slice(0,16)||''}</div>
+          <div class="si-actions">
+            <button class="btn btn-sm" onclick="loadFromServer('${escAttr(g.filename)}')">📂 読込</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteFromServer('${escAttr(g.filename)}')">🗑</button>
+          </div>
+        </div>
+      `).join('');
+    });
+}
+
+function loadFromServer(filename) {
+  if (!confirm(`"${filename}"を読み込みますか？`)) return;
+  apiPost('/load', { filename }).then(res => {
+    if (res.data) {
+      if (res.data.stages !== undefined) {
+        stages = res.data.stages;
+        stageIdCounter = res.data.stageIdCounter || stages.length;
+
+        // Normalize branch format
+        stages.forEach(s => {
+          const raw = s.branches || [];
+          const normalized = [];
+          raw.forEach(b => {
+            if (b.label !== undefined && b.next !== undefined) {
+              normalized.push(b);
+            } else if (b.name && b.nextStages) {
+              b.nextStages.forEach(sid => {
+                const targetStage = stages.find(ts => ts.id === sid);
+                if (targetStage) {
+                  normalized.push({ label: b.name, next: targetStage.name });
+                }
+              });
+            }
+          });
+          s.branches = normalized;
+        });
+      } else if (res.data.nodes) {
+        stages = res.data.nodes.map(n => ({
+          id: n.id,
+          type: n.type === 'start' ? 'cognition' : n.type === 'end' ? 'execution' : n.type,
+          name: n.name,
+          description: n.description || '',
+          tool: '',
+          instruction: '',
+          branches: [],
+        }));
+        stageIdCounter = res.data.nodeIdCounter || stages.length;
+      } else {
+        alert('読込失敗: 不明なデータ形式');
+        return;
+      }
+      renderCanvas();
+      alert('読み込みました');
+    } else {
+      alert('読込失敗: ' + (res.error || ''));
+    }
+  });
+}
+
+function deleteFromServer(filename) {
+  if (!confirm(`"${filename}"を削除しますか？`)) return;
+  apiPost('/delete', { filename }).then(res => {
+    if (res.ok) { alert('削除'); refreshSaved(); }
+    else alert('削除失敗: ' + res.error);
+  });
+}
+
+// ═══════════════════════════════════════════
+// Code Modal
+// ═══════════════════════════════════════════
+
+function showCode() {
+  const code = generateCode();
+  document.getElementById('codeOutput').textContent = code;
+  openModal('codeModal');
+}
+
+function copyCode() {
+  navigator.clipboard.writeText(document.getElementById('codeOutput').textContent);
+  alert('コピーしました');
+}
+
+function downloadCode() {
+  const code = document.getElementById('codeOutput').textContent;
+  const blob = new Blob([code], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'cognitive_framework.py';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ═══════════════════════════════════════════
+// Modals
+// ═══════════════════════════════════════════
+
+function openModal(id) { document.getElementById(id).classList.add('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('active'); });
+});
+
+function toggleDropdown(btn) {
+  const menu = btn.parentElement.querySelector('.tb-menu');
+  const isOpen = menu.classList.contains('open');
+  document.querySelectorAll('.tb-menu').forEach(m => m.classList.remove('open'));
+  if (!isOpen) menu.classList.add('open');
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.tb-dropdown')) {
+    document.querySelectorAll('.tb-menu').forEach(m => m.classList.remove('open'));
+  }
+});
+
+// ═══════════════════════════════════════════
+// Helpers
+// ═══════════════════════════════════════════
+
+function escHtml(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+function escAttr(s) { return String(s||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function escPy(s) { return String(s||'').replace(/\\/g,'\\\\').replace(/"/g,'\\"'); }
+function camelCase(s) { return s.replace(/[^\w]/g,'_').replace(/^_+|_+$/g,'').replace(/_./g,m=>m[1].toUpperCase()); }
+
+// ═══════════════════════════════════════════
+// Init
+// ═══════════════════════════════════════════
+
+renderCanvas();
+refreshSaved();
+</script>
+</body>
+</html>

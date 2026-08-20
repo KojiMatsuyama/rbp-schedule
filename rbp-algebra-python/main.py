@@ -14,7 +14,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from rbp_types import (
     Disease, EntryVector, EvalBox, Pesticide, ToxicityClass,
     BridgeContext, ScoreBreakdown, PrescriptionSet, PrescriptionResult,
-    PrescriptionStatus, FlowResult, is_blocked,
+    PrescriptionStatus, FlowResult, Blocked, is_blocked,
+    ExcludedIndividual, ExcludedSet,
 )
 from core import run_line_through_bridges
 from bridges import spec_bridges, set_has_internal_mixing_conflict
@@ -183,8 +184,10 @@ def build_prescription(
     pesticides: list[Pesticide],
     ctx: BridgeContext,
 ) -> PrescriptionResult:
-    """Full prescription builder."""
-    # Run all SPEC_LINEs
+    """Full prescription builder with detailed scoring, traces, and exclusions."""
+    NON_ROTATION_SYSTEM_CODES = ("MIX", "PHYSICAL")
+
+    # ── Step 1: Run all SPEC_LINEs through 6 bridges ──
     line_results: list[tuple[Pesticide, FlowResult]] = []
     for p in pesticides:
         ctx_p = BridgeContext(
@@ -201,17 +204,43 @@ def build_prescription(
         result = run_line_through_bridges(ev, spec_bridges, ctx_p)
         line_results.append((p, result))
 
-    # Classify
-    connected = [(p, r) for p, r in line_results if not is_blocked(r.state)]
+    # ── Step 2: Classify lines ──
+    # "Connected" = not blocked at L1 (TARGET). Lines blocked at L1 have no water source.
+    connected = [(p, r) for p, r in line_results
+                 if not (is_blocked(r.state) and r.state.bridge_id == "SPEC-BRIDGE-TARGET")]
+    # "Flowing" = reached L6 (TOXICITY) — eligible for set enumeration
     flowing = [(p, r) for p, r in connected if not is_blocked(r.state)]
 
+    # ── Step 3: Handle NO_PESTICIDE_DEFINED (all blocked at L1) ──
     if not connected:
         return PrescriptionResult(None, [], PrescriptionStatus.NO_PESTICIDE_DEFINED)
 
-    if not flowing:
-        return PrescriptionResult(None, [], PrescriptionStatus.ALL_BLOCKED_BY_CONSTRAINTS)
+    # ── Step 4: Collect excluded individuals (blocked at L2–L6) ──
+    excluded_individual: list[ExcludedIndividual] = []
+    for p, r in connected:
+        if is_blocked(r.state):
+            blocked_state = r.state
+            assert isinstance(blocked_state, Blocked)
+            excluded_individual.append(ExcludedIndividual(
+                pesticide_pid=p.pid,
+                pesticide_name=p.name,
+                bridge_id=blocked_state.bridge_id,
+                reason=blocked_state.reason,
+            ))
 
-    # Enumerate candidate sets (single + pair)
+    # ── Step 5: Handle ALL_BLOCKED_BY_CONSTRAINTS (no flowing lines) ──
+    if not flowing:
+        return PrescriptionResult(
+            None, [], PrescriptionStatus.ALL_BLOCKED_BY_CONSTRAINTS,
+            excluded_individual=excluded_individual,
+        )
+
+    # ── Step 6: Pool for redundancy check (passed L2, may be blocked at L5) ──
+    pool = [(p, r) for p, r in connected
+            if not (is_blocked(r.state) and isinstance(r.state, Blocked)
+                    and r.state.bridge_id == "SPEC-BRIDGE-USAGE")]
+
+    # ── Step 7: Enumerate candidate sets (single + pair) ──
     pests = [p for p, _ in flowing]
     candidates = [
         [p] for p in pests
@@ -221,51 +250,222 @@ def build_prescription(
         for j in range(i + 1, len(pests))
     ]
 
-    # Apply set-level gate
-    valid = [s for s in candidates if not set_has_internal_mixing_conflict(s)]
+    # ── Step 8: Set-level gate (internal mixing prohibition) ──
+    excluded_sets: list[ExcludedSet] = []
+    valid_sets: list[list[Pesticide]] = []
+    for s in candidates:
+        if len(s) == 2 and set_has_internal_mixing_conflict(s):
+            # Build reason
+            a, b = s
+            reasons = _build_mixing_reason(a, b)
+            excluded_sets.append(ExcludedSet(
+                pesticide_pids=[a.pid, b.pid],
+                pesticide_names=[a.name, b.name],
+                gate_id="SPEC-BRIDGE-MIXING-SET",
+                reasons=reasons,
+            ))
+        else:
+            valid_sets.append(s)
 
-    # Score and sort
-    scored = [(s, score_set(s, ev)) for s in valid]
-    scored.sort(key=lambda x: -x[1])
+    # ── Step 9: Score each valid set with full breakdown ──
+    scored = []
+    for s in valid_sets:
+        ps = _score_set_full(s, ev, flowing, pool, NON_ROTATION_SYSTEM_CODES)
+        scored.append((s, ps))
+
+    scored.sort(key=lambda x: (-x[1].mirror_id, -x[1].total_score,
+                                len(x[0]), str(x[0])))
 
     if not scored:
-        return PrescriptionResult(None, [], PrescriptionStatus.ALL_BLOCKED_BY_CONSTRAINTS)
+        return PrescriptionResult(
+            None, [], PrescriptionStatus.ALL_BLOCKED_BY_CONSTRAINTS,
+            excluded_individual=excluded_individual,
+            excluded_sets=excluded_sets,
+        )
 
-    best_set, best_score = scored[0]
-    best_ps = PrescriptionSet(
-        pesticides=best_set,
-        match_count=sum(
-            u * e for u, e in zip(compute_union_coverage(best_set, ev).data, ev.data)
-        ),
-        coverage_ratio=sum(
-            u * e for u, e in zip(compute_union_coverage(best_set, ev).data, ev.data)
-        ) / ev.active_count if ev.active_count > 0 else 0,
-        mirror_id=cosine_similarity(compute_union_coverage(best_set, ev), ev),
-        effectiveness_score=0,
-        safety_score=0,
-        resistance_score=0,
-        total_score=best_score,
+    # ── Step 10: Build line_traces for output ──
+    line_traces = []
+    for p, r in connected:
+        line_traces.append({
+            "pesticide": p.pid,
+            "pesticide_name": p.name,
+            "levels": [t.level for t in r.trace],
+            "weights": [t.weight for t in r.trace],
+            "blocked": is_blocked(r.state),
+            "blocked_at": r.state.bridge_id if is_blocked(r.state) else None,
+        })
+
+    # ── Step 11: Return best + top alternatives ──
+    best_set, best_ps = scored[0]
+    alts = [ps for _, ps in scored[1:][:10]]
+
+    return PrescriptionResult(
+        best=best_ps,
+        alternatives=alts,
+        status=PrescriptionStatus.SUCCESS,
+        line_traces=line_traces,
+        excluded_individual=excluded_individual,
+        excluded_sets=excluded_sets,
     )
 
-    alts = [
-        PrescriptionSet(
-            pesticides=s,
-            match_count=sum(
-                u * e for u, e in zip(compute_union_coverage(s, ev).data, ev.data)
-            ),
-            coverage_ratio=sum(
-                u * e for u, e in zip(compute_union_coverage(s, ev).data, ev.data)
-            ) / ev.active_count if ev.active_count > 0 else 0,
-            mirror_id=cosine_similarity(compute_union_coverage(s, ev), ev),
-            effectiveness_score=0,
-            safety_score=0,
-            resistance_score=0,
-            total_score=sc,
-        )
-        for s, sc in scored[1:]
-    ]
 
-    return PrescriptionResult(best_ps, alts, PrescriptionStatus.SUCCESS)
+# =============================================================================
+# Helper: Build mixing reason text
+# =============================================================================
+
+def _build_mixing_reason(a: Pesticide, b: Pesticide) -> list[str]:
+    """Build human-readable mixing conflict reasons between two pesticides."""
+    reasons = []
+    a_bans = a.mixing_ban_targets
+    b_bans = b.mixing_ban_targets
+
+    if any(_mentions(t, b.system_name) or _mentions(t, b.name) for t in a_bans):
+        reasons.append(f"{a.name}は{b.name}（{b.system_name}）と混用不可")
+    if any(_mentions(t, a.system_name) or _mentions(t, a.name) for t in b_bans):
+        reasons.append(f"{b.name}は{a.name}（{a.system_name}）と混用不可")
+    return reasons
+
+
+def _mentions(haystack: str, needle: str) -> bool:
+    return needle in haystack or needle.lower() in haystack.lower()
+
+
+# =============================================================================
+# Helper: Full scoring with breakdown
+# =============================================================================
+
+def _score_set_full(
+    pesticides: list[Pesticide],
+    ev: EntryVector,
+    flowing: list[tuple[Pesticide, FlowResult]],
+    pool: list[tuple[Pesticide, FlowResult]],
+    non_rotation_codes: tuple[str, ...],
+) -> PrescriptionSet:
+    """Score a prescription set with full breakdown computation."""
+    # ── Effectiveness: union coverage + Mirror-ID ──
+    union = compute_union_coverage(pesticides, ev)
+    match_count = sum(u * e for u, e in zip(union.data, ev.data))
+    target_sum = ev.active_count
+    coverage_ratio = match_count / target_sum if target_sum > 0 else 0
+    mirror_id = cosine_similarity(union, ev)
+    effectiveness = mirror_id * 10 + coverage_ratio * 5
+
+    # ── Gather attenuation events from line traces ──
+    # Build a lookup: pesticide pid -> FlowResult
+    flowing_map = {p.pid: r for p, r in flowing}
+
+    # Safety events (L3 PHI, L6 Toxicity)
+    safety_warnings = []
+    safety_penalty_total = 0.0
+    for p in pesticides:
+        fr = flowing_map.get(p.pid)
+        if not fr:
+            continue
+        for t in fr.trace:
+            if not t.attenuated:
+                continue
+            # Find the bridge definition for this trace
+            # We need to look up penalty info from spec_bridges
+            bridge_info = _find_bridge_by_level(spec_bridges, t.level)
+            if bridge_info and bridge_info.penalty:
+                axis, delta = bridge_info.penalty
+                if axis == "safety":
+                    safety_penalty_total += delta
+                    safety_warnings.append(bridge_info.warning_fn(
+                        BridgeContext(
+                            pesticide=p, entry_vector=ev, target_match=0,
+                            usage_state={}, last_spray_date=None,
+                            last_pesticide_ids=[], last_pesticides=[],
+                            interval_days=None, rotation_state={},
+                        )
+                    ))
+
+    safety_score = max(0, 20 + safety_penalty_total)
+
+    # Resistance events (L4 Rotation)
+    resistance_warnings = []
+    resistance_penalty_total = 0.0
+    resistance_note = ""
+    for p in pesticides:
+        fr = flowing_map.get(p.pid)
+        if not fr:
+            continue
+        for t in fr.trace:
+            if not t.attenuated:
+                continue
+            bridge_info = _find_bridge_by_level(spec_bridges, t.level)
+            if bridge_info and bridge_info.penalty:
+                axis, delta = bridge_info.penalty
+                if axis == "resistance":
+                    resistance_penalty_total += delta
+                    resistance_warnings.append(bridge_info.warning_fn(
+                        BridgeContext(
+                            pesticide=p, entry_vector=ev, target_match=0,
+                            usage_state={}, last_spray_date=None,
+                            last_pesticide_ids=[], last_pesticides=[],
+                            interval_days=None, rotation_state={},
+                        )
+                    ))
+
+    # Combo adjustment for 2-dose sets
+    combo_adjustment = 0
+    if len(pesticides) == 2:
+        a, b = pesticides
+        a_rot = a.system_code not in non_rotation_codes
+        b_rot = b.system_code not in non_rotation_codes
+        if a_rot and b_rot:
+            is_same_system = a.system_code == b.system_code
+            # Check redundancy: is there a solo alternative with equal/better coverage?
+            is_redundant = False
+            for sp, sr in pool:
+                sp_union = compute_union_coverage([sp], ev)
+                sp_match = sum(u * e for u, e in zip(sp_union.data, ev.data))
+                if sp_match >= match_count:
+                    is_redundant = True
+                    break
+            if is_same_system:
+                resistance_note = "同一系統の組み合わせ：抵抗性リスク低減効果なし"
+                combo_adjustment = -20
+            elif not is_redundant:
+                resistance_note = f"異なる系統（{a.system_code}／{b.system_code}）の組み合わせ：抵抗性管理上有効"
+
+    resistance_score = max(0, 15 + resistance_penalty_total + combo_adjustment)
+
+    warnings = safety_warnings + resistance_warnings
+    total_score = effectiveness + safety_score + resistance_score
+
+    breakdown = ScoreBreakdown(
+        effectiveness=effectiveness,
+        safety=safety_score,
+        resistance=resistance_score,
+        coverage_ratio=coverage_ratio,
+        match_count=match_count,
+        target_sum=target_sum,
+        mirror_id=mirror_id,
+        warnings=warnings,
+        resistance_note=resistance_note,
+    )
+
+    return PrescriptionSet(
+        pesticides=pesticides,
+        match_count=match_count,
+        coverage_ratio=coverage_ratio,
+        mirror_id=mirror_id,
+        effectiveness_score=effectiveness,
+        safety_score=safety_score,
+        resistance_score=resistance_score,
+        total_score=total_score,
+        warnings=warnings,
+        breakdown=breakdown,
+    )
+
+
+def _find_bridge_by_level(bridges: list, level: float):
+    """Find a bridge definition by its level."""
+    for b in bridges:
+        if b.level == level:
+            return b
+    return None
 
 
 # =============================================================================

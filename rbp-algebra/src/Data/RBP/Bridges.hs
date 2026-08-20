@@ -32,6 +32,7 @@ module Data.RBP.Bridges
   , runAllSpecLines
   , hasMixingConflict
   , setHasInternalMixingConflict
+  , buildMixingReason
   ) where
 
 import Data.RBP.Types
@@ -39,6 +40,7 @@ import Data.RBP.Core (runLineThroughBridges)
 import qualified Data.Map.Strict as Map
 import Data.List (sortBy)
 import Data.Ord (comparing)
+import Data.Char (toLower)
 
 ------------------------------------------------------------------------------
 -- Bridge helper constructors
@@ -251,6 +253,25 @@ Only applies to pairs (2-element sets).
 setHasInternalMixingConflict :: [Pesticide] -> Bool
 setHasInternalMixingConflict [a, b] = hasMixingConflict a b
 setHasInternalMixingConflict _      = False
+
+{-|
+Build human-readable mixing-conflict reason strings between two pesticides.
+Mirrors the Python reference engine's main.py:_build_mixing_reason /
+_mentions exactly (haystack = ban-target string, needle = name/system) —
+note this argument order is intentionally the reverse of 'hasMixingConflict'
+above, matching a pre-existing asymmetry in the Python reference itself.
+-}
+buildMixingReason :: Pesticide -> Pesticide -> [String]
+buildMixingReason a b =
+  concat
+    [ [ pname a ++ "は" ++ pname b ++ "（" ++ system b ++ "）と混用不可"
+      | any (\t -> mentions t (system b) || mentions t (pname b)) (mixingBanTargets a) ]
+    , [ pname b ++ "は" ++ pname a ++ "（" ++ system a ++ "）と混用不可"
+      | any (\t -> mentions t (system a) || mentions t (pname a)) (mixingBanTargets b) ]
+    ]
+  where
+    mentions haystack needle =
+      needle `isInfixOf` haystack || map toLower needle `isInfixOf` map toLower haystack
 
 ------------------------------------------------------------------------------
 -- Helpers

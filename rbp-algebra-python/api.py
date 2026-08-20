@@ -54,6 +54,32 @@ def _set_to_dict(ps: PrescriptionSet) -> dict:
         'coverageRatio': ps.coverage_ratio,
         'mirrorId': ps.mirror_id,
         'totalScore': ps.total_score,
+        'breakdown': _breakdown_to_dict(getattr(ps, 'breakdown', None)),
+    }
+
+
+def _breakdown_to_dict(bd) -> dict | None:
+    """Convert ScoreBreakdown to a JSON-serializable dict."""
+    if bd is None:
+        return None
+    return {
+        'effectiveness': {
+            'raw': getattr(bd, 'effectiveness', 0.0),
+            'mirrorId': getattr(bd, 'mirror_id', 0.0),
+            'coverageRatio': getattr(bd, 'coverage_ratio', 0.0),
+            'matchCount': getattr(bd, 'match_count', 0),
+            'targetSum': getattr(bd, 'target_sum', 0),
+        },
+        'safety': {
+            'raw': getattr(bd, 'safety', 0.0),
+            'warnings': getattr(bd, 'warnings', []),
+        },
+        'resistance': {
+            'raw': getattr(bd, 'resistance', 0.0),
+            'note': getattr(bd, 'resistance_note', ''),
+        },
+        'mixingOk': getattr(bd, 'mixing_ok', True),
+        'mixingReasons': getattr(bd, 'mixing_reasons', []),
     }
 
 
@@ -76,6 +102,25 @@ def prescribe(entry_vector) -> dict:
         'status': result.status.name,
         'best': _set_to_dict(result.best) if result.best else None,
         'alternatives': [_set_to_dict(a) for a in result.alternatives[:10]],
+        'lineTraces': result.line_traces,
+        'excludedIndividual': [
+            {
+                'pesticidePid': e.pesticide_pid,
+                'pesticideName': e.pesticide_name,
+                'bridgeId': e.bridge_id,
+                'reason': e.reason,
+            }
+            for e in result.excluded_individual
+        ],
+        'excludedSets': [
+            {
+                'pesticidePids': e.pesticide_pids,
+                'pesticideNames': e.pesticide_names,
+                'gateId': e.gate_id,
+                'reasons': e.reasons,
+            }
+            for e in result.excluded_sets
+        ],
     }
 
 
