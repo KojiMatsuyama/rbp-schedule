@@ -7,6 +7,7 @@ MCPサーバープロセスは不要。Gemini APIがこれらの関数を呼び�
 """
 
 import json
+import logging
 import os
 import re
 import sqlite3
@@ -14,12 +15,21 @@ import threading
 from datetime import datetime, timedelta
 from typing import Optional
 
-import numpy as np
-from sklearn.feature_extraction.text import TfidfVectorizer
+logger = logging.getLogger(__name__)
 
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(APP_ROOT, "data", "stb.db")
 VECTOR_DIM = 10
+
+import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+# Embedding model constants
+# jina-embeddings-v2-base-ja は HuggingFace 認証が必要なので、
+# 認証不要の LaBSE (109言語クロスリンガル、768次元) を使用する。
+_EMBEDDING_MODEL_ID = "sentence-transformers/LaBSE"
+_EMBEDDING_DIM = 768
+_RAG_INDEX_PATH = os.path.join(APP_ROOT, "data", "rag_index.pkl")
 
 
 # =====================================================================
@@ -247,8 +257,6 @@ SYMPTOM_DICTIONARY = {
 # TF-IDFベクトル化してセマンティック検索を可能にする。
 # インデックスは data/rag_index.pkl にpickle保存する。
 
-_RAG_INDEX_PATH = os.path.join(APP_ROOT, "data", "rag_index.pkl")
-
 
 def _build_pesticide_chunks(pesticide: dict) -> list:
     """
@@ -416,11 +424,11 @@ def _extract_chunks(conn: sqlite3.Connection) -> list:
 
 class RAGStore:
     """
-    TF-IDFベースのRAGインデックス。
+    埋め込みモデル + FAISS ベースの RAG インデックス。
 
     役割:
-      - rebuild(): DBから全データをロードしてTF-IDFインデックスを再生成
-      - search(): クエリに類似したチャンクをTF-IDF類似度で検索
+      - rebuild(): DBから全データをロードして埋め込みインデックスを再生成
+      - search(): クエリの埋め込みベクトルとコサイン類似度で検索
       - save/load: ディスクへのpickle永続化
 
     使用法:
@@ -429,16 +437,37 @@ class RAGStore:
       ...     store.rebuild(get_db())
       ...     store.save()
       >>> results = store.search("葉っぱが黄色い", limit=5)
+
+    アーキテクチャ:
+      - モデル: jina-embeddings-v2-base-ja (768次元, 日本語特化)
+      - インデックス: FAISS IndexFlatIP (内積 = コサイン類似度)
+      - 永続化: pickle (モデル + 埋め込み + チャンクメタデータ)
     """
 
     def __init__(self):
-        self.vectorizer: Optional[TfidfVectorizer] = None
-        self.chunks: list = []       # チャンクリスト（インデックス付き）
-        self.tfidf_matrix = None     # 疎行列
+        self.embedder = None           # SentenceTransformer インスタンス
+        self.chunks: list = []         # チャンクリスト
+        self.index = None              # FAISS インデックス
+        self.embedding_cache = None    # 全チャンクの埋め込み (N x 768)
+
+    def _load_embedder(self):
+        """埋め込みモデルを遅延ロードする。初回のみHuggingFaceからダウンロード。"""
+        if self.embedder is not None:
+            return self.embedder
+        try:
+            from sentence_transformers import SentenceTransformer
+            self.embedder = SentenceTransformer(
+                _EMBEDDING_MODEL_ID,
+                trust_remote_code=True,
+            )
+        except Exception as e:
+            logger.error(f"埋め込みモデルのロードに失敗: {e}")
+            raise
+        return self.embedder
 
     def rebuild(self, conn: sqlite3.Connection):
         """
-        DBから全データをロードしてTF-IDFインデックスを再生成する。
+        DBから全データをロードして埋め込みインデックスを再生成する。
 
         Args:
             conn: SQLite接続（get_db() で取得可能）
@@ -447,12 +476,26 @@ class RAGStore:
         texts = [c["text"] for c in chunks]
 
         self.chunks = chunks
-        self.vectorizer = TfidfVectorizer(
-            analyzer="char_wb",  # 文字n-gram（日本語に有効）
-            ngram_range=(2, 4),
-            sublinear_tf=True,
+
+        # 埋め込みモデルのロード
+        embedder = self._load_embedder()
+
+        # 全チャンクを埋め込みベクトルに変換（normalize=True → コサイン類似度 = 内積）
+        logger.info(f"埋め込み計算中: {len(texts)}チャンク...")
+        self.embedding_cache = embedder.encode(
+            texts,
+            normalize_embeddings=True,
+            show_progress_bar=True,
         )
-        self.tfidf_matrix = self.vectorizer.fit_transform(texts)
+
+        # FAISS インデックス構築 (Inner Product = Cosine Similarity)
+        import faiss
+
+        dim = self.embedding_cache.shape[1]  # 768
+        self.index = faiss.IndexFlatIP(dim)
+        self.index.add(self.embedding_cache)
+
+        logger.info(f"FAISSインデックス構築完了: {self.index.ntotal}件, 次元={dim}")
 
     def load(self) -> bool:
         """
@@ -468,9 +511,11 @@ class RAGStore:
             import pickle
             with open(_RAG_INDEX_PATH, "rb") as f:
                 data = pickle.load(f)
-            self.vectorizer = data["vectorizer"]
             self.chunks = data["chunks"]
-            self.tfidf_matrix = data["tfidf_matrix"]
+            self.embedding_cache = data["embedding_cache"]
+            self.index = data["index"]
+            # モデルはlazyロード（pickleに含めると巨大になる）
+            self.embedder = None
             return True
         except Exception:
             return False
@@ -478,57 +523,66 @@ class RAGStore:
     def save(self):
         """
         インデックスをディスクにpickle保存する。
+
+        注意: モデル本体はpickleに含めない（巨大になる）。
+        読み込み時は _load_embedder() で lazy ロードする。
         """
         import pickle
         os.makedirs(os.path.dirname(_RAG_INDEX_PATH), exist_ok=True)
         with open(_RAG_INDEX_PATH, "wb") as f:
             pickle.dump({
-                "vectorizer": self.vectorizer,
                 "chunks": self.chunks,
-                "tfidf_matrix": self.tfidf_matrix,
+                "embedding_cache": self.embedding_cache,
+                "index": self.index,
             }, f)
+        logger.info(f"インデックス保存完了: {_RAG_INDEX_PATH}")
 
     def search(self, query: str, limit: int = 5,
                source_type: Optional[str] = None) -> list:
         """
-        クエリに類似したチャンクをTF-IDF類似度で検索する。
+        クエリに類似したチャンクを埋め込み類似度で検索する。
 
         Args:
             query: 検索クエリ（自然言語）
             limit: 最大取得件数
-            source_type: ソースタイプで絞り込み（"pesticide", "disease", "record", None=全部）
+            source_type: ソースタイプで絞り込み（"pesticide", "disease",
+                         "record", None=全部）
 
         Returns:
             list of dict: [{"chunk": ..., "score": ...}, ...]
         """
-        if self.vectorizer is None or self.tfidf_matrix is None:
+        if self.index is None or self.embedding_cache is None:
             return []
 
-        query_vec = self.vectorizer.transform([query])
-        scores = (self.tfidf_matrix @ query_vec.T).toarray().flatten()
+        # クエリの埋め込み
+        embedder = self._load_embedder()
+        query_emb = embedder.encode([query], normalize_embeddings=True)
+
+        # FAISS検索 (inner product = cosine similarity)
+        scores, indices = self.index.search(query_emb, k=len(self.chunks))
 
         # ソースタイプでフィルタ
         if source_type and source_type != "all":
-            type_indices = [
-                i for i, c in enumerate(self.chunks)
-                if c["source_type"] == source_type
-            ]
-            # タイプ以外のスコアを -inf に
-            filtered_scores = np.full_like(scores, -np.inf)
-            for idx in type_indices:
-                filtered_scores[idx] = scores[idx]
-            scores = filtered_scores
+            filtered_scores = []
+            filtered_indices = []
+            for s, idx in zip(scores[0], indices[0]):
+                if self.chunks[idx]["source_type"] == source_type:
+                    filtered_scores.append(s)
+                    filtered_indices.append(idx)
+            scores = np.array(filtered_scores).reshape(1, -1)
+            indices = np.array(filtered_indices).reshape(1, -1)
 
         # トップK
-        top_indices = np.argsort(-scores)[:limit]
+        top_indices = indices[0][:limit]
+        top_scores = scores[0][:limit]
 
         results = []
-        for idx in top_indices:
-            if scores[idx] <= 0:
+        for idx, score in zip(top_indices, top_scores):
+            if score <= 0:
                 break
             results.append({
                 "chunk": self.chunks[int(idx)],
-                "score": float(scores[idx]),
+                "score": float(score),
             })
 
         return results

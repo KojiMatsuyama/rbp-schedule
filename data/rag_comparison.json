@@ -1,0 +1,168 @@
+{
+  "build_times": {
+    "tfidf_ms": 48.1,
+    "embedding_ms": 16151.6
+  },
+  "search_speed": {
+    "tfidf_avg_ms": 1.434,
+    "embedding_avg_ms": 27.767,
+    "ratio": 19.36
+  },
+  "accuracy": {
+    "tfidf_hits": 5,
+    "embedding_hits": 12,
+    "total_queries": 15
+  },
+  "per_query": [
+    {
+      "query": "葉っぱが黄色くなってる",
+      "expected_source": "disease",
+      "tfidf_hit": false,
+      "emb_hit": true,
+      "tfidf_top1": null,
+      "emb_top1": "disease",
+      "tfidf_score": 0,
+      "emb_score": 0.2542
+    },
+    {
+      "query": "葉に白い粉っぽいもの",
+      "expected_source": "disease",
+      "tfidf_hit": false,
+      "emb_hit": false,
+      "tfidf_top1": null,
+      "emb_top1": "pesticide",
+      "tfidf_score": 0,
+      "emb_score": 0.2742
+    },
+    {
+      "query": "葉の裏に小さい虫",
+      "expected_source": "disease",
+      "tfidf_hit": false,
+      "emb_hit": true,
+      "tfidf_top1": null,
+      "emb_top1": "disease",
+      "tfidf_score": 0,
+      "emb_score": 0.3578
+    },
+    {
+      "query": "有機で使える殺菌剤",
+      "expected_source": "pesticide",
+      "tfidf_hit": true,
+      "emb_hit": true,
+      "tfidf_top1": "pesticide",
+      "emb_top1": "pesticide",
+      "tfidf_score": 0.067,
+      "emb_score": 0.3828
+    },
+    {
+      "query": "葉が丸まってる",
+      "expected_source": "disease",
+      "tfidf_hit": false,
+      "emb_hit": true,
+      "tfidf_top1": null,
+      "emb_top1": "disease",
+      "tfidf_score": 0,
+      "emb_score": 0.1584
+    },
+    {
+      "query": "実が腐る",
+      "expected_source": "disease",
+      "tfidf_hit": false,
+      "emb_hit": true,
+      "tfidf_top1": null,
+      "emb_top1": "disease",
+      "tfidf_score": 0,
+      "emb_score": 0.1822
+    },
+    {
+      "query": "ストロビーと混ぜられる",
+      "expected_source": "pesticide",
+      "tfidf_hit": true,
+      "emb_hit": true,
+      "tfidf_top1": "pesticide",
+      "emb_top1": "pesticide",
+      "tfidf_score": 0.2364,
+      "emb_score": 0.2988
+    },
+    {
+      "query": "カビに効く薬",
+      "expected_source": "pesticide",
+      "tfidf_hit": true,
+      "emb_hit": false,
+      "tfidf_top1": "pesticide",
+      "emb_top1": "record",
+      "tfidf_score": 0.0913,
+      "emb_score": 0.3571
+    },
+    {
+      "query": "葉に穴が開く",
+      "expected_source": "disease",
+      "tfidf_hit": false,
+      "emb_hit": true,
+      "tfidf_top1": null,
+      "emb_top1": "disease",
+      "tfidf_score": 0,
+      "emb_score": 0.1621
+    },
+    {
+      "query": "蜘蛛の巣みたいな糸",
+      "expected_source": "disease",
+      "tfidf_hit": false,
+      "emb_hit": true,
+      "tfidf_top1": null,
+      "emb_top1": "disease",
+      "tfidf_score": 0,
+      "emb_score": 0.2407
+    },
+    {
+      "query": "吸収してるって言われてる",
+      "expected_source": "disease",
+      "tfidf_hit": false,
+      "emb_hit": true,
+      "tfidf_top1": "pesticide",
+      "emb_top1": "disease",
+      "tfidf_score": 0.0534,
+      "emb_score": 0.1646
+    },
+    {
+      "query": "葉が縮れてる",
+      "expected_source": "disease",
+      "tfidf_hit": false,
+      "emb_hit": true,
+      "tfidf_top1": null,
+      "emb_top1": "disease",
+      "tfidf_score": 0,
+      "emb_score": 0.1589
+    },
+    {
+      "query": "去年の夏みたいにしたい",
+      "expected_source": "record",
+      "tfidf_hit": false,
+      "emb_hit": false,
+      "tfidf_top1": null,
+      "emb_top1": "pesticide",
+      "tfidf_score": 0,
+      "emb_score": 0.2603
+    },
+    {
+      "query": "PHIが短い薬剤",
+      "expected_source": "pesticide",
+      "tfidf_hit": true,
+      "emb_hit": true,
+      "tfidf_top1": "pesticide",
+      "emb_top1": "pesticide",
+      "tfidf_score": 0.0687,
+      "emb_score": 0.4535
+    },
+    {
+      "query": "抵抗性管理が大事",
+      "expected_source": "pesticide",
+      "tfidf_hit": true,
+      "emb_hit": true,
+      "tfidf_top1": "pesticide",
+      "emb_top1": "pesticide",
+      "tfidf_score": 0.1603,
+      "emb_score": 0.2696
+    }
+  ]
+}
