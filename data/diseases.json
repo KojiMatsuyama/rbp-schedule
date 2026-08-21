@@ -1,0 +1,16 @@
+{
+  "domain": "STB",
+  "dimensions": 10,
+  "lines": [
+    { "index": 0, "number": 1, "name": "炭疽病",       "type": "disease" },
+    { "index": 1, "number": 2, "name": "灰色かび病",   "type": "disease" },
+    { "index": 2, "number": 3, "name": "うどんこ病",   "type": "disease" },
+    { "index": 3, "number": 4, "name": "ナミハダニ",   "type": "pest" },
+    { "index": 4, "number": 5, "name": "ハスモンヨトウ", "type": "pest" },
+    { "index": 5, "number": 6, "name": "オオタバコガ", "type": "pest" },
+    { "index": 6, "number": 7, "name": "ミカンキイロアザミウマ", "type": "pest" },
+    { "index": 7, "number": 8, "name": "ワタアブラムシ", "type": "pest" },
+    { "index": 8, "number": 9, "name": "アブラムシ",   "type": "pest" },
+    { "index": 9, "number": 10, "name": "コナジラミ",  "type": "pest" }
+  ]
+}

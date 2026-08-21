@@ -180,7 +180,7 @@ function check(desc, condition, detail) {
     // ===== 11. ローカルストレージ初期化 =====
     console.log('\n[11] LocalStorage Initialization');
 
-    check('records variable initialized', await page.evaluate(() => typeof records !== 'undefined'));
+    check('sprayHistory variable initialized', await page.evaluate(() => typeof sprayHistory !== 'undefined'));
     check('sprays variable initialized', await page.evaluate(() => typeof sprays !== 'undefined'));
 
   } catch (err) {

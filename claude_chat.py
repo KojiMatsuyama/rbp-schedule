@@ -67,7 +67,7 @@ def _is_local_llm_available() -> bool:
         import requests
         resp = requests.get(
             f"{_get_base_url()}/models",
-            headers={"x-litellm-api-key": "Bearer sk-litellm-test-1234"},
+            headers={"Authorization": "Bearer sk-litellm-test-1234"},
             timeout=5,
         )
         if resp.status_code == 200:
@@ -105,7 +105,7 @@ def _call_local_llm(messages: list, system: str, tools: list, tool_map: dict, ma
     url = f"{_get_base_url()}/v1/chat/completions"
     headers = {
         "Content-Type": "application/json",
-        "x-litellm-api-key": "Bearer sk-litellm-test-1234",
+        "Authorization": "Bearer sk-litellm-test-1234",
     }
 
     # Build OpenAI-style messages
@@ -379,7 +379,7 @@ SYSTEM_PROMPT = """あなたは農業の専門AIアシスタントです。STB�
 - "slack", "notify", "share", "member", "team"
 
 **手順：**
-1. まず必要なデータを関連ツール（search_pesticides, get_records, prescribe など）で取得
+1. まず必要なデータを関連ツール（search_pesticides, get_spray_history, prescribe など）で取得
 2. 取得した実際の結果をそのまま `send_to_slack` ツールの `message` 引数に設定して送信
 3. 「Slackに送信しました」などと報告して終了
 
@@ -454,7 +454,7 @@ def _local_search(message: str) -> str:
         search_pesticides,
         list_pesticides,
         list_diseases,
-        get_records,
+        get_spray_history,
         summarize_history,
         get_current_season_advice,
     )
@@ -513,7 +513,7 @@ def _local_search(message: str) -> str:
 
     # --- 防除履歴 ---
     if "履歴" in msg or "記録" in msg or "レコード" in msg:
-        return get_records(limit=50)
+        return get_spray_history(limit=50)
 
     # --- 薬剤一覧 ---
     if "薬剤" in msg or "一覧" in msg or "全部" in msg or "すべて" in msg:

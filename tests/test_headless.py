@@ -166,27 +166,36 @@ def test_6_tab_switching(page):
     if len(menu_items) >= 3:
         # First item: 日次詳細 (already active)
         active_before = page.eval_on_selector(".menu-item.active",
-            "el => el.textContent.trim()", timeout=TIMEOUT)
+            "el => el.textContent.trim()")
         check(page, "First menu item (日次詳細) is active",
               "日次詳細" in active_before, f"got '{active_before}'")
+
+        # Each menu item's onclick also calls closeMenu(), so the dropdown
+        # collapses after every click — reopen it before each subsequent click.
 
         # Click second item: スケジュール
         menu_items[1].click()
         page.wait_for_timeout(500)
         active_after = page.eval_on_selector(".menu-item.active",
-            "el => el.textContent.trim()", timeout=TIMEOUT)
+            "el => el.textContent.trim()")
         check(page, "Second menu item (スケジュール) activates",
               "スケジュール" in active_after, f"got '{active_after}'")
 
         # Click third item: 防除履歴
+        page.click(".menu-toggle", timeout=TIMEOUT)
+        page.wait_for_timeout(300)
+        menu_items = page.query_selector_all(".menu-item")
         menu_items[2].click()
         page.wait_for_timeout(500)
         active_after2 = page.eval_on_selector(".menu-item.active",
-            "el => el.textContent.trim()", timeout=TIMEOUT)
+            "el => el.textContent.trim()")
         check(page, "Third menu item (防除履歴) activates",
               "防除履歴" in active_after2, f"got '{active_after2}'")
 
         # Return to first
+        page.click(".menu-toggle", timeout=TIMEOUT)
+        page.wait_for_timeout(300)
+        menu_items = page.query_selector_all(".menu-item")
         menu_items[0].click()
         page.wait_for_timeout(300)
 
@@ -257,8 +266,8 @@ def test_10_local_storage(page):
     """[10] LocalStorage Initialization — 変数が初期化されている"""
     print("\n[10] LocalStorage Initialization")
 
-    check_js(page, "() => typeof records !== 'undefined'",
-             "records variable initialized", True)
+    check_js(page, "() => typeof sprayHistory !== 'undefined'",
+             "sprayHistory variable initialized", True)
     check_js(page, "() => typeof sprays !== 'undefined'",
              "sprays variable initialized", True)
 
@@ -315,16 +324,16 @@ def test_12_api_endpoints(page):
           diseases_resp.get("count", 0) > 0,
           f"count={diseases_resp.get('count')}")
 
-    records_resp = page.evaluate("""async () => {
+    sprayHistoryResp = page.evaluate("""async () => {
         try {
-            const r = await fetch('/api/records');
+            const r = await fetch('/api/spray_history');
             const d = await r.json();
             return { status: r.status, success: d.success };
         } catch(e) { return { status: -1, error: e.message }; }
     }""")
-    check(page, "GET /api/records returns 200",
-          records_resp.get("status") == 200,
-          f"status={records_resp.get('status')}")
+    check(page, "GET /api/spray_history returns 200",
+          sprayHistoryResp.get("status") == 200,
+          f"status={sprayHistoryResp.get('status')}")
 
 
 def test_13_post_prescribe(page):
@@ -352,24 +361,50 @@ def test_13_post_prescribe(page):
 
 
 def test_14_post_chat_message(page):
-    """[14] POST /api/chat/message — チャットAPIが応答する"""
-    print("\n[14] POST /api/chat/message")
+    """[14] POST /api/chat/message — 意図分類: 雑談は処方しない / 病害相談は処方する"""
+    print("\n[14] POST /api/chat/message — intent classification")
 
-    result = page.evaluate("""async () => {
-        try {
-            const r = await fetch('/api/chat/message', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ message: 'こんにちは' })
-            });
-            const d = await r.json();
-            return { status: r.status, hasResponse: !!d.response };
-        } catch(e) { return { status: -1, error: e.message.substring(0,80) }; }
-    }""")
-    # May succeed or return AI library not installed — both acceptable
-    check(page, "POST /api/chat/message responds",
-          result.get("status") != -1,
-          f"status={result.get('status')}, hasResponse={result.get('hasResponse')}")
+    def chat(message: str) -> dict:
+        """ブラウザ内で /api/chat/message にPOSTし、処方テンプレートの有無を返す。"""
+        return page.evaluate("""async (msg) => {
+            try {
+                const r = await fetch('/api/chat/message', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ message: msg })
+                });
+                const d = await r.json();
+                const resp = d.response || '';
+                return {
+                    status: r.status,
+                    hasResponse: !!resp,
+                    isPrescription: resp.indexOf('今回の防除の薬剤は') !== -1,
+                    responsePreview: resp.substring(0, 120)
+                };
+            } catch(e) { return { status: -1, error: e.message.substring(0,80) }; }
+        }""", message)
+
+    # --- 第一段階: 雑談・無関係入力には処方結果を返さない（LLM自然応答） ---
+    # 「こんにちは」等の雑談がRBP処方テンプレート（「今回の防除の薬剤は」）として
+    # 返ると、意図分類が効いていない（perceptionが雑談をhallucinateして処方）。
+    for chit in ("こんにちは", "ありがとう", "今日はいい天気ですね"):
+        r = chat(chit)
+        check(page, f"chit-chat '{chit}' is NOT an RBP prescription",
+              r.get("status") == 200 and r.get("hasResponse")
+              and not r.get("isPrescription"),
+              f"status={r.get('status')}, isPrescription={r.get('isPrescription')}, "
+              f"preview={r.get('responsePreview', '')!r}")
+
+    # --- 第二段階: 病害相談には処方結果を返す（意図分類が過剰に抑制しないこと） ---
+    # 意図分類が雑談を止めようとして本物の症状まで「雑談」と誤分類して
+    # 処方しないようになると、本来のRBP処方が壊れる。正のコントロールとして検証。
+    for symptom in ("実が腐ってる", "こんにちは、きゅうりの実が腐ってる"):
+        r = chat(symptom)
+        check(page, f"symptom '{symptom}' IS an RBP prescription",
+              r.get("status") == 200 and r.get("hasResponse")
+              and r.get("isPrescription"),
+              f"status={r.get('status')}, isPrescription={r.get('isPrescription')}, "
+              f"preview={r.get('responsePreview', '')!r}")
 
 
 def test_15_slack_notification_intent(page):
@@ -418,8 +453,12 @@ def test_16_pwa_manifest(page):
     """[16] PWA — マニフェストとサービスワーカーが設定されている"""
     print("\n[16] PWA")
 
-    check_js(page, "() => document.querySelector('link[rel=\"manifest\"]')?.href",
-             "Manifest href present", "manifest.json")
+    # test_11 navigated to /chat and never returned — subsequent tests need the main page.
+    page.goto(BASE_URL, wait_until="domcontentloaded", timeout=TIMEOUT)
+
+    manifest_href = page.evaluate("() => document.querySelector('link[rel=\"manifest\"]')?.href || ''")
+    check(page, "Manifest href present",
+          manifest_href.endswith("manifest.json"), f"got {manifest_href!r}")
 
     # Service Worker registration attempt (may not register without HTTPS, but check setup)
     sw_exists = page.evaluate("() => 'serviceWorker' in navigator")
@@ -445,13 +484,18 @@ def test_18_settings_modal(page):
     """[18] Settings Modal — 設定モーダルが起動できる"""
     print("\n[18] Settings Modal")
 
+    # test_17 closes the header menu at the end — reopen it before clicking inside.
+    page.click("#headerMenuToggle")
+    page.wait_for_timeout(300)
+
     # Click settings button
     page.click('button.header-menu-item:has-text("設定")')
     page.wait_for_timeout(500)
 
-    # Check modal appeared
+    # Check modal appeared (actual implementation uses id="settings-modal", no class attribute)
     modal_visible = page.evaluate("""() => {
-        const modal = document.getElementById('settingsModal') ||
+        const modal = document.getElementById('settings-modal') ||
+                      document.getElementById('settingsModal') ||
                       document.querySelector('[class*="modal"]') ||
                       document.querySelector('[class*="settings"]');
         return modal && (modal.offsetParent !== null || modal.style.display !== 'none');

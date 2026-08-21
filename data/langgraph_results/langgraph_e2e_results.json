@@ -1,0 +1,1073 @@
+{
+  "tests": [
+    {
+      "name": "EB-01 炭疽病単独",
+      "input": "実が黒く腐ってる。葉にも黒い斑点がある。",
+      "result": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "実が黒く腐ってる。葉にも黒い斑点がある。"
+          }
+        ],
+        "identified_diseases": [
+          "炭疽病"
+        ],
+        "vector": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "eval_box_id": "EB-01",
+        "eval_box_name": "炭疽病",
+        "eval_status": "matched",
+        "prescription": [
+          {
+            "name": "ゲッター",
+            "id": "P03",
+            "score": 50.0,
+            "mirrorId": 1.0,
+            "coverageRatio": 1.0,
+            "system": "フルアジナム系",
+            "breakdown": {
+              "effectiveness": {
+                "raw": 15.0,
+                "mirrorId": 1.0,
+                "coverageRatio": 1.0,
+                "matchCount": 1,
+                "targetSum": 1
+              },
+              "safety": {
+                "raw": 20.0,
+                "warnings": []
+              },
+              "resistance": {
+                "raw": 15.0,
+                "note": ""
+              },
+              "mixingOk": true,
+              "mixingReasons": []
+            }
+          }
+        ],
+        "mirror_id": 1.0,
+        "effectiveness": 50.0,
+        "line_traces": [
+          {
+            "pesticide": "P01",
+            "pesticide_name": "ベルクート",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P02",
+            "pesticide_name": "キノンドー",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              0.7
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P03",
+            "pesticide_name": "ゲッター",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P05",
+            "pesticide_name": "アントラコール",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P06",
+            "pesticide_name": "ストロビー",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P07",
+            "pesticide_name": "パンチョ",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P08",
+            "pesticide_name": "シグナム",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P09",
+            "pesticide_name": "ファンタジスタ",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P34",
+            "pesticide_name": "セイビアーフロアブル20",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P36",
+            "pesticide_name": "パンチョTF顆粒水和剤",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P40",
+            "pesticide_name": "コサイド300",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          }
+        ],
+        "projected_message": "【炭疽病】\n今回の防除の薬剤は、ゲッター、です。\n\n【スコア内訳】\nミラーID: 1.00\n有効性スコア: 50.0\n- ゲッター: ミラーID=1.00 カバレッジ=100%\n  有効性: ミラーID=1.00, カバレッジ=100% (1/1)\n  安全性: 20.0\n  抵抗性: 15.0\n\n【ブリッジ通過履歴（全候補）】\n  ベルクート: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  キノンドー: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=ATTENUATE(w=0.7)\n  ゲッター: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  アントラコール: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  ストロビー: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  パンチョ: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  シグナム: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  ファンタジスタ: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  セイビアーフロアブル20: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  パンチョTF顆粒水和剤: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  コサイド300: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS",
+        "executed": true,
+        "sent_to": "slack"
+      }
+    },
+    {
+      "name": "複合症状 炭疽病+アブラムシ",
+      "input": "実が黒く腐ってる。葉が黄色くて裏に虫がついてる。",
+      "result": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "実が黒く腐ってる。葉が黄色くて裏に虫がついてる。"
+          }
+        ],
+        "identified_diseases": [
+          "炭疽病"
+        ],
+        "vector": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "eval_box_id": "EB-01",
+        "eval_box_name": "炭疽病",
+        "eval_status": "matched",
+        "prescription": [
+          {
+            "name": "ゲッター",
+            "id": "P03",
+            "score": 50.0,
+            "mirrorId": 1.0,
+            "coverageRatio": 1.0,
+            "system": "フルアジナム系",
+            "breakdown": {
+              "effectiveness": {
+                "raw": 15.0,
+                "mirrorId": 1.0,
+                "coverageRatio": 1.0,
+                "matchCount": 1,
+                "targetSum": 1
+              },
+              "safety": {
+                "raw": 20.0,
+                "warnings": []
+              },
+              "resistance": {
+                "raw": 15.0,
+                "note": ""
+              },
+              "mixingOk": true,
+              "mixingReasons": []
+            }
+          }
+        ],
+        "mirror_id": 1.0,
+        "effectiveness": 50.0,
+        "line_traces": [
+          {
+            "pesticide": "P01",
+            "pesticide_name": "ベルクート",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P02",
+            "pesticide_name": "キノンドー",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              0.7
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P03",
+            "pesticide_name": "ゲッター",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P05",
+            "pesticide_name": "アントラコール",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P06",
+            "pesticide_name": "ストロビー",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P07",
+            "pesticide_name": "パンチョ",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P08",
+            "pesticide_name": "シグナム",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P09",
+            "pesticide_name": "ファンタジスタ",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P34",
+            "pesticide_name": "セイビアーフロアブル20",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P36",
+            "pesticide_name": "パンチョTF顆粒水和剤",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P40",
+            "pesticide_name": "コサイド300",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          }
+        ],
+        "projected_message": "【炭疽病】\n今回の防除の薬剤は、ゲッター、です。\n\n【スコア内訳】\nミラーID: 1.00\n有効性スコア: 50.0\n- ゲッター: ミラーID=1.00 カバレッジ=100%\n  有効性: ミラーID=1.00, カバレッジ=100% (1/1)\n  安全性: 20.0\n  抵抗性: 15.0\n\n【ブリッジ通過履歴（全候補）】\n  ベルクート: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  キノンドー: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=ATTENUATE(w=0.7)\n  ゲッター: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  アントラコール: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  ストロビー: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  パンチョ: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  シグナム: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  ファンタジスタ: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  セイビアーフロアブル20: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  パンチョTF顆粒水和剤: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  コサイド300: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS",
+        "executed": true,
+        "sent_to": "slack"
+      }
+    },
+    {
+      "name": "うどんこ病+ナミハダニ",
+      "input": "葉に白い粉が吹いてる。葉がチリチリで糸状の蜘蛛もある。",
+      "result": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "葉に白い粉が吹いてる。葉がチリチリで糸状の蜘蛛もある。"
+          }
+        ],
+        "identified_diseases": [
+          "うどんこ病"
+        ],
+        "vector": [
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "eval_box_id": "EB-03",
+        "eval_box_name": "うどんこ病",
+        "eval_status": "matched",
+        "prescription": [
+          {
+            "name": "ダブルフェース",
+            "id": "P10",
+            "score": 50.0,
+            "mirrorId": 1.0,
+            "coverageRatio": 1.0,
+            "system": "ピラゾール系",
+            "breakdown": {
+              "effectiveness": {
+                "raw": 15.0,
+                "mirrorId": 1.0,
+                "coverageRatio": 1.0,
+                "matchCount": 1,
+                "targetSum": 1
+              },
+              "safety": {
+                "raw": 20.0,
+                "warnings": []
+              },
+              "resistance": {
+                "raw": 15.0,
+                "note": ""
+              },
+              "mixingOk": true,
+              "mixingReasons": []
+            }
+          }
+        ],
+        "mirror_id": 1.0,
+        "effectiveness": 50.0,
+        "line_traces": [
+          {
+            "pesticide": "P01",
+            "pesticide_name": "ベルクート",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P05",
+            "pesticide_name": "アントラコール",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P06",
+            "pesticide_name": "ストロビー",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P08",
+            "pesticide_name": "シグナム",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P09",
+            "pesticide_name": "ファンタジスタ",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P10",
+            "pesticide_name": "ダブルフェース",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P11",
+            "pesticide_name": "トレノックス",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P14",
+            "pesticide_name": "プロパティ",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P15",
+            "pesticide_name": "ベネピア",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P21",
+            "pesticide_name": "ジーファイン",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P27",
+            "pesticide_name": "トリフミン",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P30",
+            "pesticide_name": "イオウフロアブル",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P31",
+            "pesticide_name": "カリグリーン",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P33",
+            "pesticide_name": "スコア顆粒水和剤",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P38",
+            "pesticide_name": "ベンレート",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          },
+          {
+            "pesticide": "P39",
+            "pesticide_name": "アミスタ",
+            "levels": [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0
+            ],
+            "weights": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "blocked": false,
+            "blocked_at": null
+          }
+        ],
+        "projected_message": "【うどんこ病】\n今回の防除の薬剤は、ダブルフェース、です。\n\n【スコア内訳】\nミラーID: 1.00\n有効性スコア: 50.0\n- ダブルフェース: ミラーID=1.00 カバレッジ=100%\n  有効性: ミラーID=1.00, カバレッジ=100% (1/1)\n  安全性: 20.0\n  抵抗性: 15.0\n\n【ブリッジ通過履歴（全候補）】\n  ベルクート: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  アントラコール: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  ストロビー: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  シグナム: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  ファンタジスタ: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  ダブルフェース: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  トレノックス: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  プロパティ: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  ベネピア: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  ジーファイン: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  トリフミン: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  イオウフロアブル: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  カリグリーン: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  スコア顆粒水和剤: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  ベンレート: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS\n  アミスタ: L1ターゲット=PASS L2散布回数=PASS L3PHI残留日=PASS L4系統ローテーション=PASS L5混用可否=PASS L6毒性区分=PASS",
+        "executed": true,
+        "sent_to": "slack"
+      }
+    },
+    {
+      "name": "未知の症状（評価BOX未定義）",
+      "input": "葉っぱが茶色く枯れてきた。",
+      "result": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "葉っぱが茶色く枯れてきた。"
+          }
+        ],
+        "identified_diseases": [],
+        "vector": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "eval_box_id": null,
+        "eval_box_name": null,
+        "eval_status": "undefined",
+        "prescription": [],
+        "mirror_id": null,
+        "effectiveness": null,
+        "line_traces": [],
+        "projected_message": "（薬剤選定できませんでした）",
+        "executed": true,
+        "sent_to": "slack"
+      }
+    }
+  ]
+}

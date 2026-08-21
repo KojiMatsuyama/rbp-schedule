@@ -1,0 +1,94 @@
+{
+  "stages": [
+    {
+      "id": "s0",
+      "type": "state",
+      "name": "状態",
+      "description": "トークン集約ノード。スケジュール（日時）またはカレンダークリックで防除トークンが入力されると、全トークンが揃ってエージェントが発火する。Petri netモデルに基づく。",
+      "tool": "token_aggregation",
+      "instruction": "トークン集約: schedule(日時), crop(作物), environment(環境), growth_stage(生育段階)。全トークンが揃うまで待機(checkpoint)。揃ったら認知ノードへ渡す。",
+      "branches": []
+    },
+    {
+      "id": "s1",
+      "type": "cognition",
+      "name": "病害虫認知",
+      "description": "症状辞典で病害虫を特定し、10次元バイナリベクトルに変換。辞典で特定できない場合はLLMに推論させる。",
+      "tool": "symptom_dictionary_lookup",
+      "instruction": "症状辞典(SYMPTOM_DICTIONARY)でユーザー入力を検索。病害虫名を特定後、names_to_vectorで10次元バイナリベクトルに変換。辞典・LLMともに特定できない場合は空ベクトル。",
+      "branches": []
+    },
+    {
+      "id": "s2",
+      "type": "evaluation",
+      "name": "評価BOXマッチ",
+      "description": "10次元ベクトルを全評価BOXと正確一致マッチング。マッチすればEB-xx IDと名前を返す。",
+      "tool": "eval_box_match",
+      "instruction": "find_eval_box(vector)で全評価BOXと正確一致。MATCH/UNDEFINED/ERRORの3状態を返す。",
+      "branches": []
+    },
+    {
+      "id": "s3",
+      "type": "decision",
+      "name": "RBP処方",
+      "description": "評価BOX + ベクトルでRBP行列演算。Haskellバイナリを優先、失敗時はPythonにフォールバック。6段階ブリッジ(L1-L6)の通過履歴・スコア内訳を出力。処方トークン(JSON)が放出され、2つのトランジションに並列投入される。",
+      "tool": "rbp_prescribe",
+      "instruction": "_call_rbp_engine(vector, eval_box_id)で処方計算。Haskell(rbp-algebra)バイナリをまず試し、失敗/未ビルド時はPython(rbp-algebra-python/api.py)にフォールバック。lineTraces/excludedIndividual/excludedSets/breakdownを完全に再現。処方結果(prescription)をJSONとして出力し、投射トランジションと在庫トランジションの両方に投入。",
+      "branches": [
+        {
+          "name": "投射トランジション",
+          "nextStages": ["s4", "s5"]
+        },
+        {
+          "name": "在庫トランジション",
+          "nextStages": ["s6", "s7"]
+        }
+      ]
+    },
+    {
+      "id": "s4",
+      "type": "projection",
+      "name": "メッセージ生成",
+      "description": "[投射トランジション] 処方結果を人間readableな日本語メッセージに整形。スコア内訳、ブリッジ通過履歴、代替案、除外理由を含める。",
+      "tool": "message_template_render",
+      "instruction": "projection_nodeでテンプレート埋め込み。【評価BOX名】【スコア内訳】【ブリッジ通過履歴（全候補）】【代替案】【除外された薬剤】のセクションを生成。line_tracesから全connected lineのL1-L6通過状況を表記。",
+      "branches": []
+    },
+    {
+      "id": "s5",
+      "type": "execution",
+      "name": "Slack送信（投射）",
+      "description": "[投射トランジション] 生成されたメッセージをSlackに送信。chat_client.send_message()経由でWebhook POST。",
+      "tool": "send_to_slack",
+      "instruction": "chat_client.send_message(projected_message)でSlack WebhookにPOST。投射結果の送信。",
+      "branches": []
+    },
+    {
+      "id": "s6",
+      "type": "inventory",
+      "name": "在庫チェック",
+      "description": "[在庫トランジション] 処方結果の薬剤名+数量で在庫DB(stb.db)を照会。各薬剤の在庫数・必要数・充足状態(ok/insufficient/unknown)をチェック。",
+      "tool": "inventory_check",
+      "instruction": "inventory_nodeで各薬剤の在庫をチェック。query_stock_from_db(pesticide_name)でstb.dbのinventoryテーブルから在庫数を取得。在庫>=必要→ok、在庫<必要→insufficient、未登録→unknown。inventory_check(dict)とinventory_message(str)を出力。",
+      "branches": []
+    },
+    {
+      "id": "s7",
+      "type": "execution",
+      "name": "Slack送信（在庫）",
+      "description": "[在庫トランジション] 在庫チェック結果をSlackに送信。chat_client.send_message()経由でWebhook POST。投射トランジションとは独立して動作。",
+      "tool": "send_to_slack",
+      "instruction": "chat_client.send_message(inventory_message)でSlack WebhookにPOST。在庫結果の送信。投射トランジションとは独立して実行。",
+      "branches": []
+    }
+  ],
+  "stageIdCounter": 8,
+  "_meta": {
+    "name": "病害虫薬剤判断通知",
+    "source": "agentic_chat/",
+    "generated_from": "nodes.py + graph.py + state.py",
+    "updated": "2026-08-18",
+    "model": "petri_net_marking_parallel_transition",
+    "architecture": "Petri Net並列遷移 — 処方トークンがplaceに投入され、投射トランジションと在庫トランジションが並列に発火"
+  }
+}

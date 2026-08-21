@@ -44,11 +44,35 @@ CREATE TABLE IF NOT EXISTS eval_boxes_custom (
     vector TEXT NOT NULL     -- JSON array of ints
 );
 
-CREATE TABLE IF NOT EXISTS records (
+CREATE TABLE IF NOT EXISTS spray_history (
     date TEXT PRIMARY KEY,
     pests TEXT NOT NULL,     -- JSON array of strings
     vector TEXT NOT NULL     -- JSON array of ints
 );
+
+CREATE TABLE IF NOT EXISTS spray_schedule (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    schedule_date   TEXT    NOT NULL,          -- 予定日 YYYY-MM-DD
+    actual_date     TEXT,                      -- 実際の実施日（NULL=未実施）
+    status          TEXT    NOT NULL DEFAULT 'scheduled'
+                        CHECK(status IN ('scheduled', 'done', 'missed', 'rescheduled')),
+    trigger_type    TEXT    NOT NULL DEFAULT 'cycle'
+                        CHECK(trigger_type IN ('cycle', 'observation', 'forecast')),
+    trigger_ref     TEXT,                      -- 参照元ID（EVAL_BOX IDなど）
+    eval_box_id     TEXT REFERENCES eval_boxes(id),
+    rb_out_json     TEXT,                      -- RBP_OUTのJSON（要求評価+仕様決定の結果）
+    set_ids         TEXT    NOT NULL,          -- JSON: ["セット1", "セット7"]
+    pesticide_ids   TEXT    NOT NULL,          -- JSON: ["P40", "P42"]
+    operator        TEXT,                      -- 担当者
+    weather         TEXT,                      -- 天候（晴/曇/雨）
+    notes           TEXT,                      -- 備考
+    created_at      TEXT    NOT NULL DEFAULT (datetime('now', 'jst')),
+    updated_at      TEXT    NOT NULL DEFAULT (datetime('now', 'jst'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_spray_schedule_date ON spray_schedule(schedule_date);
+CREATE INDEX IF NOT EXISTS idx_spray_schedule_status ON spray_schedule(status);
+CREATE INDEX IF NOT EXISTS idx_spray_schedule_eval_box ON spray_schedule(eval_box_id);
 """
 
 
@@ -129,7 +153,7 @@ def main():
     seed_from_json(conn)
 
     # Counts
-    for table in ("pesticides", "diseases", "eval_boxes", "eval_boxes_custom", "records"):
+    for table in ("pesticides", "diseases", "eval_boxes", "eval_boxes_custom", "spray_history"):
         cur = conn.cursor()
         cur.execute(f"SELECT COUNT(*) FROM {table}")
         count = cur.fetchone()[0]

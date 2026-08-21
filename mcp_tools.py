@@ -415,7 +415,7 @@ def _extract_chunks(conn: sqlite3.Connection) -> list:
         chunks.extend(_build_disease_chunks(dict(r)))
 
     # 記録
-    rows = conn.execute("SELECT * FROM records ORDER BY date").fetchall()
+    rows = conn.execute("SELECT * FROM spray_history ORDER BY date").fetchall()
     for r in rows:
         chunks.extend(_build_record_chunks(dict(r)))
 
@@ -692,7 +692,7 @@ TOOL_REGISTRY = [
         },
     },
     {
-        "name": "get_records",
+        "name": "get_spray_history",
         "description": "防除履歴を取得する。",
         "input_schema": {
             "type": "object",
@@ -707,7 +707,7 @@ TOOL_REGISTRY = [
         },
     },
     {
-        "name": "add_record",
+        "name": "add_spray_history",
         "description": "新規防除記録を追加する。",
         "input_schema": {
             "type": "object",
@@ -720,7 +720,7 @@ TOOL_REGISTRY = [
         },
     },
     {
-        "name": "update_record",
+        "name": "update_spray_history",
         "description": "既存の防除記録を更新する。",
         "input_schema": {
             "type": "object",
@@ -733,7 +733,7 @@ TOOL_REGISTRY = [
         },
     },
     {
-        "name": "delete_record",
+        "name": "delete_spray_history",
         "description": "防除記録を削除する。",
         "input_schema": {
             "type": "object",
@@ -741,6 +741,62 @@ TOOL_REGISTRY = [
                 "date": {"type": "string", "description": "日付 YYYY-MM-DD"},
             },
             "required": ["date"],
+        },
+    },
+    {
+        "name": "get_spray_schedule",
+        "description": "防除暦（今後の予定）を取得する。",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "year": {"type": "integer", "description": "年で絞り込み（任意）"},
+                "status": {"type": "string", "description": "ステータスで絞り込み（scheduled/done/missed/rescheduled、任意）"},
+                "limit": {"type": "integer", "description": "最大取得件数（デフォルト200）"},
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "add_spray_schedule",
+        "description": "新規の防除暦（予定）を追加する。",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "schedule_date": {"type": "string", "description": "予定日 YYYY-MM-DD"},
+                "set_ids": {"type": "string", "description": "セット名のJSON配列（例: '[\"セット1\"]'）"},
+                "pesticide_ids": {"type": "string", "description": "薬剤IDのJSON配列（例: '[\"P40\"]'）"},
+                "trigger_type": {"type": "string", "description": "予定作成のきっかけ（cycle/observation/forecast、デフォルトcycle）"},
+                "notes": {"type": "string", "description": "備考"},
+            },
+            "required": ["schedule_date"],
+        },
+    },
+    {
+        "name": "update_spray_schedule",
+        "description": "既存の防除暦（予定）を更新する。",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "integer", "description": "spray_scheduleのID"},
+                "schedule_date": {"type": "string", "description": "予定日（変更する場合）"},
+                "status": {"type": "string", "description": "ステータス（scheduled/done/missed/rescheduled）"},
+                "actual_date": {"type": "string", "description": "実施日（実施済みにする場合）"},
+                "set_ids": {"type": "string", "description": "セット名のJSON配列（更新する場合）"},
+                "pesticide_ids": {"type": "string", "description": "薬剤IDのJSON配列（更新する場合）"},
+                "notes": {"type": "string", "description": "備考（更新する場合）"},
+            },
+            "required": ["id"],
+        },
+    },
+    {
+        "name": "delete_spray_schedule",
+        "description": "防除暦（予定）を削除する。",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "integer", "description": "spray_scheduleのID"},
+            },
+            "required": ["id"],
         },
     },
     {
@@ -855,10 +911,14 @@ def get_tool_by_name(name: str):
         "get_pesticide_detail": get_pesticide_detail,
         "list_diseases": list_diseases,
         "get_disease_detail": get_disease_detail,
-        "get_records": get_records,
-        "add_record": add_record,
-        "update_record": update_record,
-        "delete_record": delete_record,
+        "get_spray_history": get_spray_history,
+        "add_spray_history": add_spray_history,
+        "update_spray_history": update_spray_history,
+        "delete_spray_history": delete_spray_history,
+        "get_spray_schedule": get_spray_schedule,
+        "add_spray_schedule": add_spray_schedule,
+        "update_spray_schedule": update_spray_schedule,
+        "delete_spray_schedule": delete_spray_schedule,
         "prescribe": prescribe,
         "prescribe_by_date": prescribe_by_date,
         "seasonal_prescribe": seasonal_prescribe,
@@ -1060,9 +1120,9 @@ def get_disease_detail(disease_id: int) -> str:
 
 
 # =====================================================================
-# TOOL: get_records
+# TOOL: get_spray_history
 # =====================================================================
-def get_records(year: Optional[int] = None, month: Optional[int] = None,
+def get_spray_history(year: Optional[int] = None, month: Optional[int] = None,
                 date_from: Optional[str] = None, date_to: Optional[str] = None,
                 limit: int = 365) -> str:
     """
@@ -1083,23 +1143,23 @@ def get_records(year: Optional[int] = None, month: Optional[int] = None,
     if year and month:
         date_str = f"{year}-{month:02d}"
         rows = conn.execute(
-            "SELECT * FROM records WHERE date LIKE ? ORDER BY date DESC LIMIT ?",
+            "SELECT * FROM spray_history WHERE date LIKE ? ORDER BY date DESC LIMIT ?",
             (f"{date_str}%", limit),
         ).fetchall()
     elif date_from and date_to:
         rows = conn.execute(
-            "SELECT * FROM records WHERE date BETWEEN ? AND ? ORDER BY date DESC LIMIT ?",
+            "SELECT * FROM spray_history WHERE date BETWEEN ? AND ? ORDER BY date DESC LIMIT ?",
             (date_from, date_to, limit),
         ).fetchall()
     elif year:
         date_str = f"{year}"
         rows = conn.execute(
-            "SELECT * FROM records WHERE date LIKE ? ORDER BY date DESC LIMIT ?",
+            "SELECT * FROM spray_history WHERE date LIKE ? ORDER BY date DESC LIMIT ?",
             (f"{date_str}%", limit),
         ).fetchall()
     else:
         rows = conn.execute(
-            "SELECT * FROM records ORDER BY date DESC LIMIT ?", (limit,)
+            "SELECT * FROM spray_history ORDER BY date DESC LIMIT ?", (limit,)
         ).fetchall()
 
     conn.close()
@@ -1115,9 +1175,9 @@ def get_records(year: Optional[int] = None, month: Optional[int] = None,
 
 
 # =====================================================================
-# TOOL: add_record
+# TOOL: add_spray_history
 # =====================================================================
-def add_record(date: str, pests: list, vector: list) -> str:
+def add_spray_history(date: str, pests: list, vector: list) -> str:
     """
     新規防除記録を追加する。
 
@@ -1134,7 +1194,7 @@ def add_record(date: str, pests: list, vector: list) -> str:
 
     conn = get_db()
     conn.execute(
-        "INSERT OR REPLACE INTO records (date, pests, vector) VALUES (?, ?, ?)",
+        "INSERT OR REPLACE INTO spray_history (date, pests, vector) VALUES (?, ?, ?)",
         (date, json.dumps(pests), json.dumps(vector)),
     )
     conn.commit()
@@ -1148,9 +1208,9 @@ def add_record(date: str, pests: list, vector: list) -> str:
 
 
 # =====================================================================
-# TOOL: update_record
+# TOOL: update_spray_history
 # =====================================================================
-def update_record(date: str, pests: Optional[list] = None,
+def update_spray_history(date: str, pests: Optional[list] = None,
                   vector: Optional[list] = None) -> str:
     """
     既存の防除記録を更新する。
@@ -1164,7 +1224,7 @@ def update_record(date: str, pests: Optional[list] = None,
         JSON文字列（結果）
     """
     conn = get_db()
-    existing = conn.execute("SELECT * FROM records WHERE date = ?", (date,)).fetchone()
+    existing = conn.execute("SELECT * FROM spray_history WHERE date = ?", (date,)).fetchone()
 
     if not existing:
         conn.close()
@@ -1175,11 +1235,11 @@ def update_record(date: str, pests: Optional[list] = None,
             conn.close()
             return json.dumps({"error": f"ベクトルは{VECTOR_DIM}次元が必要です"}, ensure_ascii=False)
         conn.execute(
-            "UPDATE records SET pests = ?, vector = ? WHERE date = ?",
+            "UPDATE spray_history SET pests = ?, vector = ? WHERE date = ?",
             (json.dumps(pests), json.dumps(vector), date),
         )
     else:
-        conn.execute("DELETE FROM records WHERE date = ?", (date,))
+        conn.execute("DELETE FROM spray_history WHERE date = ?", (date,))
 
     conn.commit()
     conn.close()
@@ -1192,9 +1252,9 @@ def update_record(date: str, pests: Optional[list] = None,
 
 
 # =====================================================================
-# TOOL: delete_record
+# TOOL: delete_spray_history
 # =====================================================================
-def delete_record(date: str) -> str:
+def delete_spray_history(date: str) -> str:
     """
     防除記録を削除する。
 
@@ -1205,7 +1265,7 @@ def delete_record(date: str) -> str:
         JSON文字列（結果）
     """
     conn = get_db()
-    cur = conn.execute("DELETE FROM records WHERE date = ?", (date,))
+    cur = conn.execute("DELETE FROM spray_history WHERE date = ?", (date,))
     conn.commit()
     conn.close()
 
@@ -1213,6 +1273,174 @@ def delete_record(date: str) -> str:
         return json.dumps({"error": f"日付 {date} の記録が見つかりません"}, ensure_ascii=False)
 
     return json.dumps({"status": "deleted", "date": date}, ensure_ascii=False)
+
+
+# =====================================================================
+# TOOL: get_spray_schedule
+# =====================================================================
+def get_spray_schedule(year: Optional[int] = None, status: Optional[str] = None,
+                        limit: int = 200) -> str:
+    """
+    防除暦（今後の予定）を取得する。
+
+    Args:
+        year: 年で絞り込み（例: 2026）
+        status: ステータスで絞り込み（scheduled/done/missed/rescheduled）
+        limit: 最大取得件数（デフォルト200）
+
+    Returns:
+        JSON文字列（防除暦リスト）
+    """
+    conn = get_db()
+
+    conditions = []
+    params = []
+    if year:
+        conditions.append("schedule_date LIKE ?")
+        params.append(f"{year}%")
+    if status:
+        conditions.append("status = ?")
+        params.append(status)
+
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    params.append(limit)
+
+    rows = conn.execute(
+        f"SELECT * FROM spray_schedule {where} ORDER BY schedule_date LIMIT ?",
+        params,
+    ).fetchall()
+    conn.close()
+
+    result = []
+    for r in rows:
+        d = dict(r)
+        d["set_ids"] = json.loads(d["set_ids"]) if d["set_ids"] else []
+        d["pesticide_ids"] = json.loads(d["pesticide_ids"]) if d["pesticide_ids"] else []
+        d["rb_out_json"] = json.loads(d["rb_out_json"]) if d["rb_out_json"] else None
+        result.append(d)
+
+    return json.dumps(result, ensure_ascii=False, indent=2)
+
+
+# =====================================================================
+# TOOL: add_spray_schedule
+# =====================================================================
+def add_spray_schedule(schedule_date: str, set_ids: Optional[list] = None,
+                        pesticide_ids: Optional[list] = None,
+                        trigger_type: str = "cycle", notes: Optional[str] = None) -> str:
+    """
+    新規の防除暦（予定）を追加する。
+
+    Args:
+        schedule_date: 予定日（YYYY-MM-DD形式）
+        set_ids: セット名のリスト（例: ["セット1"]）
+        pesticide_ids: 薬剤IDのリスト（例: ["P40"]）
+        trigger_type: 予定作成のきっかけ（cycle/observation/forecast、デフォルトcycle）
+        notes: 備考
+
+    Returns:
+        JSON文字列（結果）
+    """
+    now = datetime.utcnow().isoformat()
+    conn = get_db()
+    cur = conn.execute(
+        """INSERT INTO spray_schedule
+           (schedule_date, status, trigger_type, set_ids, pesticide_ids, notes,
+            created_at, updated_at)
+           VALUES (?, 'scheduled', ?, ?, ?, ?, ?, ?)""",
+        (
+            schedule_date, trigger_type,
+            json.dumps(set_ids or []), json.dumps(pesticide_ids or []),
+            notes, now, now,
+        ),
+    )
+    conn.commit()
+    new_id = cur.lastrowid
+    conn.close()
+
+    return json.dumps({
+        "status": "created",
+        "id": new_id,
+        "schedule_date": schedule_date,
+    }, ensure_ascii=False)
+
+
+# =====================================================================
+# TOOL: update_spray_schedule
+# =====================================================================
+def update_spray_schedule(id: int, schedule_date: Optional[str] = None,
+                           status: Optional[str] = None,
+                           actual_date: Optional[str] = None,
+                           set_ids: Optional[list] = None,
+                           pesticide_ids: Optional[list] = None,
+                           notes: Optional[str] = None) -> str:
+    """
+    既存の防除暦（予定）を更新する。
+
+    Args:
+        id: spray_scheduleのID
+        schedule_date: 予定日（変更する場合）
+        status: ステータス（scheduled/done/missed/rescheduled）
+        actual_date: 実施日（実施済みにする場合）
+        set_ids: セット名のリスト（更新する場合）
+        pesticide_ids: 薬剤IDのリスト（更新する場合）
+        notes: 備考（更新する場合）
+
+    Returns:
+        JSON文字列（結果）
+    """
+    conn = get_db()
+    existing = conn.execute("SELECT * FROM spray_schedule WHERE id = ?", (id,)).fetchone()
+
+    if not existing:
+        conn.close()
+        return json.dumps({"error": f"ID {id} の防除暦が見つかりません"}, ensure_ascii=False)
+
+    now = datetime.utcnow().isoformat()
+    conn.execute(
+        """UPDATE spray_schedule SET
+           schedule_date = ?, status = ?, actual_date = ?, set_ids = ?,
+           pesticide_ids = ?, notes = ?, updated_at = ?
+           WHERE id = ?""",
+        (
+            schedule_date if schedule_date is not None else existing["schedule_date"],
+            status if status is not None else existing["status"],
+            actual_date if actual_date is not None else existing["actual_date"],
+            json.dumps(set_ids) if set_ids is not None else existing["set_ids"],
+            json.dumps(pesticide_ids) if pesticide_ids is not None else existing["pesticide_ids"],
+            notes if notes is not None else existing["notes"],
+            now,
+            id,
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+    return json.dumps({"status": "updated", "id": id}, ensure_ascii=False)
+
+
+# =====================================================================
+# TOOL: delete_spray_schedule
+# =====================================================================
+def delete_spray_schedule(id: int) -> str:
+    """
+    防除暦（予定）を削除する。
+
+    Args:
+        id: spray_scheduleのID
+
+    Returns:
+        JSON文字列（結果）
+    """
+    conn = get_db()
+    cur = conn.execute("DELETE FROM spray_schedule WHERE id = ?", (id,))
+    conn.commit()
+    conn.close()
+
+    if cur.rowcount == 0:
+        return json.dumps({"error": f"ID {id} の防除暦が見つかりません"}, ensure_ascii=False)
+
+    return json.dumps({"status": "deleted", "id": id}, ensure_ascii=False)
 
 
 # =====================================================================
@@ -1292,7 +1520,7 @@ def summarize_history(period: str = "month") -> str:
     date_to = today.strftime("%Y-%m-%d")
 
     rows = conn.execute(
-        "SELECT * FROM records WHERE date BETWEEN ? AND ? ORDER BY date",
+        "SELECT * FROM spray_history WHERE date BETWEEN ? AND ? ORDER BY date",
         (date_from, date_to),
     ).fetchall()
     conn.close()
@@ -1455,11 +1683,11 @@ def get_usage_stats(year: Optional[int] = None) -> str:
 
     if year:
         rows = conn.execute(
-            "SELECT * FROM records WHERE date LIKE ? ORDER BY date",
+            "SELECT * FROM spray_history WHERE date LIKE ? ORDER BY date",
             (f"{year}%",),
         ).fetchall()
     else:
-        rows = conn.execute("SELECT * FROM records ORDER BY date").fetchall()
+        rows = conn.execute("SELECT * FROM spray_history ORDER BY date").fetchall()
     conn.close()
 
     if not rows:
@@ -1517,7 +1745,7 @@ def prescribe_by_date(date: str) -> str:
     conn = get_db()
 
     # Look up record for the given date
-    row = conn.execute("SELECT * FROM records WHERE date = ?", (normalized_date,)).fetchone()
+    row = conn.execute("SELECT * FROM spray_history WHERE date = ?", (normalized_date,)).fetchone()
 
     if not row:
         # Record not found → fall back to seasonal prescription
@@ -1648,7 +1876,7 @@ def seasonal_prescribe_internal(month: int, day: int, original_input: str = None
 
     # Find nearest historical record in the same month
     rows = conn.execute(
-        "SELECT * FROM records WHERE strftime('%m', date) = ? ORDER BY ABS(CAST(strftime('%d', date) AS INTEGER) - ?) LIMIT 1",
+        "SELECT * FROM spray_history WHERE strftime('%m', date) = ? ORDER BY ABS(CAST(strftime('%d', date) AS INTEGER) - ?) LIMIT 1",
         (f"{month:02d}", day),
     ).fetchone()
 
@@ -1829,3 +2057,189 @@ def retrieve_context(query: str, limit: int = 5,
             for c in chunks
         ],
     }, ensure_ascii=False, indent=2)
+
+
+# =====================================================================
+# INTEGRATED PIPELINE: RAG symptom estimation → RBP prescription
+# =====================================================================
+
+# Disease name aliases for fuzzy matching (症状表現 → 正式病害虫名)
+_DISEASE_ALIASES = {
+    # 炭疽病
+    "炭疽": "炭疽病", "かんそ": "炭疽病", "かんそびょう": "炭疽病",
+    "葉に黒い斑点": "炭疽病", "葉に茶色い斑点": "炭疽病",
+    "実が腐る": "炭疽病", "実が腐ってる": "炭疽病",
+    # 灰色かび病
+    "灰色かび": "灰色かび病", "gray mold": "灰色かび病",
+    "葉にぬめり": "灰色かび病", "葉が萎れる": "灰色かび病",
+    "葉が枯れる": "灰色かび病", "花が落ちる": "灰色かび病",
+    "茎が柔らかい": "灰色かび病", "茎が腐る": "灰色かび病",
+    # うどんこ病
+    "うどんこ": "うどんこ病", "powdery mildew": "うどんこ病",
+    "葉に白い粉": "うどんこ病", "白い粉が吹く": "うどんこ病",
+    "白い粉": "うどんこ病", "葉が白くなる": "うどんこ病",
+    "葉が白っぽくなる": "うどんこ病",
+    # ハダニ系
+    "ハダニ": "ハダニ", "ナミハダニ": "ナミハダニ",
+    "蜘蛛の巣": "ハダニ", "糸状の蜘蛛": "ハダニ",
+    "葉に細かい白点": "ハダニ",
+    # ヨトウ系
+    "ヨトウ": "ハスモンヨトウ", "ヨトウムシ": "ハスモンヨトウ",
+    "葉に穴": "ハスモンヨトウ", "葉に穴が開く": "ハスモンヨトウ",
+    "葉に穴があいてる": "ハスモンヨトウ", "葉が欠ける": "ハスモンヨトウ",
+    # タバコガ系
+    "タバコガ": "オオタバコガ", "オオタバコガ": "オオタバコガ",
+    # アザミウマ系
+    "アザミウマ": "ミカンキイロアザミウマ", "アザミ": "ミカンキイロアザミウマ",
+    "葉に銀色の跡": "ミカンキイロアザミウマ", "葉に透明感": "ミカンキイロアザミウマ",
+    # アブラムシ系
+    "アブラムシ": "アブラムシ", "ワタアブラムシ": "ワタアブラムシ",
+    "葉がねばねば": "アブラムシ", "ハチミツみたいな": "アブラムシ",
+    "葉っぱが黄色くなる": "アブラムシ", "葉が黄色くなる": "アブラムシ",
+    "葉が丸まる": "アブラムシ", "葉が巻く": "アブラムシ",
+    "葉が縮れる": "アブラムシ", "葉の裏に小さい虫": "アブラムシ",
+    "葉の裏に虫": "アブラムシ",
+    # コナジラミ系
+    "コナジラミ": "コナジラミ", "白い虫": "コナジラミ",
+    "葉の裏に白い虫": "コナジラミ",
+}
+
+
+def _estimate_diseases_from_text(text: str) -> tuple[list[str], float]:
+    """
+    自然言語の症状記述から病害虫名を推定する。
+
+    アルゴリズム:
+      1. 症状辞典パターンで直接マッチ（最優先）
+      2. 症状辞典がヒットしない場合 → 別名辞典で部分一致
+      3. それでもヒットしない場合 → Embedding+FAISSでセマンティック検索
+
+    Args:
+        text: 症状記述（自然言語）
+
+    Returns:
+        (推定病害虫名のリスト, 信頼度 0-1)
+    """
+    conn = get_db()
+    try:
+        # Step 1: 症状辞典でマッチ
+        matched = _lookup_symptom_dict(text)
+
+        if matched:
+            # 症状辞典がマッチすればそれで完結（別名辞典は使わない）
+            return sorted(matched), 0.9
+
+        # Step 2: 症状辞典がヒットしなかった場合のみ別名辞典を試す
+        text_lower = text.lower()
+        for alias, disease in _DISEASE_ALIASES.items():
+            if alias.lower() in text_lower:
+                matched.append(disease)
+
+        if matched:
+            return sorted(matched), 0.7
+
+        # Step 3: Embedding+FAISS セマンティック検索
+        rag = get_rag_store()
+        chunks = rag.search(text, limit=10, source_type="disease")
+
+        if not chunks:
+            return [], 0.0
+
+        # 検索結果から病害虫名を抽出
+        estimated = []
+        for c in chunks:
+            chunk = c["chunk"]
+            if chunk["source_type"] == "disease":
+                name = chunk["source_id"]
+                if name not in estimated:
+                    estimated.append(name)
+
+        confidence = min(0.8, chunks[0]["score"] * 0.9) if chunks else 0.0
+        return estimated, confidence
+    finally:
+        conn.close()
+
+
+def _disease_names_to_vector(disease_names: list[str]) -> list[int]:
+    """
+    病害虫名のリストを10次元0/1ベクトルに変換する。
+
+    Args:
+        disease_names: 病害虫名のリスト（例: ["炭疽病", "アブラムシ"]）
+
+    Returns:
+        10次元の0/1ベクトル
+    """
+    vector = [0] * VECTOR_DIM
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            "SELECT id, name FROM diseases"
+        ).fetchall()
+        name_to_idx = {row["name"]: row["id"] for row in rows}
+
+        for name in disease_names:
+            # 完全一致
+            if name in name_to_idx:
+                vector[name_to_idx[name]] = 1
+                continue
+            # 前方一致
+            for disease_name, idx in name_to_idx.items():
+                if disease_name.startswith(name) or name.startswith(disease_name):
+                    vector[idx] = 1
+                    break
+    finally:
+        conn.close()
+    return vector
+
+
+def estimate_and_prescribe(symptoms: str) -> str:
+    """
+    統合パイプライン: 症状記述 → RAG推定 → ベクトル変換 → RBP処方
+
+    フロー:
+      1. 自然言語症状 → RAG(症状辞典+Embedding+FAISS) で病害虫を推定
+      2. 推定病害虫名 → 10次元0/1 EntryVector に変換
+      3. EntryVector → RBPエンジンで最適な薬剤組合せを計算
+      4. 結果を構造化JSONで返す
+
+    Args:
+        symptoms: 症状記述（自然言語、例: "葉っぱが黄色くなっていて、裏に小さい虫がついている"）
+
+    Returns:
+        JSON文字列（推定結果 + RBP処方結果）
+    """
+    conn = get_db()
+    try:
+        # Step 1: RAG推定
+        estimated_diseases, confidence = _estimate_diseases_from_text(symptoms)
+
+        if not estimated_diseases:
+            return json.dumps({
+                "status": "NO_ESTIMATION",
+                "symptoms": symptoms,
+                "message": "症状から病害虫を特定できませんでした。より具体的な症状を入力してください。",
+            }, ensure_ascii=False, indent=2)
+
+        # Step 2: ベクトル変換
+        entry_vector = _disease_names_to_vector(estimated_diseases)
+
+        # Step 3: RBPエンジン実行
+        rbp_result, enriched_drugs = _run_rbp_and_enrich(conn, entry_vector)
+
+        # Step 4: 結果を統合
+        response = {
+            "status": "OK",
+            "symptoms": symptoms,
+            "estimated_diseases": estimated_diseases,
+            "confidence": round(confidence, 3),
+            "entry_vector": entry_vector,
+            "rbp_status": rbp_result.get("status", "UNKNOWN"),
+            "best_match": rbp_result.get("best", {}),
+            "alternatives_count": len(rbp_result.get("alternatives", [])),
+            "pesticide_details": enriched_drugs,
+        }
+
+        return json.dumps(response, ensure_ascii=False, indent=2)
+    finally:
+        conn.close()

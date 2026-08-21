@@ -41,6 +41,7 @@
   <div class="calendar-panel">
     <div class="legend">
       <span><span class="dot green"></span> 実績あり</span>
+      <span><span class="dot blue"></span> 予定あり</span>
       <span><span class="dot red"></span> 選択中</span>
     </div>
     <div class="month-grid" id="monthGrid"></div>
@@ -54,13 +55,14 @@
         <span id="menuChevron">▼</span>
       </button>
       <div class="menu-dropdown" id="panelMenu">
-        <button class="menu-item" onclick="switchTab('detail');closeMenu()">📋 日次詳細</button>
-        <button class="menu-item" onclick="switchTab('schedule');closeMenu()">📅 スケジュール</button>
+        <button class="menu-item active" onclick="switchTab('detail');closeMenu()">📋 日次詳細</button>
+        <button class="menu-item" onclick="switchTab('schedule');closeMenu()">📅 防除暦</button>
         <button class="menu-item" onclick="switchTab('history');closeMenu()">🧴 防除履歴</button>
         <button class="menu-item" onclick="switchTab('import');closeMenu()">📥 インポート</button>
         <hr style="border:none;border-top:1px solid #eee;margin:4px 0;">
         <button class="menu-item" onclick="openDiseaseMaster();closeMenu()">🦠 病害虫マスター</button>
         <button class="menu-item" onclick="openPesticideMaintenance();closeMenu()">💊 薬剤マスター</button>
+        <button class="menu-item" onclick="switchTab('inventory');closeMenu()">📦 在庫管理</button>
       </div>
     </div>
     <div class="panel-content">
@@ -77,15 +79,37 @@
         </div>
       </div>
 
-      <!-- Schedule Tab -->
+      <!-- Schedule Tab (防除暦 = spray_schedule。実績＝防除履歴タブとは別物) -->
       <div class="tab-pane" id="tab-schedule">
         <div class="stats-bar" id="statsBar">
           <span>登録数: <strong id="statCount">0</strong></span>
           <span>期間: <strong id="statPeriod">—</strong></span>
         </div>
-        <div style="display:flex;gap:6px;margin:10px 0;">
-          <button class="btn btn-outline btn-sm" onclick="exportCSV()">📤 CSV出力</button>
-          <button class="btn btn-outline btn-sm" onclick="clearAllRecords()">🗑 全削除</button>
+        <div style="display:flex;gap:6px;margin:10px 0;flex-wrap:wrap;">
+          <button class="btn btn-outline btn-sm" onclick="copyScheduleToNextYear()">📋 来年度へコピー</button>
+        </div>
+        <div class="record-form" style="margin-bottom:10px;">
+          <input type="date" id="sched_add_date" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:6px;">
+          <input type="text" id="sched_add_notes" placeholder="対象病害虫・セットなど（メモ）" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:6px;">
+          <button class="btn btn-primary btn-sm" onclick="addScheduleEntry()">＋ 予定を追加</button>
+        </div>
+        <div class="record-form" id="sched_edit_form" style="display:none;margin-bottom:10px;border:1px solid #e0b400;background:#fffbe6;border-radius:6px;padding:8px;">
+          <strong>✎ 防除暦の修正</strong>
+          <input type="hidden" id="sched_edit_id">
+          <input type="date" id="sched_edit_date" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin:6px 0;">
+          <input type="text" id="sched_edit_set" placeholder="セット（例: セット6）" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:6px;">
+          <input type="text" id="sched_edit_notes" placeholder="対象病害虫など（メモ）" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:6px;">
+          <select id="sched_edit_status" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:6px;">
+            <option value="scheduled">予定</option>
+            <option value="done">実施済</option>
+            <option value="missed">未実施</option>
+            <option value="rescheduled">変更</option>
+          </select>
+          <small style="color:var(--muted);">セットを変更すると生成済みの処方がクリアされ、次回cronで再生成されます。</small>
+          <div style="display:flex;gap:6px;margin-top:6px;">
+            <button class="btn btn-primary btn-sm" onclick="submitScheduleEdit()">💾 保存</button>
+            <button class="btn btn-outline btn-sm" onclick="cancelScheduleEdit()">キャンセル</button>
+          </div>
         </div>
         <ul class="schedule-list" id="scheduleList"></ul>
       </div>
@@ -123,6 +147,36 @@
           </div>
         </div>
       </div>
+
+      <!-- Inventory Tab -->
+      <div class="tab-pane" id="tab-inventory">
+        <div class="stats-bar" id="inventoryStatsBar">
+          <span>登録行数: <strong id="inventoryRowCount">0</strong></span>
+          <span>総在庫量: <strong id="inventoryTotalQty">0</strong></span>
+          <span>期限切れ: <strong id="inventoryExpiringSoon">0</strong></span>
+        </div>
+        <div style="display:flex;gap:6px;margin:10px 0;flex-wrap:wrap;">
+          <button class="btn btn-primary btn-sm" onclick="openInventoryAddModal()">＋ 在庫追加</button>
+          <button class="btn btn-outline btn-sm" onclick="refreshInventory()">🔄 更新</button>
+          <select id="inventoryPesticideFilter" onchange="renderInventory()"
+            style="padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+            <option value="">全薬剤</option>
+          </select>
+          <select id="inventoryStatusFilter" onchange="renderInventory()"
+            style="padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+            <option value="">全状態</option>
+            <option value="ok">正常</option>
+            <option value="expiring">期限内30日</option>
+            <option value="expired">期限切れ</option>
+            <option value="zero">在庫0</option>
+          </select>
+        </div>
+        <div id="inventoryContent">
+          <p style="color:var(--muted);font-size:.85rem;text-align:center;padding:20px;">
+            読込中…
+          </p>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -144,8 +198,27 @@
 // ═══════════════════════════════════════════
 let currentYear = new Date().getFullYear();
 let selectedDate = null;  // "YYYY-MM-DD"
-let records = {};         // "YYYY-MM-DD" => { pests: [name, ...], vector: [...] }
+let sprayHistory = {};         // "YYYY-MM-DD" => { pests: [name, ...], vector: [...] }
 let sprays = [];          // [{ date: "YYYY-MM-DD", ids: ["P01","P02"], pests: [...] }]
+let spraySchedule = [];   // [{ id, schedule_date, status, set_ids, pesticide_ids, notes, ... }] — currentYear分のみ保持
+
+// 防除暦（spray_schedule）をcurrentYear分だけサーバーから取得する。
+// 失敗時は空配列のまま（カレンダー描画・スケジュールタブは実績のみの表示にフォールバック）。
+async function fetchScheduleFromServer(year) {
+  try {
+    const res = await fetch(API_BASE + '/spray_schedule?year=' + year);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    spraySchedule = (json.data || []).map(row => ({
+      ...row,
+      set_ids: row.set_ids ? JSON.parse(row.set_ids) : [],
+      pesticide_ids: row.pesticide_ids ? JSON.parse(row.pesticide_ids) : [],
+      rb_out_json: row.rb_out_json ? JSON.parse(row.rb_out_json) : null,
+    }));
+  } catch (e) {
+    spraySchedule = [];
+  }
+}
 
 // サーバー永続化されたカスタムEVAL_BOX（他端末・他ユーザーが自動登録したもの）を
 // EB_VECTORS/EB_MATRIX/EB_NAMESへマージする。取得失敗時も起動をブロックしない。
@@ -189,7 +262,7 @@ async function loadServerDiseases() {
 
 async function fetchRecordsFromServer() {
   try {
-    const res = await fetch(API_BASE + '/records');
+    const res = await fetch(API_BASE + '/spray_history');
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const json = await res.json();
     return json.success ? json.data : [];
@@ -201,7 +274,7 @@ async function fetchRecordsFromServer() {
 
 async function saveRecordToServer(date, pests, vector) {
   try {
-    await fetch(API_BASE + '/records', {
+    await fetch(API_BASE + '/spray_history', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ date, pests, vector }),
@@ -213,7 +286,7 @@ async function saveRecordToServer(date, pests, vector) {
 
 async function deleteRecordFromServer(date) {
   try {
-    await fetch(API_BASE + '/records?date=' + encodeURIComponent(date), { method: 'DELETE' });
+    await fetch(API_BASE + '/spray_history?date=' + encodeURIComponent(date), { method: 'DELETE' });
   } catch(e) {
     console.warn('サーバー削除に失敗:', e);
   }
@@ -221,9 +294,9 @@ async function deleteRecordFromServer(date) {
 
 async function syncAllRecordsToServer() {
   // Save every record to server (upsert)
-  const dates = Object.keys(records);
+  const dates = Object.keys(sprayHistory);
   for (const date of dates) {
-    await saveRecordToServer(date, records[date].pests, records[date].vector);
+    await saveRecordToServer(date, sprayHistory[date].pests, sprayHistory[date].vector);
   }
 }
 
@@ -235,25 +308,26 @@ async function syncAllRecordsToServer() {
     if (serverRecords && serverRecords.length > 0) {
       // Convert DB rows to our hash format
       serverRecords.forEach(row => {
-        records[row.date] = {
+        sprayHistory[row.date] = {
           pests: JSON.parse(row.pests),
           vector: JSON.parse(row.vector),
         };
       });
     } else {
       // Fallback to localStorage
-      const saved = localStorage.getItem('rbp_schedule_records');
-      if (saved) records = JSON.parse(saved);
+      const saved = localStorage.getItem('rbp_spray_history');
+      if (saved) sprayHistory = JSON.parse(saved);
     }
     const savedSprays = localStorage.getItem('rbp_schedule_sprays');
     if (savedSprays) sprays = JSON.parse(savedSprays);
   } catch(e) {
     // Ultimate fallback: localStorage only
     try {
-      const saved = localStorage.getItem('rbp_schedule_records');
-      if (saved) records = JSON.parse(saved);
+      const saved = localStorage.getItem('rbp_spray_history');
+      if (saved) sprayHistory = JSON.parse(saved);
     } catch(e2) {}
   }
+  await fetchScheduleFromServer(currentYear);
   await loadCustomEvalBoxes();
   await loadServerDiseases();
   await loadPesticides();
@@ -261,7 +335,7 @@ async function syncAllRecordsToServer() {
 })();
 
 function saveRecords() {
-  localStorage.setItem('rbp_schedule_records', JSON.stringify(records));
+  localStorage.setItem('rbp_spray_history', JSON.stringify(sprayHistory));
   localStorage.setItem('rbp_schedule_sprays', JSON.stringify(sprays));
   // Also sync to server (non-blocking)
   syncAllRecordsToServer();
@@ -281,9 +355,38 @@ function postNewEvalBox(id, name, vector) {
 // ═══════════════════════════════════════════
 // Calendar rendering
 // ═══════════════════════════════════════════
-function changeYear(delta) {
+async function changeYear(delta) {
   currentYear += delta;
+  await fetchScheduleFromServer(currentYear);
   renderCalendar();
+  renderSchedule();
+}
+
+// ═══════════════════════════════════════════
+// カレンダーの汎用マーク計算
+// 「実績（sprayHistory）」「予定（spraySchedule）」など、複数の"暦"ソースを
+// 日付ごとにマージする層。renderCalendar()はこのマップだけを見て描画するので、
+// 将来別の"○○暦"を足す場合はここに1ブロック追加するだけでよい。
+// ═══════════════════════════════════════════
+function getCalendarMarks(year) {
+  const marks = {};
+  function addMark(dateKey, key, data) {
+    if (!marks[dateKey]) marks[dateKey] = {};
+    marks[dateKey][key] = data;
+  }
+
+  Object.keys(sprayHistory).forEach(dateKey => {
+    if (!dateKey.startsWith(String(year))) return;
+    addMark(dateKey, 'history', { label: '実績あり: ' + sprayHistory[dateKey].pests.join(', ') });
+  });
+
+  spraySchedule.forEach(entry => {
+    if (entry.status !== 'scheduled' && entry.status !== 'rescheduled') return;
+    const detail = entry.set_ids.length ? entry.set_ids.join('、') : (entry.notes || '');
+    addMark(entry.schedule_date, 'schedule', { label: '予定あり' + (detail ? ': ' + detail : '') });
+  });
+
+  return marks;
 }
 
 function renderCalendar() {
@@ -293,6 +396,7 @@ function renderCalendar() {
   const months = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
   const weekDays = ['日','月','火','水','木','金','土'];
   const today = todayStr();
+  const marks = getCalendarMarks(currentYear);
 
   let html = '';
   for (let m = 0; m < 12; m++) {
@@ -324,7 +428,9 @@ function renderCalendar() {
           const isSat = dow === 6;
           const isToday = dateKey === today;
           const isSelected = dateKey === selectedDate;
-          const hasRec = !!records[dateKey];
+          const cellMarks = marks[dateKey] || {};
+          const hasRec = !!cellMarks.history;
+          const hasSchedule = !!cellMarks.schedule;
 
           let cls = '';
           if (isSun) cls += ' sun';
@@ -334,8 +440,13 @@ function renderCalendar() {
 
           let inner = `<span class="day-label${cls}">${dayStr}</span>`;
           if (hasRec) inner += `<span class="day-badge has-record">✓</span>`;
+          if (hasSchedule) inner += `<span class="day-badge has-schedule">●</span>`;
 
-          html += `<td class="${cls}" onclick="selectDate('${dateKey}')" title="${hasRec ? '実績あり: ' + records[dateKey].pests.join(', ') : ''}">${inner}</td>`;
+          const titleParts = [];
+          if (hasRec) titleParts.push(cellMarks.history.label);
+          if (hasSchedule) titleParts.push(cellMarks.schedule.label);
+
+          html += `<td class="${cls}" onclick="selectDate('${dateKey}')" title="${titleParts.join(' / ')}">${inner}</td>`;
           date++;
         }
       }
@@ -381,7 +492,7 @@ function renderDetail() {
   dateEl.textContent = `${d.getMonth()+1}/${d.getDate()}`;
   weekdayEl.textContent = `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日 (${weekdays[d.getDay()]})`;
 
-  const rec = records[selectedDate];
+  const rec = sprayHistory[selectedDate];
   const vector = rec ? rec.vector : new Array(10).fill(0);
   const pests = rec ? rec.pests : [];
 
@@ -426,6 +537,9 @@ function renderDetail() {
     ? `<button class="btn btn-danger btn-sm" onclick="deleteRecord()" style="margin-top:4px;width:100%">🗑 削除</button>`
     : '';
 
+  // AI症状入力UI（同期レンダリング＋非同期初期化）
+  const aiInputHTML = renderAISymptomInputSync();
+
   // Spec-RBP: 自動処方（病害虫が1件以上登録済みの場合のみ計算）
   const specHTML = hasAnyPest ? renderPrescriptionCard(vector) : '';
 
@@ -446,6 +560,7 @@ function renderDetail() {
   }
 
   contentEl.innerHTML = `
+    ${aiInputHTML}
     <div class="record-form">
       <h3>🐛 病害虫選択</h3>
       ${pestHTML}
@@ -468,7 +583,144 @@ function renderDetail() {
   `;
 }
 
+// ═══════════════════════════════════════════
+// AI症状入力 → RAG推定 → RBP処方 パイプライン
+// ═══════════════════════════════════════════
+
+/**
+ * AI症状入力UIを同期で生成する（renderDetailから呼ばれる）。
+ * server.pyの有無に関わらずUIは表示し、非同期で可用性をチェックする。
+ */
+let aiSymptomLoading = false;
+
+function renderAISymptomInputSync() {
+  return `
+    <div class="ai-symptom-input" style="margin-bottom:16px;padding:12px;background:#f0faf0;border-radius:10px;border:1px solid #c8e6c8;">
+      <h3 style="margin:0 0 8px;font-size:.95rem;">🤖 AI症状推定 → 自動処方</h3>
+      <textarea id="aiSymptomInput" placeholder="症状を自然言語で入力してください&#10;例: 葉っぱが黄色くなっていて、裏に小さい虫がついている"
+        style="width:100%;min-height:60px;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;resize:vertical;font-family:inherit;"></textarea>
+      <button id="aiPrescribeBtn" onclick="executeAISymptomPrescribe()"
+        style="margin-top:8px;width:100%;padding:8px;background:#4a7c59;color:white;border:none;border-radius:6px;cursor:pointer;font-size:.85rem;">
+        🔍 症状から推定＆処方
+      </button>
+      <div id="aiPrescribeResult" style="margin-top:10px;"></div>
+    </div>`;
+}
+
+/**
+ * AI症状推定＆処方パイプラインを実行する。
+ * フロー: 症状入力 → /api/intelligent-prescribe → 結果を表示 + 病害虫チェックボックスに反映
+ */
+async function executeAISymptomPrescribe() {
+  if (aiSymptomLoading) return;
+  const inputEl = document.getElementById('aiSymptomInput');
+  const resultEl = document.getElementById('aiPrescribeResult');
+  const symptoms = inputEl.value.trim();
+
+  if (!symptoms) {
+    resultEl.innerHTML = '<p class="spec-badge warn" style="display:block;">症状を入力してください</p>';
+    return;
+  }
+
+  aiSymptomLoading = true;
+  resultEl.innerHTML = '<p style="text-align:center;color:var(--muted);">🔄 RAG推定中...</p>';
+
+  try {
+    const res = await fetch('/api/intelligent-prescribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symptoms }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || data.status === 'NO_ESTIMATION') {
+      resultEl.innerHTML = `
+        <p class="spec-badge warn" style="display:block;">⚠️ ${data.message || '推定できませんでした'}</p>
+        <p style="font-size:.72rem;color:var(--muted);">より具体的な症状（葉の色、形、虫の有無など）を入力してみてください。</p>`;
+      aiSymptomLoading = false;
+      return;
+    }
+
+    // 推定結果を表示
+    const estDiseases = data.estimated_diseases || [];
+    const confidence = data.confidence || 0;
+    const confLabel = confidence >= 0.8 ? '🟢 高信頼度' : confidence >= 0.5 ? '🟡 中信頼度' : '🔴 低信頼度';
+
+    let html = `
+      <div style="padding:8px;background:white;border-radius:8px;border:1px solid #e0e0e0;">
+        <div style="font-size:.82rem;margin-bottom:6px;">
+          <strong>🎯 推定病害虫:</strong> ${estDiseases.join('、')}
+          <span style="float:right;color:var(--muted);">${confLabel} (${(confidence*100).toFixed(0)}%)</span>
+        </div>
+        <div style="font-size:.72rem;color:var(--muted);margin-bottom:8px;">
+          ベクトル: [${data.entry_vector.join(',')}]
+        </div>`;
+
+    // RBP処方結果
+    if (data.rbp_status === 'SUCCESS' && data.best_match) {
+      const best = data.best_match;
+      const pesticideDetails = data.pesticide_details || [];
+      html += `
+        <div class="prescription-card" style="margin:8px 0;">
+          <div class="prescription-title">💊 推奨処方: ${best.pesticides ? best.pesticides.map(p=>p.name).join(' + ') : '複数剤'}</div>
+          <div style="font-size:.78rem;margin:4px 0;">
+            Mirror-ID: ${best.mirrorId ? best.mirrorId.toFixed(4) : '—'} /
+            カバー率: ${best.coverageRatio ? (best.coverageRatio*100).toFixed(0) : '—'}% /
+            スコア: ${best.totalScore ? best.totalScore.toFixed(1) : '—'}
+          </div>`;
+
+      if (pesticideDetails.length > 0) {
+        html += '<div style="font-size:.72rem;margin-top:4px;">';
+        pesticideDetails.slice(0, 5).forEach(p => {
+          html += `<div><strong>${p.name}</strong> — ${p.system || ''} ${p.category ? '('+p.category+')' : ''}</div>`;
+        });
+        if (pesticideDetails.length > 5) html += `<div style="color:var(--muted);">他${pesticideDetails.length-5}剤...</div>`;
+        html += '</div>';
+      }
+
+      html += '</div>';
+    } else if (data.rbp_status) {
+      html += `<p style="font-size:.78rem;color:var(--muted);">RBP判定: ${data.rbp_status}</p>`;
+    }
+
+    html += '</div>';
+
+    // 推定病害虫をチェックボックスに反映
+    if (estDiseases.length > 0) {
+      html += `<button onclick="applyEstimatedDiseases(${JSON.stringify(estDiseases).replace(/"/g, '&quot;')})"
+        style="margin-top:8px;width:100%;padding:6px;background:#e8f5e9;border:1px solid #4a7c59;border-radius:6px;cursor:pointer;font-size:.8rem;color:#2e7d32;">
+        ✅ 推定結果を病害虫選択に反映
+      </button>`;
+    }
+
+    resultEl.innerHTML = html;
+  } catch (e) {
+    resultEl.innerHTML = `<p class="spec-badge danger" style="display:block;">⛔ サーバーに接続できません</p>`;
+  } finally {
+    aiSymptomLoading = false;
+  }
+}
+
+/**
+ * 推定病害虫をチェックボックスに反映して保存する。
+ */
+function applyEstimatedDiseases(diseaseNames) {
+  // Checkboxesを更新
+  const checkboxes = document.querySelectorAll('.pest-check input[type="checkbox"]');
+  checkboxes.forEach(cb => {
+    const label = cb.closest('.pest-check').textContent.trim();
+    // 病害虫名がラベルに含まれていればチェック
+    const isChecked = diseaseNames.some(name => label.includes(name));
+    cb.checked = isChecked;
+  });
+
+  // 記録を保存（vectorを再計算してsaveRecordをトリガー）
+  saveRecord();
+}
+
 // ── RBPエンジン切替（案A: 3択ラジオボタン） ──
+
 // js: ブラウザ内で即計算（本番ロジック・全67剤DB）
 // python / haskell: server.py の POST /api/prescribe 経由でサーバー側PoCエンジンを呼ぶ
 // （PoCはサンプル13剤DB・簡略スコアのため、JS版と結果が異なる場合がある）
@@ -663,7 +915,7 @@ function renderPrescriptionCard(vector) {
 
 // JavaScriptエンジン（従来実装）: 「今回の処方」承認カードのHTML生成
 function renderPrescriptionCardJS(vector) {
-  const safetyVector = buildSafetyVector(records, selectedDate);
+  const safetyVector = buildSafetyVector(sprayHistory, selectedDate);
   const result = buildPrescriptionSet(vector, safetyVector);
 
   if (!result.best) {
@@ -776,11 +1028,11 @@ function renderPrescriptionCardJS(vector) {
 
 // 自動決定された処方セット（1剤 or 2剤）を一括承認し、防除暦・使用回数に反映する
 function approvePrescription(pesticideIds) {
-  if (!selectedDate || !records[selectedDate]) {
+  if (!selectedDate || !sprayHistory[selectedDate]) {
     alert('先に病害虫選択を登録してください');
     return;
   }
-  const rec = records[selectedDate];
+  const rec = sprayHistory[selectedDate];
   rec.pesticideIds = rec.pesticideIds || [];
   pesticideIds.forEach(id => {
     if (!rec.pesticideIds.includes(id)) rec.pesticideIds.push(id);
@@ -815,8 +1067,8 @@ function saveRecord() {
     vector[idx] = 1;
   });
 
-  const existingPesticideIds = (records[selectedDate] && records[selectedDate].pesticideIds) || [];
-  records[selectedDate] = { pests, vector, pesticideIds: existingPesticideIds };
+  const existingPesticideIds = (sprayHistory[selectedDate] && sprayHistory[selectedDate].pesticideIds) || [];
+  sprayHistory[selectedDate] = { pests, vector, pesticideIds: existingPesticideIds };
   saveRecords();
   renderCalendar();
   renderDetail();
@@ -825,7 +1077,7 @@ function saveRecord() {
 function deleteRecord() {
   if (!selectedDate) return;
   if (!confirm('この日の実績を削除しますか？')) return;
-  delete records[selectedDate];
+  delete sprayHistory[selectedDate];
   saveRecords();
   renderCalendar();
   renderDetail();
@@ -833,63 +1085,195 @@ function deleteRecord() {
 }
 
 // ═══════════════════════════════════════════
-// Schedule list
+// Schedule list（防除暦 = spray_schedule。防除履歴（実績）とは別テーブル）
 // ═══════════════════════════════════════════
+const SCHEDULE_STATUS_LABEL = { scheduled: '予定', done: '実施済', missed: '未実施', rescheduled: '変更' };
+
 function renderSchedule() {
   const list = document.getElementById('scheduleList');
-  const keys = Object.keys(records).sort();
+  const sorted = [...spraySchedule].sort((a, b) => a.schedule_date.localeCompare(b.schedule_date));
 
-  document.getElementById('statCount').textContent = keys.length;
-  document.getElementById('statPeriod').textContent = keys.length > 0
-    ? `${keys[0]} 〜 ${keys[keys.length-1]}`
+  document.getElementById('statCount').textContent = sorted.length;
+  document.getElementById('statPeriod').textContent = sorted.length > 0
+    ? `${sorted[0].schedule_date} 〜 ${sorted[sorted.length - 1].schedule_date}`
     : '—';
 
-  if (keys.length === 0) {
-    list.innerHTML = '<li style="padding:20px;text-align:center;color:var(--muted);">まだ実績がありません<br>カレンダーから日付を選んで登録してください</li>';
+  if (sorted.length === 0) {
+    list.innerHTML = '<li style="padding:20px;text-align:center;color:var(--muted);">まだ防除暦の予定がありません<br>日付を指定して追加するか、他の年度からコピーしてください</li>';
     return;
   }
 
-  list.innerHTML = keys.map(dateKey => {
-    const rec = records[dateKey];
-    const pred = classifyVector(rec.vector);
-    const ebLabel = pred.status === 'OK' ? `${pred.id}: ${pred.name}`
-      : pred.status === 'MODEL_DEFINITION_ERROR' ? '⛔ モデル定義エラー'
-      : '未分類';
-    const d = new Date(dateKey + 'T00:00:00');
+  list.innerHTML = sorted.map(entry => {
+    const d = new Date(entry.schedule_date + 'T00:00:00');
     const dateLabel = `${d.getMonth()+1}/${d.getDate()}`;
-
-    const pesticideNames = (rec.pesticideIds || [])
-      .map(id => (PESTICIDE_DB.find(p => p.id === id) || {}).name)
-      .filter(Boolean)
-      .join('、');
+    const setLabel = entry.set_ids.length ? entry.set_ids.join('、') : '';
+    const pestLabel = entry.pesticide_ids.length ? '💊' + entry.pesticide_ids.join('、') : '';
+    const detail = [setLabel, pestLabel, entry.notes || ''].filter(Boolean).join(' / ') || '（詳細未設定）';
+    const statusLabel = SCHEDULE_STATUS_LABEL[entry.status] || entry.status;
 
     return `<li class="schedule-item">
       <span class="s-date">${dateLabel}</span>
-      <div class="s-vector">
-        ${rec.vector.map(v => `<span class="s-dot ${v?'':'empty'}"></span>`).join('')}
-      </div>
-      <span class="s-eb">${ebLabel}${pesticideNames ? ` / 💊${pesticideNames}` : ''}</span>
+      <span class="s-eb">[${statusLabel}] ${detail}</span>
       <div class="s-actions">
-        <button class="btn btn-outline btn-sm" onclick="selectDate('${dateKey}');switchTab('detail')">編集</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteScheduleItem('${dateKey}')">×</button>
+        ${entry.status !== 'done' ? `<button class="btn btn-outline btn-sm" onclick="markScheduleDone(${entry.id})">✓ 実施済</button>` : ''}
+        <button class="btn btn-primary btn-sm" onclick="generateNow(${entry.id})">${entry.rb_out_json ? '⚡再生成' : '⚡今すぐ'}</button>
+        <button class="btn btn-outline btn-sm" onclick="startScheduleEdit(${entry.id})">✎ 編集</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteScheduleEntry(${entry.id})">×</button>
       </div>
     </li>`;
   }).join('');
 }
 
-function deleteScheduleItem(dateKey) {
-  if (!confirm(`#${dateKey} の実績を削除しますか？`)) return;
-  delete records[dateKey];
-  // Also remove corresponding spray entry
-  const sprayIdx = sprays.findIndex(s => s.date === dateKey);
-  if (sprayIdx >= 0) sprays.splice(sprayIdx, 1);
-  saveRecords();
-  if (selectedDate === dateKey) {
-    selectedDate = null;
-    renderDetail();
+async function addScheduleEntry() {
+  const dateInput = document.getElementById('sched_add_date');
+  const notesInput = document.getElementById('sched_add_notes');
+  const schedule_date = dateInput.value;
+  const notes = notesInput.value.trim();
+
+  if (!schedule_date) { alert('予定日を入力してください'); return; }
+
+  try {
+    const res = await fetch(API_BASE + '/spray_schedule', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ schedule_date, notes: notes || null }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    dateInput.value = '';
+    notesInput.value = '';
+    await fetchScheduleFromServer(currentYear);
+    renderCalendar();
+    renderSchedule();
+  } catch (e) {
+    alert('防除暦の追加に失敗しました: ' + e.message);
   }
-  renderCalendar();
-  renderSchedule();
+}
+
+// 編集開始: 対象行の値をフォームに詰めて表示
+function startScheduleEdit(id) {
+  const entry = spraySchedule.find(e => e.id === id);
+  if (!entry) return;
+  document.getElementById('sched_edit_id').value = id;
+  document.getElementById('sched_edit_date').value = entry.schedule_date;
+  document.getElementById('sched_edit_set').value = (entry.set_ids || []).join('、');
+  document.getElementById('sched_edit_notes').value = entry.notes || '';
+  document.getElementById('sched_edit_status').value = entry.status || 'scheduled';
+  // 元のセットを保持（変更判定用）
+  document.getElementById('sched_edit_form').dataset.origSet = JSON.stringify(entry.set_ids || []);
+  document.getElementById('sched_edit_form').style.display = 'block';
+  document.getElementById('sched_edit_form').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function cancelScheduleEdit() {
+  const form = document.getElementById('sched_edit_form');
+  form.style.display = 'none';
+  form.dataset.origSet = '';
+}
+
+async function submitScheduleEdit() {
+  const id = document.getElementById('sched_edit_id').value;
+  const schedule_date = document.getElementById('sched_edit_date').value;
+  const setText = document.getElementById('sched_edit_set').value.trim();
+  const notes = document.getElementById('sched_edit_notes').value.trim();
+  const status = document.getElementById('sched_edit_status').value;
+  if (!schedule_date) { alert('日程を入力してください'); return; }
+
+  const origSet = JSON.parse(document.getElementById('sched_edit_form').dataset.origSet || '[]');
+  // 編集後のセット配列（"セット6、セット2" → ["セット6","セット2"]）
+  const newSet = setText ? setText.split(/[,、]/).map(s => s.trim()).filter(Boolean) : [];
+  const setChanged = JSON.stringify(origSet) !== JSON.stringify(newSet);
+
+  const body = { schedule_date, notes: notes || null, status };
+  if (setChanged) {
+    // セット変更時は処方（rb_out_json/pesticide_ids）をクリアし次回cronで再生成
+    body.set_ids = newSet;
+    body.rb_out_json = null;
+    body.pesticide_ids = null;
+  }
+
+  try {
+    const res = await fetch(API_BASE + '/spray_schedule/' + id, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    cancelScheduleEdit();
+    await fetchScheduleFromServer(currentYear);
+    renderCalendar();
+    renderSchedule();
+  } catch (e) {
+    alert('防除暦の修正に失敗しました: ' + e.message);
+  }
+}
+
+// 処方生成の即時実行（cronを待たず）。Slack通知も同時に飛ぶ。
+async function generateNow(id) {
+  const btn = event && event.target;
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ 生成中…'; }
+  try {
+    const res = await fetch(API_BASE + '/spray_schedule/' + id + '/generate', { method: 'POST' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    const names = (data.pesticides || []).join('、') || '（該当薬剤なし）';
+    const slackNote = data.slack === 'ok' ? 'Slackに通知しました。' : 'Slack通知に失敗しました（DBには保存済み）。';
+    alert(`${data.set_label || '処方'} 生成完了\n💊 ${names}\n${slackNote}`);
+    await fetchScheduleFromServer(currentYear);
+    renderCalendar();
+    renderSchedule();
+  } catch (e) {
+    alert('処方生成に失敗しました: ' + e.message);
+    renderSchedule();  // ボタン状態（ラベル・disabled）を再構築
+  }
+}
+
+async function markScheduleDone(id) {
+  try {
+    const res = await fetch(API_BASE + '/spray_schedule/' + id, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'done', actual_date: todayStr() }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    await fetchScheduleFromServer(currentYear);
+    renderCalendar();
+    renderSchedule();
+  } catch (e) {
+    alert('更新に失敗しました: ' + e.message);
+  }
+}
+
+async function deleteScheduleEntry(id) {
+  if (!confirm('この予定を削除しますか？')) return;
+  try {
+    const res = await fetch(API_BASE + '/spray_schedule/' + id, { method: 'DELETE' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    await fetchScheduleFromServer(currentYear);
+    renderCalendar();
+    renderSchedule();
+  } catch (e) {
+    alert('削除に失敗しました: ' + e.message);
+  }
+}
+
+// 今年の防除暦を来年へ複製する（曜日は変わらないため、コピー後の手動調整が前提）。
+// spray_scheduleに今年のデータが無い場合はspray_history（実績）をブートストラップ元にする。
+async function copyScheduleToNextYear() {
+  const toYear = currentYear + 1;
+  if (!confirm(`${currentYear}年の防除暦を${toYear}年にコピーしますか？\n（曜日など細部は変わらないため、コピー後に手動で調整してください）`)) return;
+  try {
+    const res = await fetch(API_BASE + '/spray_schedule/copy-year', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fromYear: currentYear, toYear }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    alert(`${toYear}年に${json.created}件コピーしました（${json.skipped}件は既存日付のためスキップ）`);
+    await changeYear(1);
+  } catch (e) {
+    alert('コピーに失敗しました: ' + e.message);
+  }
 }
 
 // ═══════════════════════════════════════════
@@ -1007,7 +1391,7 @@ function renderSprayHistory() {
 // ═══════════════════════════════════════════
 // Tabs
 // ═══════════════════════════════════════════
-const TAB_LABELS = { detail: '📋 日次詳細', schedule: '📅 スケジュール', history: '🧴 防除履歴', import: '📥 インポート' };
+const TAB_LABELS = { detail: '📋 日次詳細', schedule: '📅 防除暦', history: '🧴 防除履歴', import: '📥 インポート', inventory: '📦 在庫管理' };
 
 function switchTab(tabName) {
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
@@ -1016,13 +1400,14 @@ function switchTab(tabName) {
   const label = document.getElementById('menuLabel');
   if (label) label.textContent = TAB_LABELS[tabName] || tabName;
   const menuItems = document.querySelectorAll('.menu-item');
-  const tabs = { detail: 0, schedule: 1, history: 2, import: 3 };
+  const tabs = { detail: 0, schedule: 1, history: 2, import: 3, inventory: 4 };
   menuItems.forEach((item, i) => {
     item.classList.toggle('active', i === tabs[tabName]);
   });
 
   if (tabName === 'schedule') renderSchedule();
   if (tabName === 'history') renderSprayHistory();
+  if (tabName === 'inventory') renderInventory();
 }
 
 function toggleMenu() {
@@ -1103,7 +1488,7 @@ function importData() {
     });
 
     if (vector.some(v => v > 0)) {
-      records[normalizedDate] = { pests, vector };
+      sprayHistory[normalizedDate] = { pests, vector };
       imported++;
     }
   });
@@ -1156,12 +1541,12 @@ function loadSampleData() {
 }
 
 function exportCSV() {
-  const keys = Object.keys(records).sort();
+  const keys = Object.keys(sprayHistory).sort();
   if (keys.length === 0) { alert('登録データがありません'); return; }
 
   let csv = 'Date,Diseases,Pests,Vector,EB_Predicted,EB_Name\n';
   keys.forEach(dateKey => {
-    const rec = records[dateKey];
+    const rec = sprayHistory[dateKey];
     const pred = classifyVector(rec.vector);
     const ebId = pred.status === 'OK' ? pred.id : pred.status;
     const ebName = pred.status === 'OK' ? pred.name : '';
@@ -1174,7 +1559,7 @@ function exportCSV() {
 }
 
 function exportJSON() {
-  const json = JSON.stringify(records, null, 2);
+  const json = JSON.stringify(sprayHistory, null, 2);
   downloadFile(json, `schedule_${currentYear}.json`, 'application/json');
 }
 
@@ -1185,7 +1570,7 @@ function importJSON(event) {
   reader.onload = (e) => {
     try {
       const data = JSON.parse(e.target.result);
-      records = data;
+      sprayHistory = data;
       saveRecords();
       renderCalendar();
       alert(`${Object.keys(data).length}件のデータをインポートしました`);
@@ -1208,10 +1593,10 @@ function downloadFile(content, filename, mimeType) {
 
 async function clearAllRecords() {
   if (!confirm('すべての実績データを削除しますか？（サーバーからも削除します）')) return;
-  const dates = Object.keys(records);
-  records = {};
+  const dates = Object.keys(sprayHistory);
+  sprayHistory = {};
   saveRecords();
-  // Delete all records from server
+  // Delete all sprayHistory from server
   for (const date of dates) {
     await deleteRecordFromServer(date);
   }
@@ -1749,6 +2134,7 @@ function showPesticideDetail(id) {
     { key: 'name', label: '商品名' },
     { key: 'activeIngredient', label: '有効成分' },
     { key: 'category', label: '種類', type: 'select', options: ['fungicide', 'insecticide', 'acaricide'] },
+    { key: 'dilutionRate', label: '希釈率' },
     { key: 'phiDays', label: 'PHI日数' },
     { key: 'maxApplications', label: '最大使用回数' },
     { key: 'toxicityClass', label: '毒性区分' },
@@ -1839,6 +2225,7 @@ async function savePesticide(id) {
     name: getField('name'),
     activeIngredient: getField('activeIngredient'),
     category: getField('category'),
+    dilutionRate: getField('dilutionRate'),
     phiDays: parseFloat(getField('phiDays')) || 0,
     maxApplications: parseFloat(getField('maxApplications')) || 0,
     toxicityClass: getField('toxicityClass'),
@@ -2075,6 +2462,544 @@ if (qrCodeEl) {
     overlay.querySelector('#closeQr').addEventListener('click', () => overlay.remove());
     overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
   });
+}
+
+// ═══════════════════════════════════════════
+// Inventory Management
+// ═══════════════════════════════════════════
+let inventoryData = [];
+
+async function refreshInventory() {
+  try {
+    const res = await fetch(API_BASE + '/inventory');
+    if (!res.ok) return;
+    const json = await res.json();
+    inventoryData = json.inventory || [];
+    populateInventoryPesticideFilter();
+    renderInventory();
+  } catch (e) {
+    console.warn('在庫データの取得に失敗:', e);
+  }
+}
+
+function populateInventoryPesticideFilter() {
+  const sel = document.getElementById('inventoryPesticideFilter');
+  if (!sel) return;
+  const currentVal = sel.value;
+  const usedIds = new Set(inventoryData.map(i => i.pesticideId));
+  const options = [{ value: '', label: '全薬剤' }];
+  pesticideData
+    .filter(p => usedIds.has(p.id))
+    .sort((a, b) => a.id.localeCompare(b.id))
+    .forEach(p => {
+      options.push({ value: p.id, label: `${p.id}: ${p.name}` });
+    });
+  sel.innerHTML = options.map(o => `<option value="${o.value}" ${o.value === currentVal ? 'selected' : ''}>${o.label}</option>`).join('');
+}
+
+function getStatusColor(item) {
+  if (item.quantity <= 0) return 'danger';
+  if (item.expiryDate) {
+    const daysLeft = Math.ceil((new Date(item.expiryDate) - new Date()) / 86400000);
+    if (daysLeft < 0) return 'danger';
+    if (daysLeft <= 30) return 'warn';
+  }
+  return 'good';
+}
+
+function getStatusLabel(item) {
+  if (item.quantity <= 0) return '在庫0';
+  if (item.expiryDate) {
+    const daysLeft = Math.ceil((new Date(item.expiryDate) - new Date()) / 86400000);
+    if (daysLeft < 0) return '期限切れ';
+    if (daysLeft <= 30) return `残り${daysLeft}日`;
+  }
+  return '正常';
+}
+
+function renderInventory() {
+  const container = document.getElementById('inventoryContent');
+  const rowCountEl = document.getElementById('inventoryRowCount');
+  const totalQtyEl = document.getElementById('inventoryTotalQty');
+  const expiringEl = document.getElementById('inventoryExpiringSoon');
+
+  if (!container) return;
+
+  // Apply filters
+  const pesticideFilter = document.getElementById('inventoryPesticideFilter')?.value || '';
+  const statusFilter = document.getElementById('inventoryStatusFilter')?.value || '';
+
+  let filtered = inventoryData.filter(item => {
+    if (pesticideFilter && item.pesticideId !== pesticideFilter) return false;
+    if (statusFilter) {
+      const status = getStatusColor(item);
+      if (statusFilter === 'ok' && status !== 'good') return false;
+      if (statusFilter === 'expiring' && status !== 'warn') return false;
+      if (statusFilter === 'expired' && status !== 'danger') return false;
+      if (statusFilter === 'zero' && !(item.quantity <= 0)) return false;
+    }
+    return true;
+  });
+
+  // Stats
+  const totalQty = inventoryData.reduce((sum, i) => sum + (parseFloat(i.quantity) || 0), 0);
+  const expiringSoon = inventoryData.filter(i => {
+    if (!i.expiryDate || i.quantity <= 0) return false;
+    const daysLeft = Math.ceil((new Date(i.expiryDate) - new Date()) / 86400000);
+    return daysLeft >= 0 && daysLeft <= 30;
+  }).length;
+
+  if (rowCountEl) rowCountEl.textContent = filtered.length;
+  if (totalQtyEl) totalQtyEl.textContent = totalQty.toFixed(1);
+  if (expiringEl) expiringEl.textContent = expiringSoon;
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <p style="color:var(--muted);font-size:.85rem;text-align:center;padding:20px;">
+        在庫データがありません<br>
+        「＋ 在庫追加」から登録してください
+      </p>`;
+    return;
+  }
+
+  const catLabelMap = { fungicide: '殺菌剤', insecticide: '殺虫剤', acaricide: '殺ダニ剤' };
+
+  let html = '<div style="display:flex;flex-direction:column;gap:8px;">';
+  filtered.forEach(item => {
+    const statusCls = getStatusColor(item);
+    const statusLbl = getStatusLabel(item);
+    const catLabel = catLabelMap[item.category] || '';
+    const qtyColor = item.quantity <= 0 ? 'color:#e74c3c;font-weight:bold;' : '';
+
+    html += `
+      <div style="
+        display:flex;align-items:flex-start;gap:10px;padding:12px;
+        border:1px solid #eee;border-radius:8px;
+        border-left:4px solid var(--${statusCls === 'good' ? 'accent' : statusCls === 'warn' ? 'warn' : 'danger'});
+      ">
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <strong style="font-size:.9rem;">${item.productName}</strong>
+            <span style="font-size:.7rem;padding:2px 6px;border-radius:8px;background:#e8f5e8;color:#2e7d32;">${item.pesticideId}</span>
+            ${catLabel ? `<span style="font-size:.65rem;padding:2px 6px;border-radius:8px;background:#f0f0f0;color:#666;">${catLabel}</span>` : ''}
+            <span class="spec-badge ${statusCls}" style="font-size:.65rem;">${statusLbl}</span>
+          </div>
+          <div style="font-size:.78rem;color:#666;margin-top:4px;">
+            在庫: <span style="${qtyColor}">${parseFloat(item.quantity).toFixed(1)} ${item.unit || 'ml'}</span>
+            ${item.lotNumber ? ` ｜ LOT: ${item.lotNumber}` : ''}
+          </div>
+          <div style="font-size:.72rem;color:#999;margin-top:2px;">
+            ${item.supplier ? `仕入: ${item.supplier}` : ''}
+            ${item.purchaseDate ? ` 購入: ${item.purchaseDate}` : ''}
+            ${item.expiryDate ? ` 期限: ${item.expiryDate}` : ''}
+          </div>
+          ${item.notes ? `<div style="font-size:.72rem;color:#999;margin-top:2px;font-style:italic;">${escapeHtml(item.notes)}</div>` : ''}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
+          <button onclick="openInventoryConsumeModal('${item.id}', '${escapeAttr(item.productName)}', ${parseFloat(item.quantity)})"
+            class="btn btn-outline btn-sm" style="font-size:.7rem;padding:3px 8px;">− 消費</button>
+          <button onclick="openInventoryRestockModal('${item.id}', '${escapeAttr(item.productName)}')"
+            class="btn btn-outline btn-sm" style="font-size:.7rem;padding:3px 8px;">＋ 補充</button>
+          <button onclick="openInventoryEditModal('${item.id}')"
+            class="btn btn-outline btn-sm" style="font-size:.7rem;padding:3px 8px;">✏️ 編集</button>
+          <button onclick="deleteInventoryItem('${item.id}')"
+            class="btn btn-outline btn-sm" style="font-size:.7rem;padding:3px 8px;color:#e74c3c;border-color:#e74c3c;">🗑</button>
+        </div>
+      </div>`;
+  });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+// ── Modals ──────────────────────────────────────────────────────
+
+function openInventoryAddModal() {
+  const overlay = document.createElement('div');
+  overlay.id = 'inventory-add-modal';
+  overlay.style.cssText = `
+    position: fixed; inset: 0; z-index: 99999;
+    background: rgba(0,0,0,.85);
+    display: flex; align-items: center; justify-content: center;
+    font-family: "Hiragino Sans", "Meiryo", sans-serif;
+    animation: fadeIn .2s ease;
+  `;
+
+  const pestOptions = pesticideData
+    .sort((a, b) => a.id.localeCompare(b.id))
+    .map(p => `<option value="${p.id}">${p.id}: ${p.name}</option>`)
+    .join('');
+
+  overlay.innerHTML = `
+    <div style="
+      background: white; border-radius: 16px;
+      padding: 0; max-width: 520px; width: 95%;
+      box-shadow: 0 8px 32px rgba(0,0,0,.5);
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    ">
+      <div style="
+        display:flex;justify-content:space-between;align-items:center;
+        padding:16px 20px;border-bottom:1px solid #eee;flex-shrink:0;
+      ">
+        <strong style="font-size:1.05rem;">📦 在庫追加</strong>
+        <button id="closeInvAdd" style="background:transparent;color:#888;border:none;font-size:1.3rem;cursor:pointer;padding:4px 8px;">✕</button>
+      </div>
+      <div style="padding:20px;overflow-y:auto;max-height:70vh;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div>
+            <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">薬剤 *</label>
+            <select id="inv_add_pesticideId" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+              <option value="">選択してください</option>
+              ${pestOptions}
+            </select>
+          </div>
+          <div>
+            <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">商品名 *</label>
+            <input id="inv_add_productName" type="text" placeholder="例：ベルクートWP" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+          </div>
+          <div>
+            <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">LOT番号</label>
+            <input id="inv_add_lotNumber" type="text" placeholder="LOT-001" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+          </div>
+          <div>
+            <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">数量 *</label>
+            <input id="inv_add_quantity" type="number" step="0.1" placeholder="100" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+          </div>
+          <div>
+            <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">単位</label>
+            <select id="inv_add_unit" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+              <option value="ml">ml</option>
+              <option value="L">L</option>
+              <option value="g">g</option>
+              <option value="kg">kg</option>
+              <option value="粒">粒</option>
+              <option value="枚">枚</option>
+              <option value="本">本</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">期限日</label>
+            <input id="inv_add_expiryDate" type="date" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+          </div>
+          <div>
+            <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">仕入先</label>
+            <input id="inv_add_supplier" type="text" placeholder="株式会社〇〇" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+          </div>
+          <div>
+            <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">購入日</label>
+            <input id="inv_add_purchaseDate" type="date" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+          </div>
+        </div>
+        <div style="margin-top:10px;">
+          <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">メモ</label>
+          <textarea id="inv_add_notes" rows="2" placeholder="備考など" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;font-family:inherit;"></textarea>
+        </div>
+      </div>
+      <div style="padding:12px 20px;border-top:1px solid #eee;display:flex;gap:8px;justify-content:flex-end;flex-shrink:0;">
+        <button id="cancelInvAdd" class="btn btn-outline btn-sm">キャンセル</button>
+        <button id="submitInvAdd" class="btn btn-primary btn-sm">✓ 追加</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  overlay.querySelector('#closeInvAdd').addEventListener('click', () => overlay.remove());
+  overlay.querySelector('#cancelInvAdd').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+  overlay.querySelector('#submitInvAdd').addEventListener('click', async () => {
+    const pesticideId = document.getElementById('inv_add_pesticideId').value;
+    const productName = document.getElementById('inv_add_productName').value.trim();
+    const quantity = document.getElementById('inv_add_quantity').value;
+
+    if (!pesticideId) { alert('薬剤を選択してください'); return; }
+    if (!productName) { alert('商品名を入力してください'); return; }
+    if (!quantity || parseFloat(quantity) <= 0) { alert('数量を正しく入力してください'); return; }
+
+    try {
+      const res = await fetch(API_BASE + '/inventory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pesticideId,
+          productName,
+          lotNumber: document.getElementById('inv_add_lotNumber').value.trim(),
+          quantity: parseFloat(quantity),
+          unit: document.getElementById('inv_add_unit').value,
+          expiryDate: document.getElementById('inv_add_expiryDate').value,
+          supplier: document.getElementById('inv_add_supplier').value.trim(),
+          purchaseDate: document.getElementById('inv_add_purchaseDate').value,
+          notes: document.getElementById('inv_add_notes').value.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert('追加に失敗しました: ' + (data.error || res.statusText));
+        return;
+      }
+      overlay.remove();
+      await refreshInventory();
+      alert('在庫を追加しました！');
+    } catch (e) {
+      alert('通信エラー: ' + e.message);
+    }
+  });
+}
+
+function openInventoryConsumeModal(invId, productName, availableQty) {
+  const overlay = document.createElement('div');
+  overlay.id = 'inventory-consume-modal';
+  overlay.style.cssText = `
+    position: fixed; inset: 0; z-index: 99999;
+    background: rgba(0,0,0,.85);
+    display: flex; align-items: center; justify-content: center;
+    font-family: "Hiragino Sans", "Meiryo", sans-serif;
+    animation: fadeIn .2s ease;
+  `;
+
+  overlay.innerHTML = `
+    <div style="
+      background: white; border-radius: 16px;
+      padding: 24px; max-width: 380px; width: 90%;
+      box-shadow: 0 8px 32px rgba(0,0,0,.5);
+    ">
+      <strong style="font-size:1rem;">− 在庫消費</strong>
+      <p style="font-size:.85rem;color:#666;margin:8px 0;">
+        <strong>${escapeHtml(productName)}</strong> の在庫を消費します
+      </p>
+      <div style="font-size:.8rem;color:#888;margin-bottom:12px;">
+        現在在庫: <strong>${availableQty.toFixed(1)}</strong>
+      </div>
+      <input id="consume_amount" type="number" step="0.1" placeholder="消費量"
+        style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:.9rem;margin-bottom:12px;"
+        onkeydown="if(event.key==='Enter')submitConsume('${invId}', ${availableQty})">
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button onclick="this.closest('div[style*=fixed]').parentElement.remove()" class="btn btn-outline btn-sm">キャンセル</button>
+        <button onclick="submitConsume('${invId}', ${availableQty})" class="btn btn-primary btn-sm">✓ 消費</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  setTimeout(() => document.getElementById('consume_amount')?.focus(), 100);
+}
+
+async function submitConsume(invId, availableQty) {
+  const amount = parseFloat(document.getElementById('consume_amount').value);
+  if (!amount || amount <= 0) { alert('消費量を正しく入力してください'); return; }
+  if (amount > availableQty) { alert(`在庫が不足しています。現在: ${availableQty.toFixed(1)}`); return; }
+
+  try {
+    const res = await fetch(API_BASE + `/inventory/${invId}/consume`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert('消費に失敗しました: ' + (data.error || res.statusText));
+      return;
+    }
+    document.querySelector('div[style*=fixed]')?.parentElement?.remove();
+    await refreshInventory();
+  } catch (e) {
+    alert('通信エラー: ' + e.message);
+  }
+}
+
+function openInventoryRestockModal(invId, productName) {
+  const overlay = document.createElement('div');
+  overlay.id = 'inventory-restock-modal';
+  overlay.style.cssText = `
+    position: fixed; inset: 0; z-index: 99999;
+    background: rgba(0,0,0,.85);
+    display: flex; align-items: center; justify-content: center;
+    font-family: "Hiragino Sans", "Meiryo", sans-serif;
+    animation: fadeIn .2s ease;
+  `;
+
+  overlay.innerHTML = `
+    <div style="
+      background: white; border-radius: 16px;
+      padding: 24px; max-width: 380px; width: 90%;
+      box-shadow: 0 8px 32px rgba(0,0,0,.5);
+    ">
+      <strong style="font-size:1rem;">＋ 在庫補充</strong>
+      <p style="font-size:.85rem;color:#666;margin:8px 0;">
+        <strong>${escapeHtml(productName)}</strong> の在庫を補充します
+      </p>
+      <input id="restock_amount" type="number" step="0.1" placeholder="補充量"
+        style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:.9rem;margin-bottom:12px;"
+        onkeydown="if(event.key==='Enter')submitRestock('${invId}')">
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button onclick="this.closest('div[style*=fixed]').parentElement.remove()" class="btn btn-outline btn-sm">キャンセル</button>
+        <button onclick="submitRestock('${invId}')" class="btn btn-primary btn-sm">✓ 補充</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  setTimeout(() => document.getElementById('restock_amount')?.focus(), 100);
+}
+
+async function submitRestock(invId) {
+  const amount = parseFloat(document.getElementById('restock_amount').value);
+  if (!amount || amount <= 0) { alert('補充量を正しく入力してください'); return; }
+
+  try {
+    const res = await fetch(API_BASE + `/inventory/${invId}/restock`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert('補充に失敗しました: ' + (data.error || res.statusText));
+      return;
+    }
+    document.querySelector('div[style*=fixed]')?.parentElement?.remove();
+    await refreshInventory();
+  } catch (e) {
+    alert('通信エラー: ' + e.message);
+  }
+}
+
+function openInventoryEditModal(invId) {
+  const item = inventoryData.find(i => i.id === invId);
+  if (!item) return;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'inventory-edit-modal';
+  overlay.style.cssText = `
+    position: fixed; inset: 0; z-index: 99999;
+    background: rgba(0,0,0,.85);
+    display: flex; align-items: center; justify-content: center;
+    font-family: "Hiragino Sans", "Meiryo", sans-serif;
+    animation: fadeIn .2s ease;
+  `;
+
+  const pestOptions = pesticideData
+    .sort((a, b) => a.id.localeCompare(b.id))
+    .map(p => `<option value="${p.id}" ${p.id === item.pesticideId ? 'selected' : ''}>${p.id}: ${p.name}</option>`)
+    .join('');
+
+  overlay.innerHTML = `
+    <div style="
+      background: white; border-radius: 16px;
+      padding: 0; max-width: 520px; width: 95%;
+      box-shadow: 0 8px 32px rgba(0,0,0,.5);
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    ">
+      <div style="
+        display:flex;justify-content:space-between;align-items:center;
+        padding:16px 20px;border-bottom:1px solid #eee;flex-shrink:0;
+      ">
+        <strong style="font-size:1.05rem;">✏️ 在庫編集 — ${escapeHtml(item.productName)}</strong>
+        <button id="closeInvEdit" style="background:transparent;color:#888;border:none;font-size:1.3rem;cursor:pointer;padding:4px 8px;">✕</button>
+      </div>
+      <div style="padding:20px;overflow-y:auto;max-height:70vh;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div>
+            <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">薬剤</label>
+            <select id="inv_edit_pesticideId" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+              ${pestOptions}
+            </select>
+          </div>
+          <div>
+            <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">商品名</label>
+            <input id="inv_edit_productName" type="text" value="${escapeAttr(item.productName)}" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+          </div>
+          <div>
+            <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">LOT番号</label>
+            <input id="inv_edit_lotNumber" type="text" value="${escapeAttr(item.lotNumber || '')}" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+          </div>
+          <div>
+            <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">数量</label>
+            <input id="inv_edit_quantity" type="number" step="0.1" value="${item.quantity}" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+          </div>
+          <div>
+            <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">単位</label>
+            <select id="inv_edit_unit" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+              ${['ml','L','g','kg','粒','枚','本'].map(u => `<option value="${u}" ${u === item.unit ? 'selected' : ''}>${u}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">期限日</label>
+            <input id="inv_edit_expiryDate" type="date" value="${item.expiryDate || ''}" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+          </div>
+          <div>
+            <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">仕入先</label>
+            <input id="inv_edit_supplier" type="text" value="${escapeAttr(item.supplier || '')}" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+          </div>
+          <div>
+            <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">購入日</label>
+            <input id="inv_edit_purchaseDate" type="date" value="${item.purchaseDate || ''}" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+          </div>
+        </div>
+        <div style="margin-top:10px;">
+          <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">メモ</label>
+          <textarea id="inv_edit_notes" rows="2" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;font-family:inherit;">${escapeHtml(item.notes || '')}</textarea>
+        </div>
+      </div>
+      <div style="padding:12px 20px;border-top:1px solid #eee;display:flex;gap:8px;justify-content:flex-end;flex-shrink:0;">
+        <button id="cancelInvEdit" class="btn btn-outline btn-sm">キャンセル</button>
+        <button id="submitInvEdit" class="btn btn-primary btn-sm">💾 保存</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  overlay.querySelector('#closeInvEdit').addEventListener('click', () => overlay.remove());
+  overlay.querySelector('#cancelInvEdit').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+  overlay.querySelector('#submitInvEdit').addEventListener('click', async () => {
+    try {
+      const res = await fetch(API_BASE + `/inventory/${invId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pesticideId: document.getElementById('inv_edit_pesticideId').value,
+          productName: document.getElementById('inv_edit_productName').value.trim(),
+          lotNumber: document.getElementById('inv_edit_lotNumber').value.trim(),
+          quantity: parseFloat(document.getElementById('inv_edit_quantity').value) || 0,
+          unit: document.getElementById('inv_edit_unit').value,
+          expiryDate: document.getElementById('inv_edit_expiryDate').value,
+          supplier: document.getElementById('inv_edit_supplier').value.trim(),
+          purchaseDate: document.getElementById('inv_edit_purchaseDate').value,
+          notes: document.getElementById('inv_edit_notes').value.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert('保存に失敗しました: ' + (data.error || res.statusText));
+        return;
+      }
+      overlay.remove();
+      await refreshInventory();
+      alert('保存しました！');
+    } catch (e) {
+      alert('通信エラー: ' + e.message);
+    }
+  });
+}
+
+async function deleteInventoryItem(invId) {
+  if (!confirm('この在庫データを削除してもよろしいですか？')) return;
+  try {
+    const res = await fetch(API_BASE + `/inventory/${invId}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) {
+      alert('削除に失敗しました: ' + (data.error || res.statusText));
+      return;
+    }
+    await refreshInventory();
+  } catch (e) {
+    alert('通信エラー: ' + e.message);
+  }
 }
 
 const styleSheet = document.createElement('style');

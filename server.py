@@ -3,7 +3,7 @@
 # IP/ポート/バインド/キャッシュ無効化/ThreadingHTTPServer必須
 #
 # SQLite (data/stb.db) に以下のテーブルを持つ:
-#   pesticides, diseases, eval_boxes, eval_boxes_custom, records
+#   pesticides, diseases, eval_boxes, eval_boxes_custom, spray_history, spray_schedule, inventory
 #
 # 要求評価RBP（rbp/eval_box_registry.js）が自動登録した新しいEVAL_BOXを
 # eval_boxes_custom テーブルへ永続化する。
@@ -62,7 +62,8 @@ def init_db():
             maxApplications REAL,
             toxicityClass TEXT,
             system TEXT,
-            systemCode TEXT
+            systemCode TEXT,
+            dilutionRate TEXT
         );
 
         CREATE TABLE IF NOT EXISTS diseases (
@@ -84,10 +85,49 @@ def init_db():
             vector TEXT NOT NULL
         );
 
-        CREATE TABLE IF NOT EXISTS records (
+        CREATE TABLE IF NOT EXISTS spray_history (
             date TEXT PRIMARY KEY,
             pests TEXT NOT NULL,
             vector TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS spray_schedule (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            schedule_date   TEXT    NOT NULL,
+            actual_date     TEXT,
+            status          TEXT    NOT NULL DEFAULT 'scheduled'
+                        CHECK(status IN ('scheduled', 'done', 'missed', 'rescheduled')),
+            trigger_type    TEXT    NOT NULL DEFAULT 'cycle'
+                        CHECK(trigger_type IN ('cycle', 'observation', 'forecast')),
+            trigger_ref     TEXT,
+            eval_box_id     TEXT REFERENCES eval_boxes(id),
+            rb_out_json     TEXT,
+            set_ids         TEXT    NOT NULL,
+            pesticide_ids   TEXT    NOT NULL,
+            operator        TEXT,
+            weather         TEXT,
+            notes           TEXT,
+            created_at      TEXT    NOT NULL DEFAULT (datetime('now', 'jst')),
+            updated_at      TEXT    NOT NULL DEFAULT (datetime('now', 'jst'))
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_spray_schedule_date ON spray_schedule(schedule_date);
+        CREATE INDEX IF NOT EXISTS idx_spray_schedule_status ON spray_schedule(status);
+        CREATE INDEX IF NOT EXISTS idx_spray_schedule_eval_box ON spray_schedule(eval_box_id);
+
+        CREATE TABLE IF NOT EXISTS inventory (
+            id TEXT PRIMARY KEY,
+            pesticideId TEXT NOT NULL REFERENCES pesticides(id),
+            productName TEXT NOT NULL,
+            lotNumber TEXT,
+            quantity REAL NOT NULL DEFAULT 0,
+            unit TEXT NOT NULL DEFAULT 'ml',
+            expiryDate TEXT,
+            supplier TEXT,
+            purchaseDate TEXT,
+            notes TEXT,
+            createdAt TEXT NOT NULL,
+            updatedAt TEXT NOT NULL
         );
     """)
     conn.commit()
@@ -338,11 +378,33 @@ class Handler(SimpleHTTPRequestHandler):
             self._send_json(200, result)
             return
 
-        if self.path == "/api/records":
+        if self.path == "/api/spray_history":
             conn = get_db()
-            rows = conn.execute("SELECT * FROM records ORDER BY date").fetchall()
+            rows = conn.execute("SELECT * FROM spray_history ORDER BY date").fetchall()
             conn.close()
             self._send_json(200, {"success": True, "data": [dict(r) for r in rows]})
+            return
+
+        if self.path == "/api/spray_schedule" or self.path.startswith("/api/spray_schedule?"):
+            year = None
+            if "?" in self.path:
+                for kv in self.path.split("?", 1)[1].split("&"):
+                    if kv.startswith("year="):
+                        year = kv.split("=", 1)[1]
+            conn = get_db()
+            if year:
+                rows = conn.execute(
+                    "SELECT * FROM spray_schedule WHERE schedule_date LIKE ? ORDER BY schedule_date",
+                    (f"{year}-%",),
+                ).fetchall()
+            else:
+                rows = conn.execute("SELECT * FROM spray_schedule ORDER BY schedule_date").fetchall()
+            conn.close()
+            self._send_json(200, {"success": True, "data": [dict(r) for r in rows]})
+            return
+
+        if self.path.startswith("/api/inventory"):
+            self._handle_inventory_get()
             return
 
         if self.path == "/chat" or self.path == "/chat/":
@@ -389,7 +451,7 @@ class Handler(SimpleHTTPRequestHandler):
                 """UPDATE pesticides SET name=?, activeIngredient=?, category=?,
                    targetVector=?, targetNames=?, phiDays=?, mixingRestriction=?,
                    mixingBanTargets=?, maxApplications=?, toxicityClass=?,
-                   system=?, systemCode=?
+                   system=?, systemCode=?, dilutionRate=?
                    WHERE id=?""",
                 (
                     merged["name"],
@@ -404,6 +466,7 @@ class Handler(SimpleHTTPRequestHandler):
                     merged.get("toxicityClass"),
                     merged.get("system"),
                     merged.get("systemCode"),
+                    merged.get("dilutionRate"),
                     drug_id,
                 ),
             )
@@ -442,6 +505,56 @@ class Handler(SimpleHTTPRequestHandler):
             self._send_json(200, {"status": "updated", "id": disease_id})
             return
 
+        if self.path.startswith("/api/spray_schedule/"):
+            sched_id = self.path.split("/")[-1]
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                raw = self.rfile.read(length) if length > 0 else b""
+                body = json.loads(raw.decode("utf-8")) if raw else {}
+            except (ValueError, json.JSONDecodeError):
+                self._send_json(400, {"error": "invalid JSON body"})
+                return
+
+            conn = get_db()
+            row = conn.execute("SELECT * FROM spray_schedule WHERE id=?", (sched_id,)).fetchone()
+            if row is None:
+                conn.close()
+                self._send_json(404, {"error": f"spray_schedule {sched_id} not found"})
+                return
+
+            now = datetime.datetime.utcnow().isoformat()
+            conn.execute(
+                """UPDATE spray_schedule SET
+                   schedule_date=?, actual_date=?, status=?, trigger_type=?, trigger_ref=?,
+                   eval_box_id=?, rb_out_json=?, set_ids=?, pesticide_ids=?, operator=?,
+                   weather=?, notes=?, updated_at=?
+                   WHERE id=?""",
+                (
+                    body.get("schedule_date", row["schedule_date"]),
+                    body.get("actual_date", row["actual_date"]),
+                    body.get("status", row["status"]),
+                    body.get("trigger_type", row["trigger_type"]),
+                    body.get("trigger_ref", row["trigger_ref"]),
+                    body.get("eval_box_id", row["eval_box_id"]),
+                    json.dumps(body["rb_out_json"]) if body.get("rb_out_json") is not None else (row["rb_out_json"] if "rb_out_json" not in body else None),
+                    json.dumps(body["set_ids"]) if "set_ids" in body else row["set_ids"],
+                    json.dumps(body["pesticide_ids"]) if "pesticide_ids" in body else row["pesticide_ids"],
+                    body.get("operator", row["operator"]),
+                    body.get("weather", row["weather"]),
+                    body.get("notes", row["notes"]),
+                    now,
+                    sched_id,
+                ),
+            )
+            conn.commit()
+            conn.close()
+            self._send_json(200, {"status": "updated", "id": sched_id})
+            return
+
+        if self.path.startswith("/api/inventory/"):
+            self._handle_inventory_put()
+            return
+
         self._send_json(404, {"error": "not found"})
         return
 
@@ -472,16 +585,40 @@ class Handler(SimpleHTTPRequestHandler):
             self._send_json(200, {"status": "deleted", "id": disease_id})
             return
 
-        if self.path.startswith("/api/records?date="):
+        if self.path.startswith("/api/spray_history?date="):
             date = self.path.split("?date=")[1]
             conn = get_db()
-            cur = conn.execute("DELETE FROM records WHERE date=?", (date,))
+            cur = conn.execute("DELETE FROM spray_history WHERE date=?", (date,))
             conn.commit()
             conn.close()
             if cur.rowcount == 0:
                 self._send_json(404, {"error": f"record {date} not found"})
                 return
             self._send_json(200, {"status": "deleted", "date": date})
+            return
+
+        if self.path.startswith("/api/spray_schedule/"):
+            sched_id = self.path.split("/")[-1]
+            conn = get_db()
+            cur = conn.execute("DELETE FROM spray_schedule WHERE id=?", (sched_id,))
+            conn.commit()
+            conn.close()
+            if cur.rowcount == 0:
+                self._send_json(404, {"error": f"spray_schedule {sched_id} not found"})
+                return
+            self._send_json(200, {"status": "deleted", "id": sched_id})
+            return
+
+        if self.path.startswith("/api/inventory/"):
+            inv_id = self.path.split("/")[-1]
+            conn = get_db()
+            cur = conn.execute("DELETE FROM inventory WHERE id=?", (inv_id,))
+            conn.commit()
+            conn.close()
+            if cur.rowcount == 0:
+                self._send_json(404, {"error": f"inventory {inv_id} not found"})
+                return
+            self._send_json(200, {"status": "deleted", "id": inv_id})
             return
 
         self._send_json(404, {"error": "not found"})
@@ -523,8 +660,8 @@ class Handler(SimpleHTTPRequestHandler):
                 """INSERT INTO pesticides
                    (id, name, activeIngredient, category, targetVector, targetNames,
                     phiDays, mixingRestriction, mixingBanTargets, maxApplications,
-                    toxicityClass, system, systemCode)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    toxicityClass, system, systemCode, dilutionRate)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     body["id"],
                     body["name"],
@@ -539,6 +676,7 @@ class Handler(SimpleHTTPRequestHandler):
                     body.get("toxicityClass"),
                     body.get("system"),
                     body.get("systemCode"),
+                    body.get("dilutionRate"),
                 ),
             )
             conn.commit()
@@ -581,7 +719,7 @@ class Handler(SimpleHTTPRequestHandler):
             self._send_json(200, {"status": "created", "id": body["id"]})
             return
 
-        if self.path == "/api/records":
+        if self.path == "/api/spray_history":
             try:
                 length = int(self.headers.get("Content-Length", 0))
                 raw = self.rfile.read(length) if length > 0 else b""
@@ -600,12 +738,72 @@ class Handler(SimpleHTTPRequestHandler):
 
             conn = get_db()
             conn.execute(
-                "INSERT OR REPLACE INTO records (date, pests, vector) VALUES (?, ?, ?)",
+                "INSERT OR REPLACE INTO spray_history (date, pests, vector) VALUES (?, ?, ?)",
                 (date, json.dumps(pests), json.dumps(vector)),
             )
             conn.commit()
             conn.close()
             self._send_json(200, {"status": "created", "date": date})
+            return
+
+        if self.path == "/api/spray_schedule/copy-year":
+            self._handle_spray_schedule_copy_year()
+            return
+
+        # POST /api/spray_schedule/<id>/generate — 1行分の処方生成を即時実行
+        # (UIの「⚡今すぐ」ボタン / cron を待たずRBP実行+DB更新+Slack通知)
+        m = re.match(r"^/api/spray_schedule/(\d+)/generate$", self.path)
+        if m:
+            self._handle_spray_schedule_generate(m.group(1))
+            return
+
+        if self.path == "/api/spray_schedule":
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                raw = self.rfile.read(length) if length > 0 else b""
+                body = json.loads(raw.decode("utf-8")) if raw else {}
+            except (ValueError, json.JSONDecodeError):
+                self._send_json(400, {"error": "invalid JSON body"})
+                return
+
+            schedule_date = body.get("schedule_date")
+            if not schedule_date:
+                self._send_json(400, {"error": "missing field: schedule_date"})
+                return
+
+            now = datetime.datetime.utcnow().isoformat()
+            conn = get_db()
+            cur = conn.execute(
+                """INSERT INTO spray_schedule
+                   (schedule_date, actual_date, status, trigger_type, trigger_ref,
+                    eval_box_id, rb_out_json, set_ids, pesticide_ids, operator,
+                    weather, notes, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    schedule_date,
+                    body.get("actual_date"),
+                    body.get("status", "scheduled"),
+                    body.get("trigger_type", "cycle"),
+                    body.get("trigger_ref"),
+                    body.get("eval_box_id"),
+                    json.dumps(body.get("rb_out_json")) if body.get("rb_out_json") is not None else None,
+                    json.dumps(body.get("set_ids", [])),
+                    json.dumps(body.get("pesticide_ids", [])),
+                    body.get("operator"),
+                    body.get("weather"),
+                    body.get("notes"),
+                    now,
+                    now,
+                ),
+            )
+            conn.commit()
+            new_id = cur.lastrowid
+            conn.close()
+            self._send_json(200, {"status": "created", "id": new_id})
+            return
+
+        if self.path.startswith("/api/inventory"):
+            self._handle_inventory_post()
             return
 
         if self.path not in ("/api/eval-boxes", "/api/prescribe", "/api/chat/message", "/api/chat-webhook", "/api/designer/save", "/api/designer/list", "/api/designer/load", "/api/designer/delete", "/api/tokens/set", "/api/tokens/reset"):
@@ -626,6 +824,10 @@ class Handler(SimpleHTTPRequestHandler):
 
         if self.path == "/api/prescribe":
             self._handle_prescribe(body)
+            return
+
+        if self.path == "/api/intelligent-prescribe":
+            self._handle_intelligent_prescribe(body)
             return
 
         if self.path == "/api/chat-webhook":
@@ -709,6 +911,28 @@ class Handler(SimpleHTTPRequestHandler):
 
         status = 500 if isinstance(result, dict) and result.get("error") else 200
         self._send_json(status, result)
+
+    def _handle_intelligent_prescribe(self, body):
+        """
+        統合パイプライン: 症状記述 → RAG推定 → RBP処方
+
+        POST /api/intelligent-prescribe
+        Body: {"symptoms": "葉っぱが黄色くなっていて..."}
+        """
+        symptoms = body.get("symptoms")
+        if not symptoms or not isinstance(symptoms, str) or not symptoms.strip():
+            self._send_json(400, {"error": "symptoms must be a non-empty string"})
+            return
+
+        try:
+            from mcp_tools import estimate_and_prescribe
+            result = estimate_and_prescribe(symptoms.strip())
+            # Result is already a JSON string from estimate_and_prescribe
+            parsed = json.loads(result)
+            status = 200 if parsed.get("status") == "OK" else 422
+            self._send_json(status, parsed)
+        except Exception as e:
+            self._send_json(500, {"error": f"intelligent-prescribe error: {e}"})
 
     # ── Chat AI ──────────────────────────────────────────────────
 
@@ -897,6 +1121,398 @@ class Handler(SimpleHTTPRequestHandler):
         """POST /api/tokens/reset — Reset all tokens."""
         result = reset_tokens()
         self._send_json(200, result)
+
+    # ─── Inventory Management API ─────────────────────────────────
+
+    def _handle_inventory_get(self):
+        """GET /api/inventory — List all inventory items.
+           GET /api/inventory/<id> — Get single item.
+           GET /api/inventory/by-pesticide/<pid> — List by pesticide ID.
+        """
+        if self.path == "/api/inventory":
+            conn = get_db()
+            rows = conn.execute(
+                """SELECT i.*, p.name AS pesticideName, p.category
+                   FROM inventory i
+                   LEFT JOIN pesticides p ON i.pesticideId = p.id
+                   ORDER BY i.expiryDate ASC, i.createdAt DESC"""
+            ).fetchall()
+            conn.close()
+            self._send_json(200, {"inventory": [dict(r) for r in rows]})
+            return
+
+        if self.path.startswith("/api/inventory/by-pesticide/"):
+            pid = self.path.split("/")[-1]
+            conn = get_db()
+            rows = conn.execute(
+                """SELECT i.*, p.name AS pesticideName, p.category
+                   FROM inventory i
+                   LEFT JOIN pesticides p ON i.pesticideId = p.id
+                   WHERE i.pesticideId = ?
+                   ORDER BY i.expiryDate ASC""",
+                (pid,)
+            ).fetchall()
+            conn.close()
+            self._send_json(200, {"inventory": [dict(r) for r in rows]})
+            return
+
+        if self.path.startswith("/api/inventory/"):
+            inv_id = self.path.split("/")[-1]
+            conn = get_db()
+            row = conn.execute(
+                """SELECT i.*, p.name AS pesticideName, p.category
+                   FROM inventory i
+                   LEFT JOIN pesticides p ON i.pesticideId = p.id
+                   WHERE i.id = ?""",
+                (inv_id,)
+            ).fetchone()
+            conn.close()
+            if row:
+                self._send_json(200, dict(row))
+            else:
+                self._send_json(404, {"error": f"inventory {inv_id} not found"})
+            return
+
+        self._send_json(404, {"error": "not found"})
+        return
+
+    def _handle_inventory_post(self):
+        """POST /api/inventory — Create inventory item.
+           POST /api/inventory/<id>/consume — Decrease quantity.
+           POST /api/inventory/<id>/restock — Increase quantity.
+        """
+        # Special actions: consume / restock
+        if self.path.endswith("/consume"):
+            inv_id = self.path.split("/")[-2]
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                raw = self.rfile.read(length) if length > 0 else b""
+                body = json.loads(raw.decode("utf-8")) if raw else {}
+            except (ValueError, json.JSONDecodeError):
+                self._send_json(400, {"error": "invalid JSON body"})
+                return
+
+            amount = body.get("amount", 0)
+            if amount <= 0:
+                self._send_json(400, {"error": "amount must be positive"})
+                return
+
+            conn = get_db()
+            row = conn.execute("SELECT * FROM inventory WHERE id=?", (inv_id,)).fetchone()
+            if row is None:
+                conn.close()
+                self._send_json(404, {"error": f"inventory {inv_id} not found"})
+                return
+
+            current_qty = row["quantity"]
+            if amount > current_qty:
+                conn.close()
+                self._send_json(400, {
+                    "error": f"在庫が不足しています。現在の在庫: {current_qty}",
+                    "available": current_qty,
+                    "requested": amount,
+                })
+                return
+
+            new_qty = current_qty - amount
+            now = datetime.datetime.utcnow().isoformat()
+            conn.execute(
+                "UPDATE inventory SET quantity=?, updatedAt=? WHERE id=?",
+                (new_qty, now, inv_id)
+            )
+            conn.commit()
+            conn.close()
+            self._send_json(200, {"status": "consumed", "id": inv_id, "remaining": new_qty})
+            return
+
+        if self.path.endswith("/restock"):
+            inv_id = self.path.split("/")[-2]
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                raw = self.rfile.read(length) if length > 0 else b""
+                body = json.loads(raw.decode("utf-8")) if raw else {}
+            except (ValueError, json.JSONDecodeError):
+                self._send_json(400, {"error": "invalid JSON body"})
+                return
+
+            amount = body.get("amount", 0)
+            if amount <= 0:
+                self._send_json(400, {"error": "amount must be positive"})
+                return
+
+            conn = get_db()
+            row = conn.execute("SELECT * FROM inventory WHERE id=?", (inv_id,)).fetchone()
+            if row is None:
+                conn.close()
+                self._send_json(404, {"error": f"inventory {inv_id} not found"})
+                return
+
+            new_qty = row["quantity"] + amount
+            now = datetime.datetime.utcnow().isoformat()
+            conn.execute(
+                "UPDATE inventory SET quantity=?, updatedAt=? WHERE id=?",
+                (new_qty, now, inv_id)
+            )
+            conn.commit()
+            conn.close()
+            self._send_json(200, {"status": "restocked", "id": inv_id, "total": new_qty})
+            return
+
+        # Normal: create new inventory item
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            raw = self.rfile.read(length) if length > 0 else b""
+            body = json.loads(raw.decode("utf-8")) if raw else {}
+        except (ValueError, json.JSONDecodeError):
+            self._send_json(400, {"error": "invalid JSON body"})
+            return
+
+        pesticide_id = body.get("pesticideId")
+        product_name = body.get("productName")
+        quantity = body.get("quantity", 0)
+
+        if not pesticide_id or not product_name:
+            self._send_json(400, {"error": "pesticideId and productName are required"})
+            return
+
+        # Verify pesticide exists
+        conn = get_db()
+        pest_row = conn.execute("SELECT id FROM pesticides WHERE id=?", (pesticide_id,)).fetchone()
+        if pest_row is None:
+            conn.close()
+            self._send_json(404, {"error": f"pesticide {pesticide_id} not found"})
+            return
+
+        now = datetime.datetime.utcnow().isoformat()
+        inv_id = body.get("id", f"INV-{len(conn.execute('SELECT id FROM inventory').fetchall()):04d}")
+
+        conn.execute(
+            """INSERT INTO inventory
+               (id, pesticideId, productName, lotNumber, quantity, unit,
+                expiryDate, supplier, purchaseDate, notes, createdAt, updatedAt)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                inv_id,
+                pesticide_id,
+                product_name,
+                body.get("lotNumber"),
+                float(quantity),
+                body.get("unit", "ml"),
+                body.get("expiryDate"),
+                body.get("supplier"),
+                body.get("purchaseDate"),
+                body.get("notes"),
+                now,
+                now,
+            ),
+        )
+        conn.commit()
+        conn.close()
+        self._send_json(200, {"status": "created", "id": inv_id})
+        return
+
+    def _handle_inventory_put(self):
+        """PUT /api/inventory/<id> — Update inventory item."""
+        inv_id = self.path.split("/")[-1]
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            raw = self.rfile.read(length) if length > 0 else b""
+            body = json.loads(raw.decode("utf-8")) if raw else {}
+        except (ValueError, json.JSONDecodeError):
+            self._send_json(400, {"error": "invalid JSON body"})
+            return
+
+        conn = get_db()
+        row = conn.execute("SELECT * FROM inventory WHERE id=?", (inv_id,)).fetchone()
+        if row is None:
+            conn.close()
+            self._send_json(404, {"error": f"inventory {inv_id} not found"})
+            return
+
+        # Validate pesticideId if provided
+        if "pesticideId" in body:
+            pest_row = conn.execute(
+                "SELECT id FROM pesticides WHERE id=?", (body["pesticideId"],)
+            ).fetchone()
+            if pest_row is None:
+                conn.close()
+                self._send_json(404, {"error": f"pesticide {body['pesticideId']} not found"})
+                return
+
+        now = datetime.datetime.utcnow().isoformat()
+        conn.execute(
+            """UPDATE inventory SET
+               pesticideId=?, productName=?, lotNumber=?, quantity=?, unit=?,
+               expiryDate=?, supplier=?, purchaseDate=?, notes=?, updatedAt=?
+               WHERE id=?""",
+            (
+                body.get("pesticideId", row["pesticideId"]),
+                body.get("productName", row["productName"]),
+                body.get("lotNumber", row["lotNumber"]),
+                float(body.get("quantity", row["quantity"])),
+                body.get("unit", row["unit"]),
+                body.get("expiryDate", row["expiryDate"]),
+                body.get("supplier", row["supplier"]),
+                body.get("purchaseDate", row["purchaseDate"]),
+                body.get("notes", row["notes"]),
+                now,
+                inv_id,
+            ),
+        )
+        conn.commit()
+        conn.close()
+        self._send_json(200, {"status": "updated", "id": inv_id})
+        return
+
+    def _handle_spray_schedule_generate(self, sched_id):
+        """POST /api/spray_schedule/<id>/generate — 指定1行の処方生成を即時実行。
+
+        UI の「⚡今すぐ」ボタン用。scripts/rx_prescribe.py の process_row を再利用し、
+        RBP 実行 → spray_schedule 更新 → Slack 通知 を行う。
+        """
+        try:
+            sys.path.insert(0, os.path.join(APP_ROOT, "scripts"))
+            import rx_prescribe
+            from datetime import datetime, timedelta, timezone
+            jst = timezone(timedelta(hours=9))
+            now = datetime.now(jst)
+
+            conn = get_db()
+            row = conn.execute(
+                "SELECT * FROM spray_schedule WHERE id=?", (sched_id,)
+            ).fetchone()
+            if row is None:
+                conn.close()
+                self._send_json(404, {"error": f"spray_schedule {sched_id} not found"})
+                return
+
+            result = rx_prescribe.process_row(
+                row, now,
+                rx_prescribe.load_eval_box_vectors(),
+                rx_prescribe.load_pesticide_meta(),
+                conn,
+            )
+            conn.close()
+            if not result["ok"]:
+                self._send_json(422, {"error": result["error"]})
+                return
+            self._send_json(200, {
+                "status": "generated",
+                "id": sched_id,
+                "set_label": result["set_label"],
+                "pesticides": result["names"],
+                "slack": "ok" if result["slack_ok"] else "failed",
+            })
+        except Exception as e:
+            self._send_json(500, {"error": f"generate error: {e}"})
+
+    def _handle_spray_schedule_copy_year(self):
+        """POST /api/spray_schedule/copy-year — 年度複製。
+           spray_schedule に fromYear のデータがあればそれを複製元にする
+           （日付の年だけ置き換え、status='scheduled' にリセット）。
+           なければ spray_history の fromYear データをブートストラップ元として使う
+           （set_ids/pesticide_ids は空配列で作成し、手動入力を促す）。
+           toYear に既存の同日エントリがある場合はスキップする。
+        """
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            raw = self.rfile.read(length) if length > 0 else b""
+            body = json.loads(raw.decode("utf-8")) if raw else {}
+        except (ValueError, json.JSONDecodeError):
+            self._send_json(400, {"error": "invalid JSON body"})
+            return
+
+        from_year = body.get("fromYear")
+        to_year = body.get("toYear")
+        if not from_year or not to_year:
+            self._send_json(400, {"error": "fromYear and toYear are required"})
+            return
+        from_year = str(from_year)
+        to_year = str(to_year)
+
+        conn = get_db()
+        existing_target_dates = {
+            r["schedule_date"] for r in conn.execute(
+                "SELECT schedule_date FROM spray_schedule WHERE schedule_date LIKE ?",
+                (f"{to_year}-%",),
+            ).fetchall()
+        }
+
+        source_rows = conn.execute(
+            "SELECT * FROM spray_schedule WHERE schedule_date LIKE ? ORDER BY schedule_date",
+            (f"{from_year}-%",),
+        ).fetchall()
+
+        now = datetime.datetime.utcnow().isoformat()
+        created = 0
+        skipped = 0
+
+        if source_rows:
+            source = "spray_schedule"
+            for r in source_rows:
+                new_date = to_year + r["schedule_date"][4:]
+                if new_date in existing_target_dates:
+                    skipped += 1
+                    continue
+                conn.execute(
+                    """INSERT INTO spray_schedule
+                       (schedule_date, actual_date, status, trigger_type, trigger_ref,
+                        eval_box_id, rb_out_json, set_ids, pesticide_ids, operator,
+                        weather, notes, created_at, updated_at)
+                       VALUES (?, NULL, 'scheduled', ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?)""",
+                    (
+                        new_date,
+                        r["trigger_type"],
+                        str(r["id"]),
+                        r["eval_box_id"],
+                        r["rb_out_json"],
+                        r["set_ids"],
+                        r["pesticide_ids"],
+                        r["notes"],
+                        now,
+                        now,
+                    ),
+                )
+                created += 1
+        else:
+            source = "spray_history"
+            history_rows = conn.execute(
+                "SELECT * FROM spray_history WHERE date LIKE ? ORDER BY date",
+                (f"{from_year}-%",),
+            ).fetchall()
+            for r in history_rows:
+                new_date = to_year + r["date"][4:]
+                if new_date in existing_target_dates:
+                    skipped += 1
+                    continue
+                pests = json.loads(r["pests"]) if r["pests"] else []
+                conn.execute(
+                    """INSERT INTO spray_schedule
+                       (schedule_date, actual_date, status, trigger_type, trigger_ref,
+                        eval_box_id, rb_out_json, set_ids, pesticide_ids, operator,
+                        weather, notes, created_at, updated_at)
+                       VALUES (?, NULL, 'scheduled', 'cycle', ?, NULL, NULL, '[]', '[]', NULL, NULL, ?, ?, ?)""",
+                    (
+                        new_date,
+                        r["date"],
+                        "、".join(pests) if pests else None,
+                        now,
+                        now,
+                    ),
+                )
+                created += 1
+
+        conn.commit()
+        conn.close()
+        self._send_json(200, {
+            "status": "OK",
+            "source": source,
+            "fromYear": from_year,
+            "toYear": to_year,
+            "created": created,
+            "skipped": skipped,
+        })
+        return
 
 
 def main():

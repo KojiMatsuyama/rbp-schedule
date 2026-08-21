@@ -29,7 +29,8 @@
     "maxApplications": 3.0,
     "toxicityClass": "普通物",
     "system": "QoI（ストロビルリン）",
-    "systemCode": "FRAC11"
+    "systemCode": "FRAC11",
+    "dilutionRate": "1500倍液"
   },
   {
     "id": "P02",
@@ -61,7 +62,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "劇物",
     "system": "キノキサリン系",
-    "systemCode": "FRAC-QUINOX"
+    "systemCode": "FRAC-QUINOX",
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P03",
@@ -89,7 +91,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "フルアジナム系",
-    "systemCode": "FRAC29"
+    "systemCode": "FRAC29",
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P04",
@@ -119,7 +122,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "チアゾリジン系",
-    "systemCode": "FRAC21"
+    "systemCode": "FRAC21",
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P05",
@@ -150,7 +154,8 @@
     "maxApplications": 3.0,
     "toxicityClass": "普通物",
     "system": "ジチオカーバメート系",
-    "systemCode": "FRACM3"
+    "systemCode": "FRACM3",
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P06",
@@ -181,7 +186,8 @@
     "maxApplications": 3.0,
     "toxicityClass": "普通物",
     "system": "QoI",
-    "systemCode": "FRAC11"
+    "systemCode": "FRAC11",
+    "dilutionRate": "1500倍液"
   },
   {
     "id": "P07",
@@ -209,7 +215,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "混合剤",
-    "systemCode": "MIX"
+    "systemCode": "MIX",
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P08",
@@ -241,7 +248,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "SDHI＋QoI",
-    "systemCode": "FRAC7+11"
+    "systemCode": "FRAC7+11",
+    "dilutionRate": "2000倍液"
   },
   {
     "id": "P09",
@@ -272,7 +280,8 @@
     "maxApplications": 3.0,
     "toxicityClass": "普通物",
     "system": "QoI",
-    "systemCode": "FRAC11"
+    "systemCode": "FRAC11",
+    "dilutionRate": "1500倍液"
   },
   {
     "id": "P10",
@@ -300,7 +309,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "ピラゾール系",
-    "systemCode": "FRAC-PYRAZOLE"
+    "systemCode": "FRAC-PYRAZOLE",
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P11",
@@ -330,7 +340,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "DMI（トリアゾール）",
-    "systemCode": "FRAC3"
+    "systemCode": "FRAC3",
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P12",
@@ -358,7 +369,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "マンジプロパミド系",
-    "systemCode": "FRAC40"
+    "systemCode": "FRAC40",
+    "dilutionRate": "1500倍液"
   },
   {
     "id": "P13",
@@ -386,7 +398,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "イミノクタジン系",
-    "systemCode": "FRAC-GUANIDINE"
+    "systemCode": "FRAC-GUANIDINE",
+    "dilutionRate": "1500倍液"
   },
   {
     "id": "P14",
@@ -416,7 +429,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "DMI",
-    "systemCode": "FRAC3"
+    "systemCode": "FRAC3",
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P15",
@@ -445,7 +459,8 @@
     "maxApplications": 3.0,
     "toxicityClass": "普通物",
     "system": "ベンズイミダゾール系",
-    "systemCode": "FRAC1"
+    "systemCode": "FRAC1",
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P16",
@@ -473,7 +488,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "フェニルピロール",
-    "systemCode": "FRAC12"
+    "systemCode": "FRAC12",
+    "dilutionRate": "1500倍液"
   },
   {
     "id": "P17",
@@ -501,7 +517,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "アニリド系",
-    "systemCode": "FRAC-ANILIDE"
+    "systemCode": "FRAC-ANILIDE",
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P18",
@@ -529,7 +546,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "イミノクタジン系",
-    "systemCode": "FRAC-GUANIDINE"
+    "systemCode": "FRAC-GUANIDINE",
+    "dilutionRate": "1500倍液"
   },
   {
     "id": "P19",
@@ -557,7 +575,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "ジカルボキシイミド系",
-    "systemCode": "FRAC2"
+    "systemCode": "FRAC2",
+    "dilutionRate": "1500倍液"
   },
   {
     "id": "P20",
@@ -587,7 +606,8 @@
     "maxApplications": 3.0,
     "toxicityClass": "普通物",
     "system": "フタルイミド系",
-    "systemCode": "FRACM4"
+    "systemCode": "FRACM4",
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P21",
@@ -616,7 +636,8 @@
     "maxApplications": 3.0,
     "toxicityClass": "普通物",
     "system": "ベンズイミダゾール系",
-    "systemCode": "FRAC1"
+    "systemCode": "FRAC1",
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P22",
@@ -644,7 +665,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "イミノクタジン系",
-    "systemCode": "FRAC-GUANIDINE"
+    "systemCode": "FRAC-GUANIDINE",
+    "dilutionRate": "1500倍液"
   },
   {
     "id": "P23",
@@ -672,7 +694,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "イミノクタジン系",
-    "systemCode": "FRAC-GUANIDINE"
+    "systemCode": "FRAC-GUANIDINE",
+    "dilutionRate": "1500倍液"
   },
   {
     "id": "P24",
@@ -700,7 +723,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "イミノクタジン系",
-    "systemCode": "FRAC-GUANIDINE"
+    "systemCode": "FRAC-GUANIDINE",
+    "dilutionRate": "1500倍液"
   },
   {
     "id": "P25",
@@ -728,7 +752,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "フェニルピロール",
-    "systemCode": "FRAC12"
+    "systemCode": "FRAC12",
+    "dilutionRate": "1500倍液"
   },
   {
     "id": "P26",
@@ -756,7 +781,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "イミノクタジン系",
-    "systemCode": "FRAC-GUANIDINE"
+    "systemCode": "FRAC-GUANIDINE",
+    "dilutionRate": "1500倍液"
   },
   {
     "id": "P27",
@@ -786,7 +812,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "DMI",
-    "systemCode": "FRAC3"
+    "systemCode": "FRAC3",
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P28",
@@ -814,7 +841,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "カルバメート系",
-    "systemCode": "FRAC-CARBAMATE"
+    "systemCode": "FRAC-CARBAMATE",
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P29",
@@ -842,7 +870,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "フェニルピロール",
-    "systemCode": "FRAC12"
+    "systemCode": "FRAC12",
+    "dilutionRate": "1500倍液"
   },
   {
     "id": "P30",
@@ -873,7 +902,8 @@
     "maxApplications": "inf",
     "toxicityClass": "普通物",
     "system": "無機硫黄",
-    "systemCode": "FRACM2"
+    "systemCode": "FRACM2",
+    "dilutionRate": "300倍液"
   },
   {
     "id": "P31",
@@ -903,7 +933,8 @@
     "maxApplications": "inf",
     "toxicityClass": "普通物",
     "system": "無機塩",
-    "systemCode": "FRAC-BICARB"
+    "systemCode": "FRAC-BICARB",
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P32",
@@ -931,7 +962,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "イミノクタジン系",
-    "systemCode": "FRAC-GUANIDINE"
+    "systemCode": "FRAC-GUANIDINE",
+    "dilutionRate": "1500倍液"
   },
   {
     "id": "P33",
@@ -961,7 +993,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "DMI（トリアゾール）",
-    "systemCode": "FRAC3"
+    "systemCode": "FRAC3",
+    "dilutionRate": "2000倍液"
   },
   {
     "id": "P34",
@@ -989,7 +1022,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "フルアジナム系",
-    "systemCode": "FRAC29"
+    "systemCode": "FRAC29",
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P35",
@@ -1019,7 +1053,8 @@
     "maxApplications": 3.0,
     "toxicityClass": "普通物",
     "system": "フタルイミド系",
-    "systemCode": "FRACM4"
+    "systemCode": "FRACM4",
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P36",
@@ -1047,7 +1082,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "混合剤",
-    "systemCode": "MIX"
+    "systemCode": "MIX",
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P37",
@@ -1075,7 +1111,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "マンジプロパミド系",
-    "systemCode": "FRAC40"
+    "systemCode": "FRAC40",
+    "dilutionRate": "1500倍液"
   },
   {
     "id": "P38",
@@ -1104,7 +1141,8 @@
     "maxApplications": 3.0,
     "toxicityClass": "普通物",
     "system": "ベンズイミダゾール系（FRAC 1）",
-    "systemCode": "FRAC1"
+    "systemCode": "FRAC1",
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P39",
@@ -1135,7 +1173,8 @@
     "maxApplications": 3.0,
     "toxicityClass": "普通物",
     "system": "QoI（ストロビルリン系／FRAC 11）",
-    "systemCode": "FRAC11"
+    "systemCode": "FRAC11",
+    "dilutionRate": "1500倍液"
   },
   {
     "id": "P40",
@@ -1167,7 +1206,8 @@
     "maxApplications": "inf",
     "toxicityClass": "普通物",
     "system": "無機銅剤（FRAC M1）",
-    "systemCode": "FRACM1"
+    "systemCode": "FRACM1",
+    "dilutionRate": "500倍液"
   },
   {
     "id": "P41",
@@ -1196,7 +1236,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "マクロライド",
-    "systemCode": "IRAC6"
+    "systemCode": "IRAC6",
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P42",
@@ -1227,7 +1268,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "スピノシン",
-    "systemCode": "IRAC5"
+    "systemCode": "IRAC5",
+    "dilutionRate": "2000倍液"
   },
   {
     "id": "P43",
@@ -1255,7 +1297,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "ピリジン系",
-    "systemCode": "IRAC9B"
+    "systemCode": "IRAC9B",
+    "dilutionRate": "2000倍液"
   },
   {
     "id": "P44",
@@ -1283,7 +1326,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "ピリジン系",
-    "systemCode": "IRAC9B"
+    "systemCode": "IRAC9B",
+    "dilutionRate": "2000倍液"
   },
   {
     "id": "P45",
@@ -1314,7 +1358,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "フェニルピロール",
-    "systemCode": "FRAC12"
+    "systemCode": "FRAC12",
+    "dilutionRate": "1500倍液"
   },
   {
     "id": "P46",
@@ -1345,7 +1390,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "スピノシン",
-    "systemCode": "IRAC5"
+    "systemCode": "IRAC5",
+    "dilutionRate": "2000倍液"
   },
   {
     "id": "P47",
@@ -1375,7 +1421,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "METI",
-    "systemCode": "IRAC21A"
+    "systemCode": "IRAC21A",
+    "dilutionRate": "2000倍液"
   },
   {
     "id": "P48",
@@ -1405,7 +1452,8 @@
     "maxApplications": 1.0,
     "toxicityClass": "劇物",
     "system": "有機リン",
-    "systemCode": "IRAC1B"
+    "systemCode": "IRAC1B",
+    "dilutionRate": "2000倍液"
   },
   {
     "id": "P49",
@@ -1433,7 +1481,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "マクロライド",
-    "systemCode": "IRAC6"
+    "systemCode": "IRAC6",
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P50",
@@ -1462,7 +1511,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "ネオニコチノイド",
-    "systemCode": "IRAC4A"
+    "systemCode": "IRAC4A",
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P51",
@@ -1491,7 +1541,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "ネオニコチノイド",
-    "systemCode": "IRAC4A"
+    "systemCode": "IRAC4A",
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P52",
@@ -1520,7 +1571,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "ネオニコチノイド",
-    "systemCode": "IRAC4A"
+    "systemCode": "IRAC4A",
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P53",
@@ -1548,7 +1600,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "METI",
-    "systemCode": "IRAC21A"
+    "systemCode": "IRAC21A",
+    "dilutionRate": "1500倍液"
   },
   {
     "id": "P54",
@@ -1578,7 +1631,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "テトラジホン系",
-    "systemCode": "IRAC-TETRADIFON"
+    "systemCode": "IRAC-TETRADIFON",
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P55",
@@ -1606,7 +1660,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "IGR（卵阻害）",
-    "systemCode": "IRAC10"
+    "systemCode": "IRAC10",
+    "dilutionRate": "2000倍液"
   },
   {
     "id": "P56",
@@ -1634,7 +1689,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "マクロライド",
-    "systemCode": "IRAC6"
+    "systemCode": "IRAC6",
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P57",
@@ -1662,7 +1718,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "マクロライド",
-    "systemCode": "IRAC6"
+    "systemCode": "IRAC6",
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P58",
@@ -1692,7 +1749,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "テトラジホン系",
-    "systemCode": "IRAC-TETRADIFON"
+    "systemCode": "IRAC-TETRADIFON",
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P59",
@@ -1722,7 +1780,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "METI",
-    "systemCode": "IRAC21A"
+    "systemCode": "IRAC21A",
+    "dilutionRate": "2000倍液"
   },
   {
     "id": "P60",
@@ -1750,7 +1809,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "IGR",
-    "systemCode": "IRAC10"
+    "systemCode": "IRAC10",
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P61",
@@ -1781,7 +1841,8 @@
     "maxApplications": "inf",
     "toxicityClass": "普通物",
     "system": "物理剤",
-    "systemCode": "PHYSICAL"
+    "systemCode": "PHYSICAL",
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P62",
@@ -1809,7 +1870,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "脂質生合成阻害（IRAC 23）",
-    "systemCode": "IRAC23"
+    "systemCode": "IRAC23",
+    "dilutionRate": "2000倍液"
   },
   {
     "id": "P63",
@@ -1837,7 +1899,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "IGR（卵阻害）",
-    "systemCode": "IRAC10"
+    "systemCode": "IRAC10",
+    "dilutionRate": "2000倍液"
   },
   {
     "id": "P64",
@@ -1867,7 +1930,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "フェニルピロール",
-    "systemCode": "FRAC12"
+    "systemCode": "FRAC12",
+    "dilutionRate": "1500倍液"
   },
   {
     "id": "P65",
@@ -1897,7 +1961,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "METI",
-    "systemCode": "IRAC21A"
+    "systemCode": "IRAC21A",
+    "dilutionRate": "2000倍液"
   },
   {
     "id": "P66",
@@ -1927,7 +1992,8 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "フェニルピロール",
-    "systemCode": "FRAC12"
+    "systemCode": "FRAC12",
+    "dilutionRate": "1500倍液"
   },
   {
     "id": "P67",
@@ -1957,6 +2023,7 @@
     "maxApplications": 2.0,
     "toxicityClass": "普通物",
     "system": "METI（複合体Ⅱ阻害／IRAC 21A）",
-    "systemCode": "IRAC21A"
+    "systemCode": "IRAC21A",
+    "dilutionRate": "1500倍液"
   }
 ]

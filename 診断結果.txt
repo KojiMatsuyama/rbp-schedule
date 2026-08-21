@@ -300,7 +300,7 @@ Phase 1: 手続き処理の洗い出し結果
 
 ■ computeUsageState（該当行: 5-13）
 現在の処理内容:
-  Object.keys(records)をforループし、年でフィルタ後forEachでカウント辞書を更新
+  Object.keys(sprayHistory)をforループし、年でフィルタ後forEachでカウント辞書を更新
 手続き的である理由:
   手動の辞書集計。行列的には「散布記録×薬剤」の出現行列の列和
 対応するモデル層:

@@ -1,5 +1,13 @@
 .claude/
 data/eval_boxes_custom.json
+logs/
 *.pyc
 __pycache__/
 .env
+node_modules/
+data/stb.db
+data/stb.db-shm
+data/stb.db-wal
+data/stb.db.bak_*
+server.log
+rbp-algebra/dist-newstyle-user/

@@ -167,6 +167,9 @@ header .year-nav span { font-size: 1.1rem; min-width: 60px; text-align: center; 
   background: var(--danger);
   animation: pulse 2s infinite;
 }
+.day-badge.has-schedule {
+  background: #2980b9;
+}
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: .6; }
@@ -616,6 +619,7 @@ details.spec-alternatives summary, details.spec-excluded summary {
 .legend span { display: flex; align-items: center; gap: 4px; }
 .legend .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 .legend .dot.green { background: var(--accent); }
+.legend .dot.blue { background: #2980b9; }
 .legend .dot.red { background: var(--danger); }
 
 /* Stats bar */

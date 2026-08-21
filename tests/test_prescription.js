@@ -8,14 +8,14 @@ const { describe, it, assert, assertDeepEqualAcrossRealms, summary } = require('
 
 const ctx = loadApp();
 
-function safetyVector(records, date) {
-  return evalInApp(ctx, `buildSafetyVector(${JSON.stringify(records)}, ${JSON.stringify(date)})`);
+function safetyVector(sprayHistory, date) {
+  return evalInApp(ctx, `buildSafetyVector(${JSON.stringify(sprayHistory)}, ${JSON.stringify(date)})`);
 }
 
-function prescribe(d, records, date) {
+function prescribe(d, sprayHistory, date) {
   const script = `
     (function() {
-      const safetyVector = buildSafetyVector(${JSON.stringify(records)}, ${JSON.stringify(date)});
+      const safetyVector = buildSafetyVector(${JSON.stringify(sprayHistory)}, ${JSON.stringify(date)});
       const result = buildPrescriptionSet(${JSON.stringify(d)}, safetyVector);
       return {
         status: result.status,
@@ -48,11 +48,11 @@ describe('buildPrescriptionSet（正常系）', () => {
 
   it('同一薬剤を散布回数上限まで使うと、それ以降は除外される', () => {
     // P02キノンドー: maxApplications:2, targetVector:[1,0,0,...]（炭疽のみ）
-    const records = {
+    const sprayHistory = {
       '2026-07-01': { pesticideIds: ['P02'] },
       '2026-07-10': { pesticideIds: ['P02'] },
     };
-    const result = prescribe([1,0,0,0,0,0,0,0,0,0], records, '2026-08-15');
+    const result = prescribe([1,0,0,0,0,0,0,0,0,0], sprayHistory, '2026-08-15');
     assert.strictEqual(result.status, 'SUCCESS');
     assert.ok(!result.bestIds.includes('P02'), 'P02は散布回数上限(2回)に到達しているため候補から除外されるはず');
   });

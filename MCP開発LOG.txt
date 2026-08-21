@@ -1,0 +1,43 @@
+# MCP開発 LOG — STB 農業AIアシスタント
+
+## 2026-08-16 開発開始
+
+### 目標
+- Gemini 2.0 Flash（無料）を使って、自然言語でSTBアプリのデータを操作するAIアシスタントを実装
+- スマホのブラウザから使えるチャットUIを追加
+- MCPプロトコルでツールを定義（検索・一覧・履歴・更新・処方）
+- server.pyに統合（別プロセス不要、stdio不要のインプロセス型）
+
+### 設計決定
+- LLM: Google Gemini 2.0 Flash（無料枠）
+- MCPツール: インプロセス型（server.py内で直接実行、MCPサーバープロセス不要）
+- チャットUI: server.pyに新エンドポイント追加で配信
+- デプロイ: ローカルserver.py完結（Cloudflareには非対応。Tailscaleでリモートアクセス）
+
+### 実装ファイル一覧
+
+#### 新規作成ファイル
+1. `mcp_tools.py` — MCPツール定義（検索・一覧・履歴・更新・処方）
+2. `chat.html` — チャットUIページ
+3. `.env` — APIキー設定（.gitignore対象）
+4. `.env.example` — 雛形
+5. `requirements-mcp.txt` — 追加依存パッケージ
+
+#### 修正ファイル
+6. `server.py` — /chat ページ配信 + /api/chat API追加
+7. `index.html` — ヘッダーにチャットボタン追加
+
+### ステータス
+- [x] 設計レビュー完了
+- [x] mcp_tools.py 作成
+- [x] chat.html 作成（2026-08-17 クイックアクションボタン構文エラー修正）
+- [x] .env / .env.example 作成
+- [x] requirements-mcp.txt 作成
+- [x] server.py 修正
+- [x] index.html 修正
+- [ ] 動作検証（Gemini APIキー設定後）
+
+### 既知の課題
+- Cloudflare PagesではGemini API呼び出し不可（サーバーサイド処理が必要）
+- Tailscale導入でリモートアクセス可能になる予定
+- Geminiの無料枠: 15 RPM, 100万 TPM

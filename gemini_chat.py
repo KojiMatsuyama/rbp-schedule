@@ -86,7 +86,7 @@ def _local_search(message: str) -> str:
         search_pesticides,
         list_pesticides,
         list_diseases,
-        get_records,
+        get_spray_history,
         summarize_history,
         get_current_season_advice,
     )
@@ -135,7 +135,7 @@ def _local_search(message: str) -> str:
 
     # --- 防除履歴 ---
     if "履歴" in msg or "記録" in msg or "レコード" in msg:
-        return get_records(limit=50)
+        return get_spray_history(limit=50)
 
     # --- 病害虫名での検索（炭疽病、うどんこ病、アブラムシなど） ---
     keywords = ["炭疽", "うどんこ", "灰色かび", "アブラムシ", "コナジラミ",
