@@ -1,14 +1,14 @@
 """Agentic chat — LangGraph-powered conversational backend for STB.
 
-Framework: 認知 → 評価 → 決定 → 投射/在庫(並列) → 実行
+Framework: 状態 → 認知 → 評価 → 決定 → 投射/在庫(並列)
 
 Petri Net parallel-transition graph:
 
-  1. perception_node   — User input → 10-dim disease/pest vector
-  2. evaluation_node   — Vector → EvalBox matching (requirement evaluation)
-  3. decision_node     — EvalBox + RBP matrix calc → pesticide selection
-  4. projection_node   — Drug names → message template
-  5. execution_node    — Send to Slack (projection result)
+  1. state_node        — Token aggregation (schedule/crop/environment/growth_stage)
+  2. perception_node   — User input → 10-dim disease/pest vector
+  3. evaluation_node   — Vector → EvalBox matching (requirement evaluation)
+  4. decision_node     — EvalBox + RBP matrix calc → pesticide selection
+  5. projection_node   — Drug names → message template
   6. inventory_node    — Stock check for prescribed drugs (parallel)
   7. inventory_exec    — Send to Slack (inventory result)
 
@@ -19,7 +19,6 @@ that converge at END.
 
 import logging
 import os
-import uuid
 from typing import Optional
 
 from .graph import build_graph
@@ -35,7 +34,6 @@ def run(
     message: str,
     *,
     conversation_id: Optional[str] = None,
-    is_slack_request: bool = False,
     thread_id: Optional[str] = None,
 ) -> str:
     """Run the Petri Net parallel-transition pipeline.
@@ -43,7 +41,6 @@ def run(
     Args:
         message: User input text.
         conversation_id: Legacy conv ID (kept for API compat).
-        is_slack_request: If True, execution_node and inventory_exec_node send to Slack.
         thread_id: LangGraph thread for conversation history.
 
     Returns:
@@ -192,55 +189,3 @@ def _fallback_chat_reply(message: str) -> str:
         "症状（例:「実が腐ってる」「葉に白い粉が吹いてる」）を教えていただくと、"
         "薬剤のRBP処方を行います。"
     )
-
-
-def run_with_prescription(prescription: list[dict]) -> dict:
-    """
-    処方トークンを直接投入して並列遷移を実行。
-
-    外部システム（在庫管理、散布予約等）から直接処方結果を投入する場合に使用。
-
-    Args:
-        prescription: [{"name": "ベルクート", "quantity": 3}, ...]
-
-    Returns:
-        {
-            "projected_message": "...",
-            "inventory_message": "...",
-            "executed_projection": True/False,
-            "executed_inventory": True/False,
-        }
-    """
-    tid = str(uuid.uuid4())
-
-    state: ChatState = {
-        "messages": [],
-        "identified_diseases": [],
-        "vector": [0] * 10,
-        "eval_box_id": None,
-        "eval_box_name": None,
-        "eval_status": None,
-        "prescription": prescription,
-        "mirror_id": None,
-        "effectiveness": None,
-        "line_traces": [],
-        "excluded_drugs": [],
-        "excluded_combos": [],
-        "projected_message": None,
-        "inventory_check": None,
-        "inventory_message": None,
-        "executed_projection": False,
-        "executed_inventory": False,
-        "sent_to": None,
-        "error": None,
-    }
-
-    config = {"configurable": {"thread_id": tid}}
-    result = _app.invoke(state, config=config)
-
-    return {
-        "projected_message": result.get("projected_message"),
-        "inventory_message": result.get("inventory_message"),
-        "executed_projection": result.get("executed_projection", False),
-        "executed_inventory": result.get("executed_inventory", False),
-    }

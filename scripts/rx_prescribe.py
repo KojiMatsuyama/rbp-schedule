@@ -4,14 +4,22 @@
 毎日朝に cron から実行される。対象は:
     status='scheduled' かつ rb_out_json IS NULL かつ
     today <= schedule_date <= today + RX_LEAD_DAYS
-の行。各行について:
-  1. set_ids の「セットN」→ data/eval_boxes.json の BOX-NN.vector（10次元0/1）
-  2. rbp-algebra-python の api.prescribe(vector) で薬剤セットを算出
-  3. 薬剤 id → data/pesticides.json の dilutionRate（希釈率）で補完
-  4. spray_schedule を更新:
-       - pesticide_ids = 薬剤名配列（UI が素通し表示するため）
-       - rb_out_json   = 構造化結果（id+用量+スコア+代替数）
-  5. Slack 通知（chat_client.send_message。未設定なら DB 保存のみ）
+の行。各行について、一本のシーケンスを厳密に実行する:
+
+  ① 防除暦ボタン押下（イベント発生）        — UI「⚡今すぐ」/ cron
+  ② 病害虫予測ベクトル生成                  — set_ids「セットN」→ BOX-NN.vector
+  ③ 認知（トークンバリデーション）          — 日付・set_ids/BOX・ベクトルの妥当性
+       → 妥当でなければログを書いて exit（その行スキップ）、OKなら続行
+  ④ 要求評価RBP → ⑤ 評価BOX導出 → ⑥ ミラーID → ⑦ 仕様決定RBP → ⑧ 薬剤導出
+       ※ ④〜⑧ は rbp-algebra-python の api.prescribe(vector) 1呼び出しが
+          原子的に算出する（要求評価＝BOX完全一致、仕様決定＝ミラーIDでセット選定）。
+          戻りJSON から段階を対応づけてログ出力する。
+  ⑨ 投射（Slack薬剤がパラメータの文章作成） — build_slack_text（ミラーIDを含む）
+  ⑩ 作動（Slack送信）                       — chat_client.send_message
+
+副次的に spray_schedule を更新する:
+  - pesticide_ids = 薬剤名配列（UI が素通し表示するため）
+  - rb_out_json   = 構造化結果（id+希釈率+ミラーID+スコア+代替数）
 
 先回し日数は .env の RX_LEAD_DAYS（既定 3）。環境変数で上書き可:
     RX_LEAD_DAYS=120 python3 scripts/rx_prescribe.py   # テスト用に広く
@@ -34,7 +42,13 @@ LOG_FILE = os.path.join(LOG_DIR, "rx_prescribe.log")
 JST = timezone(timedelta(hours=9))
 SET_RE = re.compile(r"セット(\d+)")
 
-sys.path.insert(0, APP_ROOT)  # chat_client / RBP api の import 用
+sys.path.insert(0, APP_ROOT)  # chat_client / RBP api / projection の import 用
+
+# ⑨ 投射（Slack文章生成）は独立投射モジュールに分離（cron とチャットの両方で共用）
+# ⑩ 作動（Slack送信）は SOSライブラリの実働チャンネル sos.slack として管理
+import projection  # noqa: E402
+import perception  # noqa: E402
+import sos  # noqa: E402
 
 
 def load_env():
@@ -104,32 +118,35 @@ def enrich_pesticides(pests, meta):
     return out
 
 
-def build_slack_text(row, set_label, rbp, best_pests, alt_count):
-    lines = [f"📅 {row['schedule_date']} 防除予定（{set_label}）"]
-    if row["notes"]:
-        lines.append(f"🐛 {row['notes']}")
-    if best_pests:
-        lines.append("💊 処方:")
-        for p in best_pests:
-            dose = f"（{p['dilutionRate']}）" if p.get("dilutionRate") else ""
-            lines.append(f"   ・{p['name'] or p.get('id')}{dose}")
-    else:
-        lines.append("💊 処方: 該当薬剤なし")
-    score = (rbp.get("best") or {}).get("totalScore")
-    lines.append(f"📊 スコア {score if score is not None else '-'} / 代替 {alt_count}案")
-    return "\n".join(lines)
-
-
 def process_row(row, now, box_vectors, pesticide_meta, conn):
-    """1行分の処方生成（RBP実行→DB更新→Slack通知）を行う。
+    """1行分を一本のシーケンス ②〜⑩ で処理する。
+
+    ② 病害虫予測ベクトル生成 → ③ 認知(バリデーション) →
+       ④ 要求評価RBP → ⑤ 評価BOX導出 → ⑥ ミラーID → ⑦ 仕様決定RBP → ⑧ 薬剤導出
+       (④〜⑧ は api.prescribe 1呼び出しで原子的に算出) →
+       ⑨ 投射(Slack文章) → ⑩ 作動(Slack送信)
 
     戻り値 dict:
-      ok: bool            — 生成完了したか
+      ok: bool            — 生成完了したか（③認知失敗時 False）
       error: str          — 失敗時の理由（ok=False のとき）
       set_label: str      — 「セットN」
       names: [str]        — 処方された薬剤名
       slack_ok: bool      — Slack送信成功したか
+      stages: [str]       — 各段階の要約行（ログ出力用）
+      mirrorId: float|None — ⑥ ミラーID
     """
+    stages = []
+    set_label = ""
+    names = []
+
+    def done(err=None, extra=None):
+        out = {"ok": err is None, "error": err, "set_label": set_label,
+               "names": names, "slack_ok": False, "stages": stages,
+               "mirrorId": None}
+        out.update(extra or {})
+        return out
+
+    # ② 病害虫予測ベクトル生成 — set_ids「セットN」→ BOX-NN.vector
     set_ids = json.loads(row["set_ids"]) if row["set_ids"] else []
     set_num = None
     for s in set_ids:
@@ -138,31 +155,73 @@ def process_row(row, now, box_vectors, pesticide_meta, conn):
             set_num = int(m.group(1))
             break
     set_label = f"セット{set_num}" if set_num else ""
-
     box_key = f"BOX-{set_num:02d}" if set_num else None
     box = box_vectors.get(box_key) if box_key else None
+    vector = box["vector"] if box else None
+    if box:
+        stages.append(f"②病害虫予測ベクトル生成: {set_label} → {box_key} → {vector}")
+    else:
+        stages.append(f"②病害虫予測ベクトル生成: {set_label or 'セット未設定'} → {box_key or 'BOX不明'}")
+
+    # ③ 認知（第一トランジション: トークンチェック）— まずトークンがそろっているか
+    #    日付・set_ids/BOX のそろいチェック → ベクトルの次元・型チェック
+    #    （変数の型チェックと同様: 行列は「何行何列か」、要素は2値。深い検査はしない）
+    #    妥当でなければログを書いて exit（その行スキップ）
+    if not row["schedule_date"]:
+        stages.append("③認知: NG (日付欠落)")
+        return done("日付欠落")
+    if not set_num:
+        stages.append("③認知: NG (set_ids不正)")
+        return done("セット未設定")
     if box is None:
-        return {"ok": False, "error": f"BOX 未対応（{set_label or 'セット未設定'}）",
-                "set_label": set_label, "names": [], "slack_ok": False}
+        stages.append(f"③認知: NG (BOX未対応: {box_key})")
+        return done(f"BOX 未対応（{set_label}）")
+    ok, vec_err = perception.check_vector(vector)
+    if not ok:
+        stages.append(f"③認知: NG (ベクトル不正: {vector} [{vec_err}])")
+        return done(f"ベクトル不正（{box_key}）")
+    stages.append("③認知: OK")
 
-    rbp = run_rbp(box["vector"])
+    # ④〜⑧: api.prescribe(vector) 1呼び出し。戻りJSONから段階を対応づける
+    rbp = run_rbp(vector)
     if isinstance(rbp, dict) and rbp.get("error"):
-        return {"ok": False, "error": rbp["error"],
-                "set_label": set_label, "names": [], "slack_ok": False}
+        stages.append(f"④要求評価RBP: NG ({rbp['error']})")
+        return done(rbp["error"])
 
+    eb = rbp.get("evalBox") or {}
+    eb_status = eb.get("status")
+    eb_detail = eb.get("detail")
     best = rbp.get("best") or {}
-    best_pests = enrich_pesticides(best.get("pesticides"), pesticide_meta)
-    alt_count = len(rbp.get("alternatives") or [])
-    names = [p["name"] for p in best_pests if p.get("name")]
+    mirror = best.get("mirrorId")
 
+    # ④ 要求評価RBP / ⑤ 評価BOX導出
+    #    要求評価はBOX完全一致。MATCHなら eb_detail が導出した BOX id。
+    #    UNDEFINED（新規組合せ）は導出不能、ERROR は複数一致。
+    derived = eb_detail if eb_detail else "導出不能（" + str(eb_status) + "）"
+    stages.append(f"④要求評価RBP: {eb_status}")
+    stages.append(f"⑤評価BOX導出: {derived}")
+    # ⑥ ミラーID
+    stages.append(f"⑥ミラーID: {mirror:.4f}" if isinstance(mirror, (int, float)) else "⑥ミラーID: -")
+    # ⑦ 仕様決定RBP / ⑧ 薬剤導出
+    best_pests = enrich_pesticides(best.get("pesticides"), pesticide_meta) if best else []
+    names = [p["name"] for p in best_pests if p.get("name")]
+    if not best:
+        stages.append(f"⑦仕様決定RBP: 該当なし (status={rbp.get('status')})")
+    else:
+        stages.append(f"⑦仕様決定RBP: {len(names)}剤セット (スコア {best.get('totalScore')})")
+    stages.append(f"⑧薬剤導出: {', '.join(names) if names else '該当薬剤なし'}")
+
+    alt_count = len(rbp.get("alternatives") or [])
     rb_out = {
         "set": set_num,
         "setLabel": set_label,
         "box": box_key,
-        "vector": box["vector"],
+        "vector": vector,
         "rbp_status": rbp.get("status"),
+        "evalBox": {"status": eb_status, "detail": eb_detail},
         "best": {
             "pesticides": best_pests,
+            "mirrorId": mirror,
             "totalScore": best.get("totalScore"),
             "matchCount": best.get("matchCount"),
             "breakdown": best.get("breakdown"),
@@ -170,7 +229,6 @@ def process_row(row, now, box_vectors, pesticide_meta, conn):
         "alternatives_count": alt_count,
         "generated_at": now.isoformat(),
     }
-
     ts = now.strftime("%Y-%m-%d %H:%M:%S")
     conn.execute(
         """UPDATE spray_schedule
@@ -185,17 +243,16 @@ def process_row(row, now, box_vectors, pesticide_meta, conn):
     )
     conn.commit()
 
-    slack_ok = False
-    try:
-        from chat_client import send_message
-        msg = build_slack_text(row, set_label, rbp, best_pests, alt_count)
-        result = send_message(msg)
-        slack_ok = result.get("success") if isinstance(result, dict) else False
-    except Exception:
-        pass
+    # ⑨ 投射（Slack薬剤がパラメータの文章作成）— 独立投射モジュール
+    msg = projection.build_slack_text(row, set_label, rbp, best_pests, alt_count)
+    stages.append("⑨投射: Slack文章生成")
 
-    return {"ok": True, "error": None, "set_label": set_label,
-            "names": names, "slack_ok": slack_ok}
+    # ⑩ 作動（Slack送信）— SOSライブラリの実働チャンネル
+    result = sos.slack.send_message(msg)
+    slack_ok = result.get("success") if isinstance(result, dict) else False
+    stages.append(f"⑩作動: Slack送信 {'成功' if slack_ok else '未設定/失敗'}")
+
+    return done(None, extra={"names": names, "slack_ok": slack_ok, "mirrorId": mirror})
 
 
 def main():
@@ -235,9 +292,13 @@ def main():
                     f"  OK {row['schedule_date']} {r['set_label'] or '?'} → "
                     f"{', '.join(r['names']) or '(無)'} [slack={'成功' if r['slack_ok'] else '失敗/未設定'}]"
                 )
+                for st in r.get("stages", []):
+                    log_lines.append(f"      · {st}")
                 processed += 1
             else:
                 log_lines.append(f"  !! {row['schedule_date']}: {r['error']}")
+                for st in r.get("stages", []):
+                    log_lines.append(f"      · {st}")
         except Exception as e:
             # 行単位の例外隔離: 1行で失敗しても次行に進む
             log_lines.append(f"  !! {row['schedule_date']}: 処理エラー {e}")

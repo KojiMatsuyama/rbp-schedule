@@ -242,7 +242,12 @@ async function loadCustomEvalBoxes() {
 // ── Server-sync helpers ──────────────────────────────────────
 const API_BASE = '/api';
 
-// サーバーから病害虫データを取得（失敗時は data/diseases.js の DISEASES をそのまま使用）
+// サーバー（DB）から病害虫データを取得して DISEASES を上書きする。
+// 唯一無二の正は SQLite DB（data/stb.db の diseases テーブル）。
+// data/diseases.js はその「DBから生成した初期スナップショット」であり
+// （再生成: python3 scripts/export_diseases.py）、実行サーバー起動後に
+// ここが DB の正で上書きする。静的フロントエンド（Cloudflare Pages 等、
+// /api にアクセスできない環境）はスナップショットのまま動作する。
 async function loadServerDiseases() {
   try {
     const res = await fetch(API_BASE + '/diseases');
@@ -250,10 +255,9 @@ async function loadServerDiseases() {
     if (!res.headers.get('content-type')?.includes('application/json')) return;
     const json = await res.json();
     if (Array.isArray(json.diseases) && json.diseases.length > 0) {
-      // DISEASES がまだ定義されていない場合のみ上書き（const なのでエラーになるのを回避）
-      if (typeof DISEASES === 'undefined') {
-        window.DISEASES = json.diseases;
-      }
+      // DB が正 → スナップショットを無条件に上書き。
+      // data/diseases.js は var で宣言するため再代入可能（const では再代入不可）。
+      DISEASES = json.diseases;
     }
   } catch (e) {
     // Cloudflare Pages has no /api endpoints — silent, no warning
@@ -537,9 +541,6 @@ function renderDetail() {
     ? `<button class="btn btn-danger btn-sm" onclick="deleteRecord()" style="margin-top:4px;width:100%">🗑 削除</button>`
     : '';
 
-  // AI症状入力UI（同期レンダリング＋非同期初期化）
-  const aiInputHTML = renderAISymptomInputSync();
-
   // Spec-RBP: 自動処方（病害虫が1件以上登録済みの場合のみ計算）
   const specHTML = hasAnyPest ? renderPrescriptionCard(vector) : '';
 
@@ -560,7 +561,6 @@ function renderDetail() {
   }
 
   contentEl.innerHTML = `
-    ${aiInputHTML}
     <div class="record-form">
       <h3>🐛 病害虫選択</h3>
       ${pestHTML}
@@ -581,142 +581,6 @@ function renderDetail() {
       ${(rec.pesticideIds && rec.pesticideIds.length) ? `<br><strong>散布薬剤:</strong> ${rec.pesticideIds.map(id => (PESTICIDE_DB.find(p=>p.id===id)||{}).name).join('、')}` : ''}
     </div>` : ''}
   `;
-}
-
-// ═══════════════════════════════════════════
-// AI症状入力 → RAG推定 → RBP処方 パイプライン
-// ═══════════════════════════════════════════
-
-/**
- * AI症状入力UIを同期で生成する（renderDetailから呼ばれる）。
- * server.pyの有無に関わらずUIは表示し、非同期で可用性をチェックする。
- */
-let aiSymptomLoading = false;
-
-function renderAISymptomInputSync() {
-  return `
-    <div class="ai-symptom-input" style="margin-bottom:16px;padding:12px;background:#f0faf0;border-radius:10px;border:1px solid #c8e6c8;">
-      <h3 style="margin:0 0 8px;font-size:.95rem;">🤖 AI症状推定 → 自動処方</h3>
-      <textarea id="aiSymptomInput" placeholder="症状を自然言語で入力してください&#10;例: 葉っぱが黄色くなっていて、裏に小さい虫がついている"
-        style="width:100%;min-height:60px;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;resize:vertical;font-family:inherit;"></textarea>
-      <button id="aiPrescribeBtn" onclick="executeAISymptomPrescribe()"
-        style="margin-top:8px;width:100%;padding:8px;background:#4a7c59;color:white;border:none;border-radius:6px;cursor:pointer;font-size:.85rem;">
-        🔍 症状から推定＆処方
-      </button>
-      <div id="aiPrescribeResult" style="margin-top:10px;"></div>
-    </div>`;
-}
-
-/**
- * AI症状推定＆処方パイプラインを実行する。
- * フロー: 症状入力 → /api/intelligent-prescribe → 結果を表示 + 病害虫チェックボックスに反映
- */
-async function executeAISymptomPrescribe() {
-  if (aiSymptomLoading) return;
-  const inputEl = document.getElementById('aiSymptomInput');
-  const resultEl = document.getElementById('aiPrescribeResult');
-  const symptoms = inputEl.value.trim();
-
-  if (!symptoms) {
-    resultEl.innerHTML = '<p class="spec-badge warn" style="display:block;">症状を入力してください</p>';
-    return;
-  }
-
-  aiSymptomLoading = true;
-  resultEl.innerHTML = '<p style="text-align:center;color:var(--muted);">🔄 RAG推定中...</p>';
-
-  try {
-    const res = await fetch('/api/intelligent-prescribe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ symptoms }),
-    });
-
-    const data = await res.json();
-
-    if (!res.ok || data.status === 'NO_ESTIMATION') {
-      resultEl.innerHTML = `
-        <p class="spec-badge warn" style="display:block;">⚠️ ${data.message || '推定できませんでした'}</p>
-        <p style="font-size:.72rem;color:var(--muted);">より具体的な症状（葉の色、形、虫の有無など）を入力してみてください。</p>`;
-      aiSymptomLoading = false;
-      return;
-    }
-
-    // 推定結果を表示
-    const estDiseases = data.estimated_diseases || [];
-    const confidence = data.confidence || 0;
-    const confLabel = confidence >= 0.8 ? '🟢 高信頼度' : confidence >= 0.5 ? '🟡 中信頼度' : '🔴 低信頼度';
-
-    let html = `
-      <div style="padding:8px;background:white;border-radius:8px;border:1px solid #e0e0e0;">
-        <div style="font-size:.82rem;margin-bottom:6px;">
-          <strong>🎯 推定病害虫:</strong> ${estDiseases.join('、')}
-          <span style="float:right;color:var(--muted);">${confLabel} (${(confidence*100).toFixed(0)}%)</span>
-        </div>
-        <div style="font-size:.72rem;color:var(--muted);margin-bottom:8px;">
-          ベクトル: [${data.entry_vector.join(',')}]
-        </div>`;
-
-    // RBP処方結果
-    if (data.rbp_status === 'SUCCESS' && data.best_match) {
-      const best = data.best_match;
-      const pesticideDetails = data.pesticide_details || [];
-      html += `
-        <div class="prescription-card" style="margin:8px 0;">
-          <div class="prescription-title">💊 推奨処方: ${best.pesticides ? best.pesticides.map(p=>p.name).join(' + ') : '複数剤'}</div>
-          <div style="font-size:.78rem;margin:4px 0;">
-            Mirror-ID: ${best.mirrorId ? best.mirrorId.toFixed(4) : '—'} /
-            カバー率: ${best.coverageRatio ? (best.coverageRatio*100).toFixed(0) : '—'}% /
-            スコア: ${best.totalScore ? best.totalScore.toFixed(1) : '—'}
-          </div>`;
-
-      if (pesticideDetails.length > 0) {
-        html += '<div style="font-size:.72rem;margin-top:4px;">';
-        pesticideDetails.slice(0, 5).forEach(p => {
-          html += `<div><strong>${p.name}</strong> — ${p.system || ''} ${p.category ? '('+p.category+')' : ''}</div>`;
-        });
-        if (pesticideDetails.length > 5) html += `<div style="color:var(--muted);">他${pesticideDetails.length-5}剤...</div>`;
-        html += '</div>';
-      }
-
-      html += '</div>';
-    } else if (data.rbp_status) {
-      html += `<p style="font-size:.78rem;color:var(--muted);">RBP判定: ${data.rbp_status}</p>`;
-    }
-
-    html += '</div>';
-
-    // 推定病害虫をチェックボックスに反映
-    if (estDiseases.length > 0) {
-      html += `<button onclick="applyEstimatedDiseases(${JSON.stringify(estDiseases).replace(/"/g, '&quot;')})"
-        style="margin-top:8px;width:100%;padding:6px;background:#e8f5e9;border:1px solid #4a7c59;border-radius:6px;cursor:pointer;font-size:.8rem;color:#2e7d32;">
-        ✅ 推定結果を病害虫選択に反映
-      </button>`;
-    }
-
-    resultEl.innerHTML = html;
-  } catch (e) {
-    resultEl.innerHTML = `<p class="spec-badge danger" style="display:block;">⛔ サーバーに接続できません</p>`;
-  } finally {
-    aiSymptomLoading = false;
-  }
-}
-
-/**
- * 推定病害虫をチェックボックスに反映して保存する。
- */
-function applyEstimatedDiseases(diseaseNames) {
-  // Checkboxesを更新
-  const checkboxes = document.querySelectorAll('.pest-check input[type="checkbox"]');
-  checkboxes.forEach(cb => {
-    const label = cb.closest('.pest-check').textContent.trim();
-    // 病害虫名がラベルに含まれていればチェック
-    const isChecked = diseaseNames.some(name => label.includes(name));
-    cb.checked = isChecked;
-  });
-
-  // 記録を保存（vectorを再計算してsaveRecordをトリガー）
-  saveRecord();
 }
 
 // ── RBPエンジン切替（案A: 3択ラジオボタン） ──
@@ -1902,6 +1766,11 @@ let pesticideSearchQuery = '';
 async function loadPesticides() {
   // Try server first (local network:192.168.131.161:9999), fall back to bundled DB.
   // Cloudflare Pages has no /api/pesticides endpoint, so this always falls back there.
+  // 薬剤データ DB が正: サーバー（/api/pesticides = DB 正）が取得できれば、
+  //   - pesticideData（薬剤マスターUI）
+  //   - PESTICIDE_DB（JS RBP エンジンのデータ源）
+  // の両方を DB 正に上書きし、行列定数（TARGET_MATRIX / MIXING_CONFLICT_MATRIX /
+  //   PESTICIDE_INDEX_BY_ID）を再構築して、処方計算が DB 編集に追従させる。
   try {
     console.log('[loadPesticides] fetching /api/pesticides...');
     const controller = new AbortController();
@@ -1911,8 +1780,18 @@ async function loadPesticides() {
     console.log('[loadPesticides] response status:', res.status);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
-    pesticideData = data.pesticides || [];
-    console.log('[loadPesticides] loaded', pesticideData.length, 'pesticides from server');
+    const rawPests = data.pesticides || [];
+    if (rawPests.length > 0) {
+      // DB の 'inf'（無制限）をエンジンの Infinity に正規化（生成物 data/pesticides.js と同一表現）
+      const serverPests = rawPests.map(p => ({
+        ...p,
+        maxApplications: p.maxApplications === 'inf' ? Infinity : p.maxApplications
+      }));
+      pesticideData = serverPests;
+      PESTICIDE_DB = serverPests;   // DB が正 → JS RBP エンジンも DB 正に
+      if (typeof rebuildPesticideMatrices === 'function') rebuildPesticideMatrices();
+      console.log('[loadPesticides] loaded', serverPests.length, 'pesticides from server (DB)');
+    }
   } catch (e) {
     // Cloudflare Pages has no /api/pesticides — use bundled DB silently
     if (typeof PESTICIDE_DB !== 'undefined' && Array.isArray(PESTICIDE_DB)) {

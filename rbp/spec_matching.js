@@ -21,10 +21,14 @@ function classifyVector(v) {
 // ── 混用禁止制約行列（MIXING_CONFLICT_MATRIX）のコンパイル ──
 // 「薬剤iと薬剤jは混用可能か」という67×67の関係は、散布のたびに文字列比較で
 // 再計算するようなものではなく、PESTICIDE_DBが確定した時点で一意に定まる定数関係。
-// そのため起動時に1回だけ0/1行列としてコンパイルし、以降は行列参照のみで判定する
+// 起動時に1回だけ0/1行列としてコンパイルし、以降は行列参照のみで判定する
 // （DSLコンパイル責任＝R1に相当。ここでのループは「候補集合を毎回手続き的に走査する」
 //   パターンとは性質が異なり、モデル定義の構築処理として正当）。
-const PESTICIDE_INDEX_BY_ID = Object.fromEntries(PESTICIDE_DB.map((p, i) => [p.id, i]));
+//
+// let で宣言するのは意図的: 薬剤データ DB が正であり、実行サーバーが /api/pesticides の
+// DB 正で PESTICIDE_DB を上書きしたとき、rebuildPesticideMatrices() でこの3行列を再構築し、
+// 処方計算が DB 正に追従させるため。
+let PESTICIDE_INDEX_BY_ID = Object.fromEntries(PESTICIDE_DB.map((p, i) => [p.id, i]));
 
 function computesMixingConflict(pesticideA, pesticideB) {
   const aTargets = pesticideA.mixingBanTargets || [];
@@ -34,7 +38,7 @@ function computesMixingConflict(pesticideA, pesticideB) {
   return aBansB || bBansA;
 }
 
-const MIXING_CONFLICT_MATRIX = PESTICIDE_DB.map(pa =>
+let MIXING_CONFLICT_MATRIX = PESTICIDE_DB.map(pa =>
   PESTICIDE_DB.map(pb => (computesMixingConflict(pa, pb) ? 1 : 0))
 );
 
@@ -53,8 +57,19 @@ function hasMixingConflict(pesticide, otherId) {
 // 「dotProduct(ebVector, pesticide.targetVector)」の判定を、薬剤ごとに毎回計算する代わりに、
 // 67×10のターゲット行列を起動時に1回だけコンパイルし、以降は行列×ベクトル積で一括計算する。
 // c = TARGET_MATRIX × ebVector （67薬剤 × 1回の呼び出し = 全薬剤のターゲット一致度）
-const TARGET_MATRIX = PESTICIDE_DB.map(p => p.targetVector);
+let TARGET_MATRIX = PESTICIDE_DB.map(p => p.targetVector);
 
 function computeTargetMatchVector(ebVector) {
   return TARGET_MATRIX.map(row => dotProduct(row, ebVector));
+}
+
+// PESTICIDE_DB が更新された後（実行サーバーが /api/pesticides の DB 正で上書きしたとき）、
+// 3つの行列を現在の PESTICIDE_DB から再構築する。index.html の loadPesticides() が呼ぶ。
+// 静的スナップショット（data/pesticides.js の var PESTICIDE_DB）の初回ロード時は不要。
+function rebuildPesticideMatrices() {
+  PESTICIDE_INDEX_BY_ID = Object.fromEntries(PESTICIDE_DB.map((p, i) => [p.id, i]));
+  MIXING_CONFLICT_MATRIX = PESTICIDE_DB.map(pa =>
+    PESTICIDE_DB.map(pb => (computesMixingConflict(pa, pb) ? 1 : 0))
+  );
+  TARGET_MATRIX = PESTICIDE_DB.map(p => p.targetVector);
 }

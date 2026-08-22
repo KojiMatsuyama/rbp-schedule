@@ -30,7 +30,7 @@
     "toxicityClass": "普通物",
     "system": "QoI（ストロビルリン）",
     "systemCode": "FRAC11",
-    "dilutionRate": "1500倍液"
+    "dilutionRate": "500倍液"
   },
   {
     "id": "P02",
@@ -903,7 +903,7 @@
     "toxicityClass": "普通物",
     "system": "無機硫黄",
     "systemCode": "FRACM2",
-    "dilutionRate": "300倍液"
+    "dilutionRate": "50倍液"
   },
   {
     "id": "P31",
@@ -1512,7 +1512,7 @@
     "toxicityClass": "普通物",
     "system": "ネオニコチノイド",
     "systemCode": "IRAC4A",
-    "dilutionRate": "1000倍液"
+    "dilutionRate": "2000倍液"
   },
   {
     "id": "P51",
@@ -1542,7 +1542,7 @@
     "toxicityClass": "普通物",
     "system": "ネオニコチノイド",
     "systemCode": "IRAC4A",
-    "dilutionRate": "1000倍液"
+    "dilutionRate": "2000倍液"
   },
   {
     "id": "P52",
@@ -1572,7 +1572,7 @@
     "toxicityClass": "普通物",
     "system": "ネオニコチノイド",
     "systemCode": "IRAC4A",
-    "dilutionRate": "1000倍液"
+    "dilutionRate": "2000倍液"
   },
   {
     "id": "P53",
@@ -1661,7 +1661,7 @@
     "toxicityClass": "普通物",
     "system": "IGR（卵阻害）",
     "systemCode": "IRAC10",
-    "dilutionRate": "2000倍液"
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P56",
@@ -1719,7 +1719,7 @@
     "toxicityClass": "普通物",
     "system": "マクロライド",
     "systemCode": "IRAC6",
-    "dilutionRate": "1000倍液"
+    "dilutionRate": "2000倍液"
   },
   {
     "id": "P58",
@@ -1781,7 +1781,7 @@
     "toxicityClass": "普通物",
     "system": "METI",
     "systemCode": "IRAC21A",
-    "dilutionRate": "2000倍液"
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P60",
@@ -1842,7 +1842,7 @@
     "toxicityClass": "普通物",
     "system": "物理剤",
     "systemCode": "PHYSICAL",
-    "dilutionRate": "1000倍液"
+    "dilutionRate": "2000倍液"
   },
   {
     "id": "P62",
@@ -1871,7 +1871,7 @@
     "toxicityClass": "普通物",
     "system": "脂質生合成阻害（IRAC 23）",
     "systemCode": "IRAC23",
-    "dilutionRate": "2000倍液"
+    "dilutionRate": "1000倍液"
   },
   {
     "id": "P63",

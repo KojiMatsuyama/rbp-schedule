@@ -173,13 +173,13 @@ def test_6_tab_switching(page):
         # Each menu item's onclick also calls closeMenu(), so the dropdown
         # collapses after every click — reopen it before each subsequent click.
 
-        # Click second item: スケジュール
+        # Click second item: 防除暦（schedule tab。旧名「スケジュール」は改名済み）
         menu_items[1].click()
         page.wait_for_timeout(500)
         active_after = page.eval_on_selector(".menu-item.active",
             "el => el.textContent.trim()")
-        check(page, "Second menu item (スケジュール) activates",
-              "スケジュール" in active_after, f"got '{active_after}'")
+        check(page, "Second menu item (防除暦) activates",
+              "防除暦" in active_after, f"got '{active_after}'")
 
         # Click third item: 防除履歴
         page.click(".menu-toggle", timeout=TIMEOUT)

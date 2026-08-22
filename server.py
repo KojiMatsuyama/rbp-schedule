@@ -19,6 +19,9 @@ import datetime
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from socketserver import ThreadingMixIn
 
+# 病害虫の唯一無一の正（SQLite diseases テーブル）の bootstrap シード元。
+from db_setup import DISEASES_SEED
+
 
 class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
     daemon_threads = True
@@ -131,6 +134,49 @@ def init_db():
         );
     """)
     conn.commit()
+
+    # 病害虫DB（唯一無一の正）の self-bootstrap: data/stb.db は gitignore されているため
+    # クリーンチェックアウトでは空。diseases テーブルが空なら db_setup.py の
+    # DISEASES_SEED（唯一の正）から投入し、/api/diseases と perception.py が
+    # 起動時に正しく動作するよう保証する。
+    _n = conn.execute("SELECT COUNT(*) FROM diseases").fetchone()[0]
+    if _n == 0:
+        for _d in DISEASES_SEED:
+            conn.execute(
+                "INSERT INTO diseases (id, name, type, icon) VALUES (?, ?, ?, ?)",
+                _d,
+            )
+        conn.commit()
+
+    # 薬剤DB（唯一無一の正）の self-bootstrap: data/stb.db が空なら、コミット済みの
+    # 生成物 data/pesticides.json（DB から scripts/export_pesticides.py が再生成）から投入。
+    # 病害虫（インライン DISEASES_SEED）と違い、薬剤は 67 件・フィールド多のため
+    # 生成物スナップショットを bootstrap 源に使う（db_setup.py と同一経路）。
+    _pn = conn.execute("SELECT COUNT(*) FROM pesticides").fetchone()[0]
+    if _pn == 0:
+        _ppath = os.path.join(APP_ROOT, "data", "pesticides.json")
+        if os.path.exists(_ppath):
+            with open(_ppath, "r", encoding="utf-8") as _pf:
+                _ppests = json.load(_pf)
+            for _p in _ppests:
+                conn.execute(
+                    """INSERT OR IGNORE INTO pesticides
+                       (id, name, activeIngredient, category, targetVector, targetNames,
+                        phiDays, mixingRestriction, mixingBanTargets, maxApplications,
+                        toxicityClass, system, systemCode, dilutionRate)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        _p["id"], _p["name"], _p.get("activeIngredient"), _p.get("category"),
+                        json.dumps(_p.get("targetVector", [])),
+                        json.dumps(_p.get("targetNames", [])),
+                        _p.get("phiDays"), _p.get("mixingRestriction"),
+                        json.dumps(_p.get("mixingBanTargets", [])), _p.get("maxApplications"),
+                        _p.get("toxicityClass"), _p.get("system"), _p.get("systemCode"),
+                        _p.get("dilutionRate"),
+                    ),
+                )
+            conn.commit()
+
     conn.close()
 
 
@@ -179,36 +225,15 @@ def run_haskell_engine(entry_vector):
         return {"error": f"HaskellエンジンのJSON出力を解析できません: {proc.stdout[:200]}"}
 
 
-# ─── Conversation History Store ─────────────────────────────────
-# Thread-local storage for per-client conversation history
-import threading
-
-_conv_lock = threading.Lock()
-_conversations = {}  # client_id -> [(role, content), ...]
-
-
-def _get_conversation(client_id: str) -> list:
-    with _conv_lock:
-        return _conversations.setdefault(client_id, [])
-
-
-def _append_conversation(client_id: str, role: str, content: str):
-    with _conv_lock:
-        conv = _conversations.setdefault(client_id, [])
-        conv.append((role, content))
-        # Keep last 20 messages
-        if len(conv) > 20:
-            _conversations[client_id] = conv[-20:]
-
-
 # ─── LangGraph Token Store (Petri net model) ─────────────────────
 # トークン集約ノードの状態をメモリ上に保持。
 # クライアント（スケジュールタイマー / カレンダーUI）がトークンを投入。
 # 全トークンが揃うまでエージェントは待機。
 #
-# 実体は agentic_chat/tokens.py にあり、server.py と nodes.py が共有。
+# 実体はトップレベル state.py（状態＝Petri網のプレース）にあり、
+# server.py と state_node が共有する同一シングルトン。
 
-from agentic_chat.tokens import set_token, get_token_state, reset_tokens, get_required_keys
+from state import set_token, get_token_state, reset_tokens, get_required_keys
 
 
 # ─── LangGraph Designer Storage ─────────────────────────────────
@@ -826,10 +851,6 @@ class Handler(SimpleHTTPRequestHandler):
             self._handle_prescribe(body)
             return
 
-        if self.path == "/api/intelligent-prescribe":
-            self._handle_intelligent_prescribe(body)
-            return
-
         if self.path == "/api/chat-webhook":
             self._handle_chat_webhook(body)
             return
@@ -912,28 +933,6 @@ class Handler(SimpleHTTPRequestHandler):
         status = 500 if isinstance(result, dict) and result.get("error") else 200
         self._send_json(status, result)
 
-    def _handle_intelligent_prescribe(self, body):
-        """
-        統合パイプライン: 症状記述 → RAG推定 → RBP処方
-
-        POST /api/intelligent-prescribe
-        Body: {"symptoms": "葉っぱが黄色くなっていて..."}
-        """
-        symptoms = body.get("symptoms")
-        if not symptoms or not isinstance(symptoms, str) or not symptoms.strip():
-            self._send_json(400, {"error": "symptoms must be a non-empty string"})
-            return
-
-        try:
-            from mcp_tools import estimate_and_prescribe
-            result = estimate_and_prescribe(symptoms.strip())
-            # Result is already a JSON string from estimate_and_prescribe
-            parsed = json.loads(result)
-            status = 200 if parsed.get("status") == "OK" else 422
-            self._send_json(status, parsed)
-        except Exception as e:
-            self._send_json(500, {"error": f"intelligent-prescribe error: {e}"})
-
     # ── Chat AI ──────────────────────────────────────────────────
 
     def _serve_chat_page(self):
@@ -979,25 +978,12 @@ class Handler(SimpleHTTPRequestHandler):
             self._send_json(400, {"error": "message is required"})
             return
 
-        # Detect Slack notification intent and inject conversation context
-        slack_intent_keywords = [
-            # Japanese
-            "slackに通知", "slackに送信", "slackに送って", "slackに投げて",
-            "メンバーに通知", "メンバーに共有", "チームに共有", "Slackで共有",
-            "通知して", "共有して",
-            # English
-            "slack", "notify", "notification", "share",
-            "member", "team",
-        ]
-        is_slack_request = any(kw in message.lower() for kw in slack_intent_keywords)
-
         try:
             from agentic_chat import run as agentic_run
             # Use client IP as thread_id for LangGraph conversation history
             thread_id = self.client_address[0] if self.client_address else "default"
             response = agentic_run(
                 message,
-                is_slack_request=is_slack_request,
                 thread_id=thread_id,
             )
             self._send_json(200, {"response": response})
@@ -1022,18 +1008,18 @@ class Handler(SimpleHTTPRequestHandler):
             text = title
 
         try:
-            from chat_client import send_message, send_message_with_card
+            import sos
             if sections:
-                result = send_message_with_card(title or text, sections)
+                result = sos.slack.send_card(title or text, sections)
             else:
-                result = send_message(text)
+                result = sos.slack.send_message(text)
 
             if result.get("success"):
                 self._send_json(200, {"status": "sent"})
             else:
                 self._send_json(500, {"error": result.get("error", "不明なエラー")})
         except ImportError:
-            self._send_json(503, {"error": "chat_client モジュールが見つかりません"})
+            self._send_json(503, {"error": "sos モジュールが見つかりません"})
         except Exception as e:
             self._send_json(500, {"error": f"送信中にエラーが発生しました: {str(e)[:200]}"})
 

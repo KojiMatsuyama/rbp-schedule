@@ -23,7 +23,7 @@ Demand-Boundary PestDemand {
 }
 
 Bridge-Boundary EvalBox {
-  BOX-22: { Line-0,Line-1,Line-2,Line-4,Line-5,Line-8,Line-10 } as "炭疽+うどんこ+灰色かび+ハスモン+オオタ+アブラムシ+コナジラミ";
+  BOX-22: { Line-0,Line-1,Line-2,Line-4,Line-5,Line-8,Line-10 } as "炭疽+灰色かび+うどんこ+ハスモン+オオタ+アブラムシ+コナジラミ";
   Bridge-Rule { match = exact; on-match(0) => UNDEFINED; on-match(1) => OK; on-match(>=2) => MODEL_DEFINITION_ERROR; }
   Bridge-Extension-Policy { on-UNDEFINED => auto-register; id-rule = next-max-plus-one; }
 }

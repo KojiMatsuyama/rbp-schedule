@@ -35,7 +35,7 @@ describe('parseProgram（dsl/samples/full_program.txt）', () => {
     const box = ast.bridge.boxDefs[0];
     assert.strictEqual(box.id, '22');
     assertDeepEqualAcrossRealms(box.lineRefs, [0, 1, 2, 4, 5, 8, 9]);
-    assert.strictEqual(box.asName, '炭疽+うどんこ+灰色かび+ハスモン+オオタ+アブラムシ+コナジラミ');
+    assert.strictEqual(box.asName, '炭疽+灰色かび+うどんこ+ハスモン+オオタ+アブラムシ+コナジラミ');
   });
 
   it('Bridge-Extension-Policyを解析する（on-UNDEFINED=auto-register）', () => {

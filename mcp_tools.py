@@ -1885,35 +1885,36 @@ def seasonal_prescribe_internal(month: int, day: int, original_input: str = None
         vector = json.loads(rows["vector"]) if isinstance(rows["vector"], str) else rows["vector"]
         source = f"類似記録: {rows['date']}"
     else:
-        # Seasonal heuristic
-        seasonal_diseases = {
-            1: [("灰色かび病", [0, 1, 0, 0, 0, 0, 0, 0, 0, 0])],
-            2: [("灰色かび病", [0, 1, 0, 0, 0, 0, 0, 0, 0, 0]), ("うどんこ病", [0, 0, 1, 0, 0, 0, 0, 0, 0, 0])],
-            3: [("うどんこ病", [0, 0, 1, 0, 0, 0, 0, 0, 0, 0]), ("炭疽病", [1, 0, 0, 0, 0, 0, 0, 0, 0, 0])],
-            4: [("炭疽病", [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]), ("うどんこ病", [0, 0, 1, 0, 0, 0, 0, 0, 0, 0])],
-            5: [("炭疽病", [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]), ("うどんこ病", [0, 0, 1, 0, 0, 0, 0, 0, 0, 0])],
-            6: [("炭疽病", [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]), ("灰色かび病", [0, 1, 0, 0, 0, 0, 0, 0, 0, 0])],
-            7: [("アブラムシ", [0, 0, 0, 0, 0, 0, 1, 0, 0, 0]), ("コナジラミ", [0, 0, 0, 0, 0, 0, 0, 1, 0, 0])],
-            8: [("アブラムシ", [0, 0, 0, 0, 0, 0, 1, 0, 0, 0]), ("ハダニ", [0, 0, 0, 1, 0, 0, 0, 0, 0, 0])],
-            9: [("炭疽病", [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]), ("アブラムシ", [0, 0, 0, 0, 0, 0, 1, 0, 0, 0])],
-            10: [("うどんこ病", [0, 0, 1, 0, 0, 0, 0, 0, 0, 0]), ("炭疽病", [1, 0, 0, 0, 0, 0, 0, 0, 0, 0])],
-            11: [("灰色かび病", [0, 1, 0, 0, 0, 0, 0, 0, 0, 0])],
-            12: [("灰色かび病", [0, 1, 0, 0, 0, 0, 0, 0, 0, 0])],
+        # Seasonal heuristic — 月 → 発生する病害虫の次元id（diseases.id）リスト。
+        # 次元id↔名の対応は DB が正（perception.DISEASE_NAMES）。
+        # 名もベクトルもインラインに複製せず、id から DB 由来の名・one-hot を解決する。
+        seasonal_dims = {
+            1: [1],
+            2: [1, 2],
+            3: [2, 0],
+            4: [0, 2],
+            5: [0, 2],
+            6: [0, 1],
+            7: [8, 9],
+            8: [8, 3],
+            9: [0, 8],
+            10: [2, 0],
+            11: [1],
+            12: [1],
         }
-        diseases = seasonal_diseases.get(month, [])
-        if not diseases:
+        dims = seasonal_dims.get(month, [])
+        if not dims:
             conn.close()
             return json.dumps({
                 "error": f"月 {month} の季節情報は準備中です",
             }, ensure_ascii=False)
 
-        # Combine vectors (OR operation)
+        # 次元id から DB 由来の病害虫名を解決し、one-hot を OR 結合
+        import perception as _pc  # 関数内 import: perception は DB 由来の DISEASE_NAMES を持つ
+        pests = [_pc.DISEASE_NAMES[i] for i in dims]
         combined = [0] * VECTOR_DIM
-        pests = []
-        for name, vec in diseases:
-            pests.append(name)
-            for i in range(VECTOR_DIM):
-                combined[i] |= vec[i]
+        for i in dims:
+            combined[i] = 1
 
         vector = combined
         source = "季節推定"
@@ -1966,8 +1967,8 @@ def send_to_slack(message: str) -> str:
     Returns:
         JSON文字列（送信結果）
     """
-    from chat_client import send_message
-    result = send_message(message)
+    import sos
+    result = sos.slack.send_message(message)
     return json.dumps(result, ensure_ascii=False)
 
 

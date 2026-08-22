@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """db_setup.py — SQLite DBの作成・初期データ投入スクリプト。
-既存のJSONファイルからデータを抽出してSQLiteに格納する。
+病害虫はインライン DISEASES_SEED（唯一無二の正）、
+薬剤・評価BOXは既存のJSONファイルからデータを抽出してSQLiteに格納する。
 """
 import json
 import os
@@ -29,7 +30,8 @@ CREATE TABLE IF NOT EXISTS pesticides (
 CREATE TABLE IF NOT EXISTS diseases (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL,
-    type TEXT NOT NULL CHECK(type IN ('disease', 'pest'))
+    type TEXT NOT NULL CHECK(type IN ('disease', 'pest')),
+    icon TEXT
 );
 
 CREATE TABLE IF NOT EXISTS eval_boxes (
@@ -76,20 +78,36 @@ CREATE INDEX IF NOT EXISTS idx_spray_schedule_eval_box ON spray_schedule(eval_bo
 """
 
 
+# 病害虫DB（唯一無二の正）。手編集していた複製 data/diseases.json は廃止し、
+# このインライン定義が bootstrap のシード元になった。
+# 静的フロントエンド向けの data/diseases.js は、scripts/export_diseases.py が
+# この正（DB）から生成するスナップショット（手編集禁止）。
+# 次元id 0〜9 は RBP の10次元ベクトルとの対応（perception.py 等が参照）。
+DISEASES_SEED = [
+    (0, "炭疽病", "disease", "🍅"),
+    (1, "灰色かび病", "disease", "🌫️"),
+    (2, "うどんこ病", "disease", "🍚"),
+    (3, "ナミハダニ", "pest", "🕷️"),
+    (4, "ハスモンヨトウ", "pest", "🦋"),
+    (5, "オオタバコガ", "pest", "🐛"),
+    (6, "ミカンキイロアザミウマ", "pest", "🪳"),
+    (7, "ワタアブラムシ", "pest", "🐌"),
+    (8, "アブラムシ", "pest", "🐜"),
+    (9, "コナジラミ", "pest", "🪽"),
+]
+
+
 def seed_from_json(conn):
-    """既存のJSONファイルからデータを投入（初回のみ）."""
+    """既存のJSONファイルからデータを投入（初回のみ）.
+    病害虫は data/diseases.json の廃止により上記 DISEASES_SEED（インライン）から投入."""
     cur = conn.cursor()
 
-    # diseases.json
-    path = os.path.join(APP_ROOT, "data", "diseases.json")
-    if os.path.exists(path):
-        with open(path, "r", encoding="utf-8") as f:
-            diseases = json.load(f)
-        for d in diseases:
-            cur.execute(
-                "INSERT OR IGNORE INTO diseases (id, name, type) VALUES (?, ?, ?)",
-                (d["id"], d["name"], d["type"]),
-            )
+    # diseases（インラインシード — 唯一無二の正）
+    for d in DISEASES_SEED:
+        cur.execute(
+            "INSERT OR IGNORE INTO diseases (id, name, type, icon) VALUES (?, ?, ?, ?)",
+            d,
+        )
 
     # pesticides.json
     path = os.path.join(APP_ROOT, "data", "pesticides.json")

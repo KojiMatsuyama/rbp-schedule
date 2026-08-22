@@ -32,7 +32,6 @@ from .nodes import (
     evaluation_node,
     decision_node,
     projection_node,
-    execution_node,
     inventory_node,
     inventory_exec_node,
 )
@@ -47,7 +46,7 @@ def build_graph() -> StateGraph:
     # Define the graph
     builder = StateGraph(ChatState)
 
-    # Add the 8 nodes (state first for token aggregation)
+    # Add the nodes (state first for token aggregation)
     builder.add_node("state", state_node)
     builder.add_node("perception", perception_node)
     builder.add_node("evaluation", evaluation_node)
@@ -55,7 +54,6 @@ def build_graph() -> StateGraph:
 
     # Projection transition
     builder.add_node("projection", projection_node)
-    builder.add_node("execution", execution_node)
 
     # Inventory transition (new — parallel independent)
     builder.add_node("inventory", inventory_node)

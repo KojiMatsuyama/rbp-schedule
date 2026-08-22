@@ -23,8 +23,7 @@ class ChatState(TypedDict):
       4. decision_node     — RBP行列演算による薬剤選定
       5. projection_node   — メッセージテンプレートの作成
       6. inventory_node    — 在庫チェック（並列独立）
-      7. execution_node    — Slack送信（投射結果）
-      8. inventory_exec    — Slack送信（在庫結果）
+      7. inventory_exec    — Slack送信（在庫結果）
 
     Petri netモデルに基づくマーキング拡張型:
       - トークンが揃うまで待機(checkpoint)
