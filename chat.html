@@ -427,7 +427,7 @@ body {
 
 <div class="chat-header">
   <h1>🌿 AIアシスタント</h1>
-  <button class="back-btn" onclick="window.location.href='/'">← 戻る</button>
+  <button class="back-btn" onclick="window.location.href='/'">← ポータル</button>
 </div>
 
 <div class="chat-messages" id="chatMessages">
@@ -476,20 +476,12 @@ body {
     <div id="tokenMsg"></div>
     <div class="token-grid">
       <div class="token-field">
-        <label for="tok_schedule">📅 スケジュール</label>
-        <input type="text" id="tok_schedule" placeholder="2026-08-20T09:00:00">
+        <label for="tok_field_type">🌱 圃場種（育苗/本圃）</label>
+        <input type="text" id="tok_field_type" placeholder="育苗圃（nursery）">
       </div>
       <div class="token-field">
-        <label for="tok_crop">🌱 作物種</label>
-        <input type="text" id="tok_crop" placeholder="きゅうり">
-      </div>
-      <div class="token-field">
-        <label for="tok_environment">🏡 栽培環境</label>
-        <input type="text" id="tok_environment" placeholder="温室">
-      </div>
-      <div class="token-field">
-        <label for="tok_growth_stage">🌿 生育段階</label>
-        <input type="text" id="tok_growth_stage" placeholder="育苗中">
+        <label for="tok_pest_matrix">🦠 病害虫予測行列</label>
+        <input type="text" id="tok_pest_matrix" placeholder="[1,0,0,1,0,0,0,0,1,0]">
       </div>
     </div>
     <div class="token-actions">
@@ -790,12 +782,12 @@ async function sendWebhook() {
 
 // ── Token Panel ────────────────────────────────────────────────
 
-const TOKEN_KEYS = ['schedule', 'crop', 'environment', 'growth_stage'];
+// プレースは2トークンのみ（圃場種 ＋ 病害虫予測行列）。
+// 発火（防除暦「⚡今すぐ」/ cron）でも同一キーで state.py のストアへ投入される。
+const TOKEN_KEYS = ['field_type', 'pest_matrix'];
 const TOK_LABELS = {
-  schedule: '📅 スケジュール',
-  crop: '🌱 作物種',
-  environment: '🏡 栽培環境',
-  growth_stage: '🌿 生育段階',
+  field_type: '🌱 圃場種',
+  pest_matrix: '🦠 病害虫予測行列',
 };
 
 function toggleTokenPanel() {

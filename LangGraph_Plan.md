@@ -168,11 +168,9 @@ class ChatState(TypedDict):
     # === 会話メッセージ（履歴用） ===
     messages: list[dict]          # [{"role": "user", "content": "..."}, ...]
 
-    # === ① 状態ノードの出力 ===
-    schedule: str | None          # "2026-08-20T09:00:00"
-    crop: str | None              # "きゅうり"
-    environment: str | None       # "温室"
-    growth_stage: str | None      # "育苗中"
+    # === ① 状態ノードの出力（プレースは2トークンのみ） ===
+    field_type: str | None        # 圃場種（nursery=育苗 / main=本圃、名・面積付き）
+    pest_matrix: str | None       # 病害虫予測行列（認知で生成した10次元予測ベクトル）
     token_ready: str | None       # "pending" | "ready"
 
     # === ② 認知ノードの出力 ===
@@ -216,7 +214,7 @@ class ChatState(TypedDict):
 
 **役割**: トークン集約・発火判定（Petri netモデル）。
 
-**入力**: 外部から投入されたトークン（schedule, crop, environment, growth_stage）
+**入力**: 外部から投入されたトークン（field_type, pest_matrix）— プレースは2トークンのみ
 **出力**: token_ready="ready"（全トークン揃った）
 
 ```python

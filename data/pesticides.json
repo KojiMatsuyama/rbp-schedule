@@ -1,8 +1,8 @@
 [
   {
     "id": "P01",
-    "name": "ベルクート",
-    "activeIngredient": "アゾキシストロビン",
+    "name": "ベルクート水和剤",
+    "activeIngredient": "イミノクタジンアルベシル酸塩",
     "category": "fungicide",
     "targetVector": [
       1,
@@ -34,11 +34,11 @@
   },
   {
     "id": "P02",
-    "name": "キノンドー",
-    "activeIngredient": "キノキサリン系",
+    "name": "キノンドーフロアブル",
+    "activeIngredient": "有機銅",
     "category": "fungicide",
     "targetVector": [
-      1,
+      0,
       0,
       0,
       0,
@@ -50,25 +50,21 @@
       0
     ],
     "targetNames": [
-      "炭疽"
+      "うどんこ"
     ],
     "phiDays": 1.0,
-    "mixingRestriction": "酸性剤、銅剤、硫黄剤と混合不可",
-    "mixingBanTargets": [
-      "酸性剤",
-      "銅剤",
-      "硫黄剤"
-    ],
-    "maxApplications": 2.0,
-    "toxicityClass": "劇物",
-    "system": "キノキサリン系",
-    "systemCode": "FRAC-QUINOX",
+    "mixingRestriction": "",
+    "mixingBanTargets": [],
+    "maxApplications": 3.0,
+    "toxicityClass": "普通物",
+    "system": "",
+    "systemCode": "",
     "dilutionRate": "1000倍液"
   },
   {
     "id": "P03",
-    "name": "ゲッター",
-    "activeIngredient": "フルアジナム",
+    "name": "ゲッター水和剤",
+    "activeIngredient": "ジエトフェンカルブ・チオファネートメチル",
     "category": "fungicide",
     "targetVector": [
       1,
@@ -96,7 +92,7 @@
   },
   {
     "id": "P04",
-    "name": "ランマン",
+    "name": "ランマンフロアブル",
     "activeIngredient": "シアゾファミド",
     "category": "fungicide",
     "targetVector": [
@@ -127,7 +123,7 @@
   },
   {
     "id": "P05",
-    "name": "アントラコール",
+    "name": "アントラコール顆粒水和剤",
     "activeIngredient": "プロピネブ",
     "category": "fungicide",
     "targetVector": [
@@ -159,7 +155,7 @@
   },
   {
     "id": "P06",
-    "name": "ストロビー",
+    "name": "ストロビーフロアブル",
     "activeIngredient": "クレソキシムメチル",
     "category": "fungicide",
     "targetVector": [
@@ -190,37 +186,8 @@
     "dilutionRate": "1500倍液"
   },
   {
-    "id": "P07",
-    "name": "パンチョ",
-    "activeIngredient": "フルアジナム＋他",
-    "category": "fungicide",
-    "targetVector": [
-      1,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0
-    ],
-    "targetNames": [
-      "炭疽"
-    ],
-    "phiDays": 1.0,
-    "mixingRestriction": "特記事項なし",
-    "mixingBanTargets": [],
-    "maxApplications": 2.0,
-    "toxicityClass": "普通物",
-    "system": "混合剤",
-    "systemCode": "MIX",
-    "dilutionRate": "1000倍液"
-  },
-  {
     "id": "P08",
-    "name": "シグナム",
+    "name": "シグナムWDG",
     "activeIngredient": "ボスカリド＋ピラクロストロビン",
     "category": "fungicide",
     "targetVector": [
@@ -253,8 +220,8 @@
   },
   {
     "id": "P09",
-    "name": "ファンタジスタ",
-    "activeIngredient": "ピラクロストロビン",
+    "name": "ファンタジスタ顆粒水和剤",
+    "activeIngredient": "ピリベンカルブ",
     "category": "fungicide",
     "targetVector": [
       1,
@@ -285,8 +252,8 @@
   },
   {
     "id": "P10",
-    "name": "ダブルフェース",
-    "activeIngredient": "シエノピラン",
+    "name": "ダブルフェースフロアブル",
+    "activeIngredient": "ピフルブミド・フェンピロキシメート",
     "category": "fungicide",
     "targetVector": [
       0,
@@ -314,8 +281,8 @@
   },
   {
     "id": "P11",
-    "name": "トレノックス",
-    "activeIngredient": "テブコナゾール",
+    "name": "トレノックスフロアブル",
+    "activeIngredient": "チウラム",
     "category": "fungicide",
     "targetVector": [
       0,
@@ -345,7 +312,7 @@
   },
   {
     "id": "P12",
-    "name": "レーバス",
+    "name": "レーバスフロアブル",
     "activeIngredient": "マンジプロパミド",
     "category": "fungicide",
     "targetVector": [
@@ -374,8 +341,8 @@
   },
   {
     "id": "P13",
-    "name": "プレバソン",
-    "activeIngredient": "イミノクタジン",
+    "name": "プレバソンフロアブル5",
+    "activeIngredient": "クロラントラニリプロール",
     "category": "fungicide",
     "targetVector": [
       0,
@@ -403,8 +370,8 @@
   },
   {
     "id": "P14",
-    "name": "プロパティ",
-    "activeIngredient": "プロピコナゾール",
+    "name": "プロパティフロアブル",
+    "activeIngredient": "ピリオフェノン",
     "category": "fungicide",
     "targetVector": [
       0,
@@ -433,39 +400,9 @@
     "dilutionRate": "1000倍液"
   },
   {
-    "id": "P15",
-    "name": "ベネピア",
-    "activeIngredient": "ベノミル",
-    "category": "fungicide",
-    "targetVector": [
-      0,
-      1,
-      1,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0
-    ],
-    "targetNames": [
-      "うどんこ",
-      "灰色かび"
-    ],
-    "phiDays": 1.0,
-    "mixingRestriction": "特記事項なし",
-    "mixingBanTargets": [],
-    "maxApplications": 3.0,
-    "toxicityClass": "普通物",
-    "system": "ベンズイミダゾール系",
-    "systemCode": "FRAC1",
-    "dilutionRate": "1000倍液"
-  },
-  {
     "id": "P16",
-    "name": "ファンベル",
-    "activeIngredient": "フルジオキソニル",
+    "name": "ファンベル顆粒水和剤",
+    "activeIngredient": "イミノクタジンアルベシル酸塩・ピリベンカルブ",
     "category": "fungicide",
     "targetVector": [
       0,
@@ -493,8 +430,8 @@
   },
   {
     "id": "P17",
-    "name": "カナメ",
-    "activeIngredient": "メパニピリム",
+    "name": "カナメフロアブル",
+    "activeIngredient": "インピルフルキサム",
     "category": "fungicide",
     "targetVector": [
       0,
@@ -522,8 +459,8 @@
   },
   {
     "id": "P18",
-    "name": "アフェット",
-    "activeIngredient": "イミノクタジン",
+    "name": "アフェットフロアブル",
+    "activeIngredient": "ペンチオピラド",
     "category": "fungicide",
     "targetVector": [
       0,
@@ -551,9 +488,9 @@
   },
   {
     "id": "P19",
-    "name": "アベンジャー",
-    "activeIngredient": "イプロジオン",
-    "category": "fungicide",
+    "name": "アベンジャーフロアブル",
+    "activeIngredient": "フロメトキン",
+    "category": "insecticide",
     "targetVector": [
       0,
       1,
@@ -580,8 +517,8 @@
   },
   {
     "id": "P20",
-    "name": "カウンター",
-    "activeIngredient": "キャプタン",
+    "name": "カウンター乳剤",
+    "activeIngredient": "ノバルロン",
     "category": "fungicide",
     "targetVector": [
       0,
@@ -611,8 +548,8 @@
   },
   {
     "id": "P21",
-    "name": "ジーファイン",
-    "activeIngredient": "チオファネートメチル",
+    "name": "ジーファイン水和剤",
+    "activeIngredient": "無水硫酸銅",
     "category": "fungicide",
     "targetVector": [
       0,
@@ -641,8 +578,8 @@
   },
   {
     "id": "P22",
-    "name": "サンクリ",
-    "activeIngredient": "イミノクタジン",
+    "name": "サンクリスタル乳剤",
+    "activeIngredient": "脂肪酸グリセリド",
     "category": "fungicide",
     "targetVector": [
       0,
@@ -670,9 +607,9 @@
   },
   {
     "id": "P23",
-    "name": "ヨーバル",
-    "activeIngredient": "イミノクタジン",
-    "category": "fungicide",
+    "name": "ヨーバルフロアブル",
+    "activeIngredient": "テトラニリプロール",
+    "category": "insecticide",
     "targetVector": [
       0,
       1,
@@ -699,8 +636,8 @@
   },
   {
     "id": "P24",
-    "name": "グレーシア",
-    "activeIngredient": "イミノクタジン",
+    "name": "グレーシア乳剤",
+    "activeIngredient": "フルキサメタミド",
     "category": "fungicide",
     "targetVector": [
       0,
@@ -728,8 +665,8 @@
   },
   {
     "id": "P25",
-    "name": "フルピカ",
-    "activeIngredient": "フルジオキソニル",
+    "name": "フルピカフロアブル",
+    "activeIngredient": "メパニピリム",
     "category": "fungicide",
     "targetVector": [
       0,
@@ -757,8 +694,8 @@
   },
   {
     "id": "P26",
-    "name": "オラクル水和剤",
-    "activeIngredient": "イミノクタジン",
+    "name": "オラクル顆粒水和剤",
+    "activeIngredient": "アミスルブロム",
     "category": "fungicide",
     "targetVector": [
       0,
@@ -786,7 +723,7 @@
   },
   {
     "id": "P27",
-    "name": "トリフミン",
+    "name": "トリフミン水和剤",
     "activeIngredient": "トリフルミゾール",
     "category": "fungicide",
     "targetVector": [
@@ -816,38 +753,9 @@
     "dilutionRate": "1000倍液"
   },
   {
-    "id": "P28",
-    "name": "セイピア",
-    "activeIngredient": "ピリベンカルブ",
-    "category": "fungicide",
-    "targetVector": [
-      0,
-      1,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0
-    ],
-    "targetNames": [
-      "灰色かび"
-    ],
-    "phiDays": 1.0,
-    "mixingRestriction": "特記事項なし",
-    "mixingBanTargets": [],
-    "maxApplications": 2.0,
-    "toxicityClass": "普通物",
-    "system": "カルバメート系",
-    "systemCode": "FRAC-CARBAMATE",
-    "dilutionRate": "1000倍液"
-  },
-  {
     "id": "P29",
     "name": "ファインセーブフロアブル",
-    "activeIngredient": "フルジオキソニル",
+    "activeIngredient": "フロメトキン",
     "category": "fungicide",
     "targetVector": [
       0,
@@ -907,7 +815,7 @@
   },
   {
     "id": "P31",
-    "name": "カリグリーン",
+    "name": "カリグリーン水溶剤",
     "activeIngredient": "炭酸水素カリウム",
     "category": "fungicide",
     "targetVector": [
@@ -939,7 +847,7 @@
   {
     "id": "P32",
     "name": "ショウチノスケフロアブル",
-    "activeIngredient": "イミノクタジン",
+    "activeIngredient": "フルチアニル・メパニピリム",
     "category": "fungicide",
     "targetVector": [
       0,
@@ -999,7 +907,7 @@
   {
     "id": "P34",
     "name": "セイビアーフロアブル20",
-    "activeIngredient": "フルアジナム",
+    "activeIngredient": "フルジオキソニル",
     "category": "fungicide",
     "targetVector": [
       1,
@@ -1028,7 +936,7 @@
   {
     "id": "P35",
     "name": "ハーモメイト水溶剤",
-    "activeIngredient": "キャプタン",
+    "activeIngredient": "炭酸水素ナトリウム",
     "category": "fungicide",
     "targetVector": [
       0,
@@ -1059,7 +967,7 @@
   {
     "id": "P36",
     "name": "パンチョTF顆粒水和剤",
-    "activeIngredient": "フルアジナム＋他",
+    "activeIngredient": "シフルフェナミド・トリフルミゾール",
     "category": "fungicide",
     "targetVector": [
       1,
@@ -1088,7 +996,7 @@
   {
     "id": "P37",
     "name": "ラミック顆粒水和剤",
-    "activeIngredient": "マンジプロパミド",
+    "activeIngredient": "イミノクタジンアルベシル酸塩・ピリオフェノン",
     "category": "fungicide",
     "targetVector": [
       0,
@@ -1116,7 +1024,7 @@
   },
   {
     "id": "P38",
-    "name": "ベンレート",
+    "name": "ベンレート水和剤",
     "activeIngredient": "ベノミル",
     "category": "fungicide",
     "targetVector": [
@@ -1146,7 +1054,7 @@
   },
   {
     "id": "P39",
-    "name": "アミスタ",
+    "name": "アミスタフロアブル",
     "activeIngredient": "アゾキシストロビン",
     "category": "fungicide",
     "targetVector": [
@@ -1178,8 +1086,8 @@
   },
   {
     "id": "P40",
-    "name": "コサイド300",
-    "activeIngredient": "銅水和剤",
+    "name": "コサイド3000ドライフロアブル",
+    "activeIngredient": "水酸化第二銅",
     "category": "fungicide",
     "targetVector": [
       1,
@@ -1211,7 +1119,7 @@
   },
   {
     "id": "P41",
-    "name": "アファーム",
+    "name": "アファーム乳剤",
     "activeIngredient": "エマメクチン",
     "category": "insecticide",
     "targetVector": [
@@ -1241,8 +1149,8 @@
   },
   {
     "id": "P42",
-    "name": "コテツ",
-    "activeIngredient": "スピノサド",
+    "name": "コテツフロアブル",
+    "activeIngredient": "クロルフェナピル",
     "category": "insecticide",
     "targetVector": [
       0,
@@ -1273,8 +1181,8 @@
   },
   {
     "id": "P43",
-    "name": "プレオ",
-    "activeIngredient": "ピメトロジン",
+    "name": "プレオフロアブル",
+    "activeIngredient": "ピリダリル",
     "category": "insecticide",
     "targetVector": [
       0,
@@ -1302,7 +1210,7 @@
   },
   {
     "id": "P44",
-    "name": "チェス",
+    "name": "チェス顆粒水和剤",
     "activeIngredient": "ピメトロジン",
     "category": "insecticide",
     "targetVector": [
@@ -1331,8 +1239,8 @@
   },
   {
     "id": "P45",
-    "name": "トルネード",
-    "activeIngredient": "クロルフェナピル",
+    "name": "トルネードエースDF",
+    "activeIngredient": "インドキサカルブ",
     "category": "insecticide",
     "targetVector": [
       0,
@@ -1363,7 +1271,7 @@
   },
   {
     "id": "P46",
-    "name": "スピノエース",
+    "name": "スピノエース顆粒水和剤",
     "activeIngredient": "スピノサド",
     "category": "insecticide",
     "targetVector": [
@@ -1395,8 +1303,8 @@
   },
   {
     "id": "P47",
-    "name": "ラリー",
-    "activeIngredient": "ピリダベン",
+    "name": "ラリー水和剤",
+    "activeIngredient": "ミクロブタニル",
     "category": "insecticide",
     "targetVector": [
       0,
@@ -1426,8 +1334,8 @@
   },
   {
     "id": "P48",
-    "name": "トクチオン",
-    "activeIngredient": "クロルピリホス",
+    "name": "トクチオン細粒剤F",
+    "activeIngredient": "プロチオホス",
     "category": "insecticide",
     "targetVector": [
       0,
@@ -1457,7 +1365,7 @@
   },
   {
     "id": "P49",
-    "name": "アグリメック",
+    "name": "アグリメック乳剤",
     "activeIngredient": "アバメクチン",
     "category": "insecticide",
     "targetVector": [
@@ -1486,8 +1394,8 @@
   },
   {
     "id": "P50",
-    "name": "ベストガード",
-    "activeIngredient": "クロチアニジン",
+    "name": "ベストガード水溶剤",
+    "activeIngredient": "ニテンピラム",
     "category": "insecticide",
     "targetVector": [
       0,
@@ -1516,8 +1424,8 @@
   },
   {
     "id": "P51",
-    "name": "ムシラップ",
-    "activeIngredient": "クロチアニジン",
+    "name": "ムシラップ乳剤",
+    "activeIngredient": "ソルビタン脂肪酸エステル",
     "category": "insecticide",
     "targetVector": [
       0,
@@ -1576,8 +1484,8 @@
   },
   {
     "id": "P53",
-    "name": "コロマイト",
-    "activeIngredient": "フェンピロキシメート",
+    "name": "コロマイト水和剤",
+    "activeIngredient": "ミルベメクチン",
     "category": "acaricide",
     "targetVector": [
       0,
@@ -1605,8 +1513,8 @@
   },
   {
     "id": "P54",
-    "name": "スターマイト",
-    "activeIngredient": "テトラジホン",
+    "name": "スターマイトフロアブル",
+    "activeIngredient": "シエノピラフェン",
     "category": "acaricide",
     "targetVector": [
       0,
@@ -1636,8 +1544,8 @@
   },
   {
     "id": "P55",
-    "name": "バリアード",
-    "activeIngredient": "ヘキサチアゾクス",
+    "name": "バリアード顆粒水和剤",
+    "activeIngredient": "チアクロプリド",
     "category": "acaricide",
     "targetVector": [
       0,
@@ -1665,8 +1573,8 @@
   },
   {
     "id": "P56",
-    "name": "ダニサラバ",
-    "activeIngredient": "ミルベメクチン",
+    "name": "ダニサラバフロアブル",
+    "activeIngredient": "シフルメトフェン",
     "category": "acaricide",
     "targetVector": [
       0,
@@ -1694,8 +1602,8 @@
   },
   {
     "id": "P57",
-    "name": "ダニコング",
-    "activeIngredient": "ミルベメクチン",
+    "name": "ダニコングフロアブル",
+    "activeIngredient": "ピフルブミド",
     "category": "acaricide",
     "targetVector": [
       0,
@@ -1723,8 +1631,8 @@
   },
   {
     "id": "P58",
-    "name": "マイトコーネ",
-    "activeIngredient": "テトラジホン",
+    "name": "マイトコーネフロアブル",
+    "activeIngredient": "ビフェナゼート",
     "category": "acaricide",
     "targetVector": [
       0,
@@ -1755,7 +1663,7 @@
   {
     "id": "P59",
     "name": "アーデント水和剤",
-    "activeIngredient": "ピリダベン",
+    "activeIngredient": "アクリナトリン",
     "category": "acaricide",
     "targetVector": [
       0,
@@ -1786,7 +1694,7 @@
   {
     "id": "P60",
     "name": "ウララDF",
-    "activeIngredient": "フルフェノクスロン",
+    "activeIngredient": "フロニカミド",
     "category": "insecticide",
     "targetVector": [
       0,
@@ -1814,7 +1722,7 @@
   },
   {
     "id": "P61",
-    "name": "サフオイル",
+    "name": "サフオイル油剤",
     "activeIngredient": "精製植物油",
     "category": "acaricide",
     "targetVector": [
@@ -1847,7 +1755,7 @@
   {
     "id": "P62",
     "name": "ディアナSC",
-    "activeIngredient": "スピロメシフェン",
+    "activeIngredient": "スピネトラム",
     "category": "acaricide",
     "targetVector": [
       0,
@@ -1905,7 +1813,7 @@
   {
     "id": "P64",
     "name": "バロックフロアブル",
-    "activeIngredient": "クロルフェナピル",
+    "activeIngredient": "エトキサゾール",
     "category": "insecticide",
     "targetVector": [
       0,
@@ -1936,7 +1844,7 @@
   {
     "id": "P65",
     "name": "オルフィンフロアブル",
-    "activeIngredient": "ピリダベン",
+    "activeIngredient": "フルオピラム",
     "category": "acaricide",
     "targetVector": [
       0,
@@ -1967,8 +1875,8 @@
   {
     "id": "P66",
     "name": "ガッテン乳剤",
-    "activeIngredient": "クロルフェナピル",
-    "category": "insecticide",
+    "activeIngredient": "フルチアニル",
+    "category": "fungicide",
     "targetVector": [
       0,
       0,

@@ -7,10 +7,18 @@ STB アプリ（schedule_app.html）起動手順 — AI向けノウハウ
 
 ■ 結論（これだけ実行すればよい）
 --------------------------------------------------------------------
-リポジトリ直下の server.py を実行する（ヒアドキュメントでの使い捨て生成はもう不要）：
+リポジトリ直下の server.py を**venv の python** で実行する（ヒアドキュメントでの
+使い捨て生成はもう不要）：
 
-  setsid nohup python3 /home/ko_matsuyama/app/STB/server.py > /tmp/stb_server.log 2>&1 < /dev/null &
+  setsid nohup /home/ko_matsuyama/app/STB/.venv/bin/python /home/ko_matsuyama/app/STB/server.py > /tmp/stb_server.log 2>&1 < /dev/null &
   disown
+
+※ venv の python が必須。humos_os（HUMOS OS コア）は pip パッケージとして
+  本プロジェクトの .venv に**個別に**インストールされている（DC と同じ
+  バージョン 1.4.0 を各自が持つ）。システム python3 では humos_os が解決
+  できないため、必ず .venv/bin/python で起動すること。
+  （venv が無い場合の再構築: python3 -m venv --system-site-packages .venv
+   && .venv/bin/pip install /home/ko_matsuyama/app/humos_os）
 
 server.py は起動.txt がこれまで記載していたヒアドキュメント版と同じ
 IP・ポート・バインド・キャッシュ無効化・ThreadingHTTPServer必須の要件を満たした上で、

@@ -16,11 +16,12 @@
 <body>
 
 <header>
-  <h1>🌿 RBP 防除スケジュールリスト</h1>
+  <h1 id="appTitle">🌿 RBP 防除スケジュールリスト</h1>
   <div class="year-nav">
     <button onclick="changeYear(-1)">◀</button>
     <span id="yearDisplay"></span>
     <button onclick="changeYear(1)">▶</button>
+    <button id="portalBtn" class="portal-btn" onclick="showPortal()" title="トップポータルへ">🏠 ポータル</button>
     <div class="header-menu-wrapper">
       <button id="headerMenuToggle" class="header-menu-btn" onclick="toggleHeaderMenu()" title="メニュー">☰</button>
       <div class="header-menu-dropdown" id="headerMenu">
@@ -30,11 +31,147 @@
         <hr style="border:none;border-top:1px solid #eee;margin:4px 0;">
         <button class="header-menu-item" onclick="window.location.href='/chat';closeHeaderMenu()">🤖 AIアシスタント</button>
         <button class="header-menu-item" onclick="window.location.href='/designer';closeHeaderMenu()">🔷 グラフデザイナー</button>
+        <button class="header-menu-item" onclick="window.location.href='/viz';closeHeaderMenu()">📊 境界言語図表</button>
+        <button class="header-menu-item" onclick="window.location.href='/operations';closeHeaderMenu()">🗼 運航管理センター</button>
+        <button class="header-menu-item" onclick="window.location.href='/humos';closeHeaderMenu()">🧠 HUMOS コンソール</button>
       </div>
     </div>
     <img id="qrCode" src="qr-code.png" alt="QR Code" style="width:48px;height:48px;border-radius:4px;cursor:pointer;" title="スマホでスキャン">
   </div>
 </header>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     トップポータル（タイル形式）
+     トップ画面はタイルグリッド。タイルをクリックすると一画面ずつ表示。
+     各画面ヘッダーの「🏠 ポータル」でここに戻る。
+     ═══════════════════════════════════════════════════════════════ -->
+<section id="portal" class="portal-view">
+  <div class="portal-inner">
+    <div class="portal-head">
+      <h2>🌿 防除スケジューラ <span class="portal-sub">トップポータル</span></h2>
+      <p class="portal-desc">タイルをクリックすると、その画面が一画面ずつ開きます。</p>
+    </div>
+
+    <div class="portal-group">
+      <div class="portal-group-title">📅 運用</div>
+      <div class="tile-grid">
+        <button class="tile" onclick="showScreen('detail')">
+          <span class="tile-icon">📋</span>
+          <span class="tile-name">日次詳細</span>
+          <span class="tile-desc">カレンダー×実績入力</span>
+        </button>
+        <button class="tile" onclick="showScreen('schedule')">
+          <span class="tile-icon">📅</span>
+          <span class="tile-name">防除暦</span>
+          <span class="tile-desc">散布予定の管理</span>
+        </button>
+        <button class="tile" onclick="showScreen('transplant')">
+          <span class="tile-icon">🌱</span>
+          <span class="tile-name">定植暦（花芽分化）</span>
+          <span class="tile-desc">顕微鏡検査の管理</span>
+        </button>
+        <button class="tile" onclick="showScreen('history')">
+          <span class="tile-icon">🧴</span>
+          <span class="tile-name">防除履歴</span>
+          <span class="tile-desc">実績の振り返り</span>
+        </button>
+        <button class="tile" onclick="showScreen('import')">
+          <span class="tile-icon">📥</span>
+          <span class="tile-name">インポート</span>
+          <span class="tile-desc">データ取り込み</span>
+        </button>
+        <button class="tile" onclick="showScreen('inventory')">
+          <span class="tile-icon">📦</span>
+          <span class="tile-name">在庫管理</span>
+          <span class="tile-desc">薬剤在庫・期限</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="portal-group">
+      <div class="portal-group-title">🗂 マスター</div>
+      <div class="tile-grid">
+        <button class="tile" onclick="showScreen('disease')">
+          <span class="tile-icon">🦠</span>
+          <span class="tile-name">病害虫マスター</span>
+          <span class="tile-desc">病害虫台帳</span>
+        </button>
+        <button class="tile" onclick="showScreen('pesticide')">
+          <span class="tile-icon">💊</span>
+          <span class="tile-name">薬剤マスター</span>
+          <span class="tile-desc">薬剤・配合の管理</span>
+        </button>
+        <button class="tile" onclick="showScreen('field')">
+          <span class="tile-icon">🌱</span>
+          <span class="tile-name">圃場マスター</span>
+          <span class="tile-desc">圃場・ベッド台帳</span>
+        </button>
+        <button class="tile" onclick="showScreen('inspection')">
+          <span class="tile-icon">🔬</span>
+          <span class="tile-name">検鏡場所マスター</span>
+          <span class="tile-desc">顕微鏡検査場所</span>
+        </button>
+        <button class="tile" onclick="showScreen('worker')">
+          <span class="tile-icon">👤</span>
+          <span class="tile-name">従業者マスター</span>
+          <span class="tile-desc">担当者管理</span>
+        </button>
+        <button class="tile" onclick="showScreen('cohort')">
+          <span class="tile-icon">🌱</span>
+          <span class="tile-name">コホートマスター</span>
+          <span class="tile-desc">育苗バッチ管理</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="portal-group">
+      <div class="portal-group-title">🧩 知識・設計</div>
+      <div class="tile-grid">
+        <button class="tile" onclick="showScreen('knowledge')">
+          <span class="tile-icon">🧩</span>
+          <span class="tile-name">境界言語知識</span>
+          <span class="tile-desc">タスク別5段接地</span>
+        </button>
+        <button class="tile" onclick="showScreen('viz')">
+          <span class="tile-icon">📊</span>
+          <span class="tile-name">境界言語図表</span>
+          <span class="tile-desc">境界言語の可視化</span>
+        </button>
+        <button class="tile" onclick="showScreen('designer')">
+          <span class="tile-icon">🔷</span>
+          <span class="tile-name">グラフデザイナー</span>
+          <span class="tile-desc">状態遷移ネット</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="portal-group">
+      <div class="portal-group-title">🧠 OS・運航</div>
+      <div class="tile-grid">
+        <button class="tile" onclick="showScreen('operations')">
+          <span class="tile-icon">🗼</span>
+          <span class="tile-name">運航管理センター</span>
+          <span class="tile-desc">管制塔・運行図表</span>
+        </button>
+        <button class="tile" onclick="showScreen('stn')">
+          <span class="tile-icon">🕸</span>
+          <span class="tile-name">STN</span>
+          <span class="tile-desc">STN・ライブ</span>
+        </button>
+        <button class="tile" onclick="showScreen('humos')">
+          <span class="tile-icon">🧠</span>
+          <span class="tile-name">HUMOS コンソール</span>
+          <span class="tile-desc">OS・本質4層</span>
+        </button>
+        <button class="tile" onclick="showScreen('chat')">
+          <span class="tile-icon">🤖</span>
+          <span class="tile-name">AIアシスタント</span>
+          <span class="tile-desc">対話・処方相談</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
 
 <div class="container">
   <!-- Calendar -->
@@ -55,14 +192,20 @@
         <span id="menuChevron">▼</span>
       </button>
       <div class="menu-dropdown" id="panelMenu">
-        <button class="menu-item active" onclick="switchTab('detail');closeMenu()">📋 日次詳細</button>
-        <button class="menu-item" onclick="switchTab('schedule');closeMenu()">📅 防除暦</button>
-        <button class="menu-item" onclick="switchTab('history');closeMenu()">🧴 防除履歴</button>
-        <button class="menu-item" onclick="switchTab('import');closeMenu()">📥 インポート</button>
+        <button class="menu-item active" data-tab="detail" onclick="switchTab('detail');closeMenu()">📋 日次詳細</button>
+        <button class="menu-item" data-tab="schedule" onclick="switchTab('schedule');closeMenu()">📅 防除暦</button>
+        <button class="menu-item" data-tab="transplant" onclick="switchTab('transplant');closeMenu()">🌱 定植暦（花芽分化）</button>
+        <button class="menu-item" data-tab="history" onclick="switchTab('history');closeMenu()">🧴 防除履歴</button>
+        <button class="menu-item" data-tab="import" onclick="switchTab('import');closeMenu()">📥 インポート</button>
         <hr style="border:none;border-top:1px solid #eee;margin:4px 0;">
         <button class="menu-item" onclick="openDiseaseMaster();closeMenu()">🦠 病害虫マスター</button>
         <button class="menu-item" onclick="openPesticideMaintenance();closeMenu()">💊 薬剤マスター</button>
-        <button class="menu-item" onclick="switchTab('inventory');closeMenu()">📦 在庫管理</button>
+        <button class="menu-item" onclick="openFieldMaster();closeMenu()">🌱 圃場マスター</button>
+        <button class="menu-item" onclick="openInspectionLocationMaster();closeMenu()">🔬 検鏡場所マスター</button>
+        <button class="menu-item" onclick="openWorkerMaster();closeMenu()">👤 従業者マスター</button>
+        <button class="menu-item" onclick="openCohortMaster();closeMenu()">🌱 コホートマスター</button>
+        <button class="menu-item" onclick="window.location.href='/knowledge';closeMenu()">🧩 境界言語知識</button>
+        <button class="menu-item" data-tab="inventory" onclick="switchTab('inventory');closeMenu()">📦 在庫管理</button>
       </div>
     </div>
     <div class="panel-content">
@@ -90,6 +233,9 @@
         </div>
         <div class="record-form" style="margin-bottom:10px;">
           <input type="date" id="sched_add_date" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:6px;">
+          <div id="sched_add_field_wrap"></div>
+          <div style="font-size:.8rem;margin:2px 0;">散布担当（従業者）</div>
+          <div id="sched_add_worker_wrap"></div>
           <input type="text" id="sched_add_notes" placeholder="対象病害虫・セットなど（メモ）" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:6px;">
           <button class="btn btn-primary btn-sm" onclick="addScheduleEntry()">＋ 予定を追加</button>
         </div>
@@ -98,6 +244,9 @@
           <input type="hidden" id="sched_edit_id">
           <input type="date" id="sched_edit_date" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin:6px 0;">
           <input type="text" id="sched_edit_set" placeholder="セット（例: セット6）" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:6px;">
+          <div id="sched_edit_field_wrap"></div>
+          <div style="font-size:.8rem;margin:2px 0;">散布担当（従業者）</div>
+          <div id="sched_edit_worker_wrap"></div>
           <input type="text" id="sched_edit_notes" placeholder="対象病害虫など（メモ）" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:6px;">
           <select id="sched_edit_status" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:6px;">
             <option value="scheduled">予定</option>
@@ -112,6 +261,120 @@
           </div>
         </div>
         <ul class="schedule-list" id="scheduleList"></ul>
+      </div>
+
+      <!-- Transplant Tab (定植暦 = transplant_schedule。育苗圃苗の「花芽分化確認」)
+           完了判定は外部組織（那賀地方いちご生産組合連合会）の判定。STN の P_external_wait。 -->
+      <div class="tab-pane" id="tab-transplant">
+        <div class="stats-bar" id="transplantStatsBar">
+          <span>登録数: <strong id="transplantCount">0</strong></span>
+          <span>期間: <strong id="transplantPeriod">—</strong></span>
+        </div>
+        <div style="font-size:.78rem;color:var(--muted);margin:8px 0;line-height:1.5;">
+          育苗圃で育苗したイチゴ苗の<strong>「花芽分化」</strong>（生理現象）が顕微鏡で確認できたか、
+          <strong>「花芽分化確認」</strong>を暦として管理します。判定は外部組織
+          <strong>那賀地方いちご生産組合連合会</strong>が行い、判定記録で完了になります。
+        </div>
+        <div class="record-form" style="margin-bottom:10px;">
+          <input type="date" id="tp_add_date" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:6px;">
+          <div style="display:flex;gap:6px;align-items:center;font-size:.8rem;margin:2px 0 6px;">
+            <span style="white-space:nowrap;">時刻</span>
+            <input type="time" id="tp_add_start" style="flex:1;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+            <span>〜</span>
+            <input type="time" id="tp_add_end" style="flex:1;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+          </div>
+          <div id="tp_add_field_wrap"></div>
+          <div style="font-size:.8rem;margin:2px 0;">コホート（育苗バッチ）</div>
+          <div id="tp_add_cohort_wrap"></div>
+          <div style="display:flex;gap:6px;align-items:center;font-size:.8rem;margin:2px 0 6px;">
+            <span style="white-space:nowrap;">検鏡順</span>
+            <input type="number" id="tp_add_seq" min="1" placeholder="1" style="flex:1;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+            <label style="display:flex;align-items:center;gap:4px;white-space:nowrap;cursor:pointer;">
+              <input type="checkbox" id="tp_add_final"> 最終検鏡
+            </label>
+          </div>
+          <div style="font-size:.8rem;margin:2px 0;">持ち込み担当（従業者）</div>
+          <div id="tp_add_worker_wrap"></div>
+          <div style="font-size:.8rem;margin:2px 0;">検鏡場所</div>
+          <div id="tp_add_location_wrap"></div>
+          <input type="text" id="tp_add_notes" placeholder="品種・株数・圃場など（メモ）" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:6px;">
+          <button class="btn btn-primary btn-sm" onclick="addTransplantEntry()">＋ 確認予定を追加</button>
+        </div>
+        <div class="record-form" id="tp_edit_form" style="display:none;margin-bottom:10px;border:1px solid #e0b400;background:#fffbe6;border-radius:6px;padding:8px;">
+          <strong>✎ 定植暦の修正</strong>
+          <input type="hidden" id="tp_edit_id">
+          <input type="date" id="tp_edit_date" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin:6px 0;">
+          <div style="display:flex;gap:6px;align-items:center;font-size:.8rem;margin:2px 0 6px;">
+            <span style="white-space:nowrap;">時刻</span>
+            <input type="time" id="tp_edit_start" style="flex:1;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+            <span>〜</span>
+            <input type="time" id="tp_edit_end" style="flex:1;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+          </div>
+          <div id="tp_edit_field_wrap"></div>
+          <div style="font-size:.8rem;margin:2px 0;">コホート（育苗バッチ）</div>
+          <div id="tp_edit_cohort_wrap"></div>
+          <div style="display:flex;gap:6px;align-items:center;font-size:.8rem;margin:2px 0 6px;">
+            <span style="white-space:nowrap;">検鏡順</span>
+            <input type="number" id="tp_edit_seq" min="1" placeholder="1" style="flex:1;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+            <label style="display:flex;align-items:center;gap:4px;white-space:nowrap;cursor:pointer;">
+              <input type="checkbox" id="tp_edit_final"> 最終検鏡
+            </label>
+          </div>
+          <div style="font-size:.8rem;margin:2px 0;">持ち込み担当（従業者）</div>
+          <div id="tp_edit_worker_wrap"></div>
+          <div style="font-size:.8rem;margin:2px 0;">検査場所</div>
+          <div id="tp_edit_location_wrap"></div>
+          <input type="text" id="tp_edit_notes" placeholder="品種・株数・圃場など（メモ）" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:6px;">
+          <select id="tp_edit_status" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:6px;">
+            <option value="scheduled">予定</option>
+            <option value="confirmed">確認済（判定あり）</option>
+            <option value="pending">判定待ち</option>
+            <option value="missed">未実施</option>
+          </select>
+          <div style="display:flex;gap:6px;margin-top:6px;">
+            <button class="btn btn-primary btn-sm" onclick="submitTransplantEdit()">💾 保存</button>
+            <button class="btn btn-outline btn-sm" onclick="cancelTransplantEdit()">キャンセル</button>
+          </div>
+        </div>
+        <!-- 判定記録フォーム（外部組織の判定を記録）。🔬判定記録で表示。 -->
+        <div class="record-form" id="tp_judge_form" style="display:none;margin-bottom:10px;border:1px solid #27ae60;background:#eafaf1;border-radius:6px;padding:8px;">
+          <strong>🔬 花芽分化判定記録</strong>
+          <div style="font-size:.78rem;color:var(--muted);margin:4px 0;">判定組織: 那賀地方いちご生産組合連合会</div>
+          <input type="hidden" id="tp_judge_id">
+          <div style="font-size:.8rem;margin:6px 0 2px;">判定結果</div>
+          <div style="display:flex;gap:6px;margin-bottom:6px;">
+            <button type="button" class="btn btn-sm" id="tp_judge_yes" onclick="setJudgeResult('分化あり')">分化あり</button>
+            <button type="button" class="btn btn-sm" id="tp_judge_no" onclick="setJudgeResult('分化なし')">分化なし</button>
+          </div>
+          <div style="font-size:.8rem;margin:6px 0 2px;">検査場所</div>
+          <div id="tp_judge_location_wrap"></div>
+          <div style="font-size:.8rem;margin:6px 0 2px;">判定日</div>
+          <input type="date" id="tp_judge_date" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:6px;">
+          <div style="display:flex;gap:6px;margin-top:6px;">
+            <button class="btn btn-primary btn-sm" onclick="submitTransplantJudge()">💾 判定を記録</button>
+            <button class="btn btn-outline btn-sm" onclick="cancelTransplantJudge()">キャンセル</button>
+          </div>
+        </div>
+        <ul class="schedule-list" id="transplantList"></ul>
+        <!-- 定植予定（transplant_plan）— コホートごとの定植日・担当・実績。 -->
+        <div style="margin-top:14px;">
+          <div style="font-size:.9rem;font-weight:bold;margin-bottom:6px;">🌱 定植予定（コホート別）</div>
+          <div style="font-size:.75rem;color:var(--muted);margin-bottom:8px;line-height:1.5;">
+            検鏡の判定（分化あり・または最終検鏡で分化なし）をトリガーに、ブリッジが定植日を自動導出します
+            （トリガー判定日の翌日）。ここでは手動で日付・担当を上書きできます。
+          </div>
+          <div id="transplantPlanList"></div>
+        </div>
+
+        <!-- 熱消毒予定（heat_schedule）— コホートごとのベッド準備（熱消毒）の着手日・期限日・担当・実績。 -->
+        <div style="margin-top:14px;">
+          <div style="font-size:.9rem;font-weight:bold;margin-bottom:6px;">🔥 熱消毒予定（ベッド準備・コホート別）</div>
+          <div style="font-size:.75rem;color:var(--muted);margin-bottom:8px;line-height:1.5;">
+            ベッドの熱消毒は定植の1か月前に着手し3週間以上実施します。
+            着手日・期限日は手動で指定します（日付は自動導出されません）。
+          </div>
+          <div id="heatScheduleList"></div>
+        </div>
       </div>
 
       <!-- Spray History Tab -->
@@ -198,9 +461,15 @@
 // ═══════════════════════════════════════════
 let currentYear = new Date().getFullYear();
 let selectedDate = null;  // "YYYY-MM-DD"
-let sprayHistory = {};         // "YYYY-MM-DD" => { pests: [name, ...], vector: [...] }
+let sprayHistory = {};         // "YYYY-MM-DD" => { pests: [name, ...], vector: [...], field_id: <int|null> }
 let sprays = [];          // [{ date: "YYYY-MM-DD", ids: ["P01","P02"], pests: [...] }]
-let spraySchedule = [];   // [{ id, schedule_date, status, set_ids, pesticide_ids, notes, ... }] — currentYear分のみ保持
+let spraySchedule = [];   // [{ id, schedule_date, status, set_ids, pesticide_ids, notes, field_id, ... }] — currentYear分のみ保持
+let transplantSchedule = [];   // [{ id, schedule_date, judge_date, judge_result, judge_org, status, notes, field_id }] — 定植暦（花芽分化確認）
+
+// 圃場マスター（育苗／本圃）。唯一無一の正は DB の fields テーブル。
+// 静的スナップショットは持たず（RBPエンジンの同期アクセス不要な純粋なUI参照データ）、
+// loadServerFields() で DB から読む。Cloudflare Pages（/api 無し）では空配列のまま。
+let FIELDS = [];          // [{ id, name, type: 'nursery'|'main', area_value, area_unit }]
 
 // 防除暦（spray_schedule）をcurrentYear分だけサーバーから取得する。
 // 失敗時は空配列のまま（カレンダー描画・スケジュールタブは実績のみの表示にフォールバック）。
@@ -217,6 +486,18 @@ async function fetchScheduleFromServer(year) {
     }));
   } catch (e) {
     spraySchedule = [];
+  }
+}
+
+// 定植暦（transplant_schedule）をcurrentYear分だけサーバーから取得する。
+async function fetchTransplantFromServer(year) {
+  try {
+    const res = await fetch(API_BASE + '/transplant_schedule?year=' + year);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    transplantSchedule = (json.data || []).map(row => ({ ...row }));
+  } catch (e) {
+    transplantSchedule = [];
   }
 }
 
@@ -264,6 +545,282 @@ async function loadServerDiseases() {
   }
 }
 
+// サーバー（DB）から圃場マスターを取得して FIELDS に読み込む。
+// 唯一無一の正は SQLite DB（data/stb.db の fields テーブル）。
+// 静的スナップショットは持たないため、/api 不可（Cloudflare Pages 等）では
+// FIELDS が空のまま（圃場selectは空・書き込みは非永続 — 他マスターと同等の劣化）。
+async function loadServerFields() {
+  try {
+    const res = await fetch(API_BASE + '/fields');
+    if (!res.ok) return;
+    if (!res.headers.get('content-type')?.includes('application/json')) return;
+    const json = await res.json();
+    if (Array.isArray(json.fields)) {
+      FIELDS = json.fields;
+    }
+  } catch (e) {
+    // Cloudflare Pages has no /api endpoints — silent, no warning
+  }
+}
+
+// 検鏡場所マスター（花芽分化の顕微鏡検査場所）。唯一無二の正は DB の inspection_locations。
+let INSPECTION_LOCATIONS = [];   // [{ id, name }]
+async function loadServerInspectionLocations() {
+  try {
+    const res = await fetch(API_BASE + '/inspection_locations');
+    if (!res.ok) return;
+    if (!res.headers.get('content-type')?.includes('application/json')) return;
+    const json = await res.json();
+    if (Array.isArray(json.locations)) {
+      INSPECTION_LOCATIONS = json.locations;
+    }
+  } catch (e) {
+    // Cloudflare Pages has no /api endpoints — silent, no warning
+  }
+}
+
+// 従業者マスター（持ち込み・作業の「誰」）。唯一無二の正は DB の workers。
+let WORKERS = [];   // [{ id, name, role, phone, org }]
+async function loadServerWorkers() {
+  try {
+    const res = await fetch(API_BASE + '/workers');
+    if (!res.ok) return;
+    if (!res.headers.get('content-type')?.includes('application/json')) return;
+    const json = await res.json();
+    if (Array.isArray(json.workers)) WORKERS = json.workers;
+  } catch (e) { /* Cloudflare Pages — silent */ }
+}
+
+// コホート（育苗バッチ）マスター。唯一無二の正は DB の cohorts。
+// 1 コホート = 1 プロジェクト（検鏡1→…→検鏡N→定植）。
+let COHORTS = [];   // [{ id, name, field_id, notes }]
+async function loadServerCohorts() {
+  try {
+    const res = await fetch(API_BASE + '/cohorts');
+    if (!res.ok) return;
+    if (!res.headers.get('content-type')?.includes('application/json')) return;
+    const json = await res.json();
+    if (Array.isArray(json.cohorts)) COHORTS = json.cohorts;
+  } catch (e) { /* Cloudflare Pages — silent */ }
+}
+
+// 定植予定（transplant_plan）— コホートごとの定植日・担当・実績。
+let TRANSPLANT_PLANS = [];   // [{ id, cohort_id, schedule_date, assignee_id, status, notes }]
+async function loadServerTransplantPlans() {
+  try {
+    const res = await fetch(API_BASE + '/transplant_plan');
+    if (!res.ok) return;
+    if (!res.headers.get('content-type')?.includes('application/json')) return;
+    const json = await res.json();
+    TRANSPLANT_PLANS = (json.data || []).map(r => ({ ...r }));
+  } catch (e) { TRANSPLANT_PLANS = []; }
+}
+
+// 熱消毒予定（heat_schedule）— コホートごとのベッド準備（熱消毒）の着手日・期限日・担当・実績。
+let HEAT_SCHEDULES = [];   // [{ id, cohort_id, start_date, deadline_date, assignee_id, status, notes }]
+async function loadServerHeatSchedules() {
+  try {
+    const res = await fetch(API_BASE + '/heat_schedule');
+    if (!res.ok) return;
+    if (!res.headers.get('content-type')?.includes('application/json')) return;
+    const json = await res.json();
+    HEAT_SCHEDULES = (json.data || []).map(r => ({ ...r }));
+  } catch (e) { HEAT_SCHEDULES = []; }
+}
+
+// 圃場マスターの表示ヘルパー
+const FIELD_TYPE_LABEL = { nursery: '🌱育苗', main: '🌾本圃' };
+const AREA_UNIT_LABEL = { m2: 'm²', tan: '反', tsubo: '坪' };
+const AREA_UNIT_TO_M2 = { m2: 1, tan: 1000, tsubo: 3.3058 };
+
+// 圃場の面積表記（例「15反」）。換算 m² はツールチップ用。
+function formatFieldArea(f) {
+  if (f.area_value == null) return '';
+  const unit = f.area_unit ? AREA_UNIT_LABEL[f.area_unit] : '';
+  return `${f.area_value}${unit}`;
+}
+function fieldAreaM2(f) {
+  if (f.area_value == null || !f.area_unit) return null;
+  return Math.round(f.area_value * (AREA_UNIT_TO_M2[f.area_unit] || 1));
+}
+function fieldBadge(fieldId) {
+  const f = FIELDS.find(x => x.id === fieldId);
+  if (!f) return '';
+  const area = formatFieldArea(f);
+  const m2 = fieldAreaM2(f);
+  const tip = m2 != null ? ` title="${m2} m²"` : '';
+  return `<span class="field-badge" ${tip}>${FIELD_TYPE_LABEL[f.type] || ''} ${escapeHtml(f.name)}${area ? ' · ' + escapeHtml(area) : ''}</span>`;
+}
+// 圃場選択 <select>。value="" は「圃場未指定」。
+function fieldSelectHTML(selectId, selectedValue) {
+  const opts = ['<option value="">圃場未指定</option>']
+    .concat(FIELDS.map(f => {
+      const sel = String(f.id) === String(selectedValue) ? ' selected' : '';
+      const area = formatFieldArea(f);
+      const label = `${FIELD_TYPE_LABEL[f.type] || ''} ${f.name}${area ? '（' + area + '）' : ''}`;
+      return `<option value="${f.id}"${sel}>${escapeHtml(label)}</option>`;
+    }));
+  return `<select id="${selectId}" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:6px;">${opts.join('')}</select>`;
+}
+// 検鏡場所選択 <select>。value="" は「検査場所未指定」。マスター（INSPECTION_LOCATIONS）から生成。
+function inspectionLocationSelectHTML(selectId, selectedValue) {
+  const opts = ['<option value="">検査場所未指定</option>']
+    .concat(INSPECTION_LOCATIONS.map(l => {
+      const sel = String(l.name) === String(selectedValue) ? ' selected' : '';
+      return `<option value="${escapeAttr(l.name)}"${sel}>${escapeHtml(l.name)}</option>`;
+    }));
+  return `<select id="${selectId}" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:6px;">${opts.join('')}</select>`;
+}
+// 従業者選択 <select>。value="" は「担当未指定」。マスター（WORKERS）から生成。
+function workerSelectHTML(selectId, selectedValue) {
+  const opts = ['<option value="">担当未指定</option>']
+    .concat(WORKERS.map(w => {
+      const sel = String(w.id) === String(selectedValue) ? ' selected' : '';
+      const sub = w.role ? `（${w.role}）` : '';
+      return `<option value="${w.id}"${sel}>${escapeHtml(w.name)}${escapeHtml(sub)}</option>`;
+    }));
+  return `<select id="${selectId}" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:6px;">${opts.join('')}</select>`;
+}
+// 担当者（従業者）の複数選択。チェックボックス群を containerId の中身として生成。
+// selectedIds: 選択済み worker.id の配列。マスター（WORKERS）から生成。
+function workerMultiSelectHTML(containerId, selectedIds) {
+  const sel = Array.isArray(selectedIds) ? selectedIds.map(Number) : [];
+  const opts = WORKERS.map(w => {
+    const chk = sel.includes(Number(w.id)) ? ' checked' : '';
+    const sub = w.role ? `（${w.role}）` : '';
+    return `<label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:.85rem;cursor:pointer;">
+      <input type="checkbox" class="worker-multi-chk" data-wid="${w.id}"${chk}>
+      ${escapeHtml(w.name)}${escapeHtml(sub)}
+    </label>`;
+  });
+  return `<div id="${containerId}" style="border:1px solid #ccc;border-radius:6px;padding:6px 8px;margin-bottom:6px;max-height:160px;overflow-y:auto;background:#fff;">
+    ${opts.length ? opts.join('') : '<span style="color:var(--muted);font-size:.8rem;">従業者が登録されていません</span>'}
+  </div>`;
+}
+// containerId 内のチェックボックスから選択済み worker.id の配列を読む。
+function getWorkerMultiSelect(containerId) {
+  const box = document.getElementById(containerId);
+  if (!box) return [];
+  return Array.from(box.querySelectorAll('.worker-multi-chk:checked')).map(el => Number(el.dataset.wid));
+}
+// 担当者ID配列（JSON文字列 or 配列）をパースして整数配列にする。
+function parseAssigneeIds(raw) {
+  if (raw == null) return [];
+  if (Array.isArray(raw)) return raw.map(Number).filter(n => !isNaN(n));
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? v.map(Number).filter(n => !isNaN(n)) : [];
+  } catch (e) { return []; }
+}
+// 行（entry）から担当者ID配列を導出。assignee_ids（複数）が正、
+// 空なら単一 assignee_id にフォールバック（後方互換）。
+function assigneeIdsOf(entry) {
+  if (!entry) return [];
+  const a = parseAssigneeIds(entry.assignee_ids);
+  return a.length ? a : (entry.assignee_id ? [entry.assignee_id] : []);
+}
+// 担当者ID配列を「名前（役割）」を「・」区切りのプレーンテキストで返す（複数対応）。空なら空文字。
+function workerNamesText(ids) {
+  const list = Array.isArray(ids) ? ids : parseAssigneeIds(ids);
+  if (!list.length) return '';
+  return list.map(id => {
+    const w = WORKERS.find(x => x.id === Number(id));
+    return w ? `${w.name}${w.role ? '（' + w.role + '）' : ''}` : `#${id}`;
+  }).join('・');
+}
+// 担当者ID配列を「名前（役割）」をカンマ区切りで表示する span を返す（複数対応）。
+// ids が空なら空文字を返す。
+function workerNamesHTML(ids) {
+  const text = workerNamesText(ids);
+  if (!text) return '';
+  return `<br><span style="color:var(--muted);font-size:.75rem;">👤 ${escapeHtml(text)}</span>`;
+}
+// コホート選択 <select>。value="" は「コホート未割当」。マスター（COHORTS）から生成。
+function cohortSelectHTML(selectId, selectedValue) {
+  const opts = ['<option value="">コホート未割当</option>']
+    .concat(COHORTS.map(c => {
+      const sel = String(c.id) === String(selectedValue) ? ' selected' : '';
+      return `<option value="${c.id}"${sel}>${escapeHtml(c.name)}</option>`;
+    }));
+  return `<select id="${selectId}" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:6px;">${opts.join('')}</select>`;
+}
+// 防除暦の追加/編集フォームの圃場selectを FIELDS 反映で再生成する。
+// init / switchTab('schedule') / 圃場マスター保存後に呼ぶ。
+function renderFieldSelects() {
+  const addWrap = document.getElementById('sched_add_field_wrap');
+  if (addWrap) {
+    const cur = (document.getElementById('sched_add_field') || {}).value || '';
+    addWrap.innerHTML = fieldSelectHTML('sched_add_field', cur);
+  }
+  const editWrap = document.getElementById('sched_edit_field_wrap');
+  if (editWrap) {
+    const editId = document.getElementById('sched_edit_id');
+    const entry = editId ? (spraySchedule.find(e => e.id === Number(editId.value)) || null) : null;
+    editWrap.innerHTML = fieldSelectHTML('sched_edit_field', entry ? entry.field_id : '');
+  }
+  // 防除暦の散布担当（従業者・複数選択）。
+  const schedAddWorkerWrap = document.getElementById('sched_add_worker_wrap');
+  if (schedAddWorkerWrap) {
+    const cur = getWorkerMultiSelect('sched_add_worker');
+    schedAddWorkerWrap.innerHTML = workerMultiSelectHTML('sched_add_worker', cur);
+  }
+  const schedEditWorkerWrap = document.getElementById('sched_edit_worker_wrap');
+  if (schedEditWorkerWrap) {
+    const schedEditId = document.getElementById('sched_edit_id');
+    const schedEntry = schedEditId ? (spraySchedule.find(e => e.id === Number(schedEditId.value)) || null) : null;
+    schedEditWorkerWrap.innerHTML = workerMultiSelectHTML('sched_edit_worker', schedEntry ? assigneeIdsOf(schedEntry) : []);
+  }
+  // 定植暦（花芽分化確認）の圃場 select。
+  const tpAddWrap = document.getElementById('tp_add_field_wrap');
+  if (tpAddWrap) {
+    const cur = (document.getElementById('tp_add_field') || {}).value || '';
+    tpAddWrap.innerHTML = fieldSelectHTML('tp_add_field', cur);
+  }
+  const tpEditWrap = document.getElementById('tp_edit_field_wrap');
+  if (tpEditWrap) {
+    const tpEditId = document.getElementById('tp_edit_id');
+    const tpEntry = tpEditId ? (transplantSchedule.find(e => e.id === Number(tpEditId.value)) || null) : null;
+    tpEditWrap.innerHTML = fieldSelectHTML('tp_edit_field', tpEntry ? tpEntry.field_id : '');
+  }
+  // 定植暦編集フォームの検査場所 select（マスターから生成）。
+  const tpEditLocWrap = document.getElementById('tp_edit_location_wrap');
+  if (tpEditLocWrap) {
+    const tpEditId = document.getElementById('tp_edit_id');
+    const tpEntry = tpEditId ? (transplantSchedule.find(e => e.id === Number(tpEditId.value)) || null) : null;
+    tpEditLocWrap.innerHTML = inspectionLocationSelectHTML('tp_edit_location', tpEntry ? (tpEntry.judge_location || '') : '');
+  }
+  // 定植暦追加フォームの検鏡場所 select（マスターから生成）。
+  const tpAddLocWrap = document.getElementById('tp_add_location_wrap');
+  if (tpAddLocWrap) {
+    const cur = (document.getElementById('tp_add_location') || {}).value || '';
+    tpAddLocWrap.innerHTML = inspectionLocationSelectHTML('tp_add_location', cur);
+  }
+  // 定植暦追加フォームのコホート・担当 select（マスターから生成）。
+  const tpAddCohortWrap = document.getElementById('tp_add_cohort_wrap');
+  if (tpAddCohortWrap) {
+    const cur = (document.getElementById('tp_add_cohort') || {}).value || '';
+    tpAddCohortWrap.innerHTML = cohortSelectHTML('tp_add_cohort', cur);
+  }
+  const tpAddWorkerWrap = document.getElementById('tp_add_worker_wrap');
+  if (tpAddWorkerWrap) {
+    const cur = getWorkerMultiSelect('tp_add_worker');
+    tpAddWorkerWrap.innerHTML = workerMultiSelectHTML('tp_add_worker', cur);
+  }
+  // 定植暦編集フォームのコホート・担当 select（マスターから生成）。
+  const tpEditCohortWrap = document.getElementById('tp_edit_cohort_wrap');
+  if (tpEditCohortWrap) {
+    const tpEditId = document.getElementById('tp_edit_id');
+    const tpEntry = tpEditId ? (transplantSchedule.find(e => e.id === Number(tpEditId.value)) || null) : null;
+    tpEditCohortWrap.innerHTML = cohortSelectHTML('tp_edit_cohort', tpEntry ? tpEntry.cohort_id : '');
+  }
+  const tpEditWorkerWrap = document.getElementById('tp_edit_worker_wrap');
+  if (tpEditWorkerWrap) {
+    const tpEditId = document.getElementById('tp_edit_id');
+    const tpEntry = tpEditId ? (transplantSchedule.find(e => e.id === Number(tpEditId.value)) || null) : null;
+    tpEditWorkerWrap.innerHTML = workerMultiSelectHTML('tp_edit_worker', tpEntry ? parseAssigneeIds(tpEntry.assignee_ids) : []);
+  }
+}
+
 async function fetchRecordsFromServer() {
   try {
     const res = await fetch(API_BASE + '/spray_history');
@@ -276,12 +833,17 @@ async function fetchRecordsFromServer() {
   }
 }
 
-async function saveRecordToServer(date, pests, vector) {
+async function saveRecordToServer(date, rec) {
   try {
     await fetch(API_BASE + '/spray_history', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ date, pests, vector }),
+      body: JSON.stringify({
+        date,
+        pests: rec.pests,
+        vector: rec.vector,
+        field_id: rec.field_id ?? null,
+      }),
     });
   } catch(e) {
     console.warn('サーバー保存に失敗:', e);
@@ -300,7 +862,7 @@ async function syncAllRecordsToServer() {
   // Save every record to server (upsert)
   const dates = Object.keys(sprayHistory);
   for (const date of dates) {
-    await saveRecordToServer(date, sprayHistory[date].pests, sprayHistory[date].vector);
+    await saveRecordToServer(date, sprayHistory[date]);
   }
 }
 
@@ -315,6 +877,7 @@ async function syncAllRecordsToServer() {
         sprayHistory[row.date] = {
           pests: JSON.parse(row.pests),
           vector: JSON.parse(row.vector),
+          field_id: row.field_id ?? null,
         };
       });
     } else {
@@ -332,10 +895,28 @@ async function syncAllRecordsToServer() {
     } catch(e2) {}
   }
   await fetchScheduleFromServer(currentYear);
+  await fetchTransplantFromServer(currentYear);
   await loadCustomEvalBoxes();
   await loadServerDiseases();
   await loadPesticides();
+  await loadServerFields();
+  await loadServerInspectionLocations();
+  await loadServerWorkers();
+  await loadServerCohorts();
+  await loadServerTransplantPlans();
+  await loadServerHeatSchedules();
+  renderFieldSelects();
   renderCalendar();
+  renderHeatSchedules();
+  // 初期表示: トップはタイルポータル。
+  // Deep-link: #<key> で特定の画面に直接着地（operations.html 等のナビ導線）。
+  //   key = タブ(detail/schedule/…) / マスター(disease/pesticide/…) / 別ページ(ext)
+  const hashTab = (location.hash || '').replace('#', '');
+  if (hashTab && PORTAL_SCREENS[hashTab]) {
+    showScreen(hashTab);
+  } else {
+    showPortal();
+  }
 })();
 
 function saveRecords() {
@@ -362,6 +943,7 @@ function postNewEvalBox(id, name, vector) {
 async function changeYear(delta) {
   currentYear += delta;
   await fetchScheduleFromServer(currentYear);
+  await fetchTransplantFromServer(currentYear);
   renderCalendar();
   renderSchedule();
 }
@@ -388,6 +970,15 @@ function getCalendarMarks(year) {
     if (entry.status !== 'scheduled' && entry.status !== 'rescheduled') return;
     const detail = entry.set_ids.length ? entry.set_ids.join('、') : (entry.notes || '');
     addMark(entry.schedule_date, 'schedule', { label: '予定あり' + (detail ? ': ' + detail : '') });
+  });
+
+  // 定植暦（花芽分化確認）— 予定・判定済みとも表示。
+  transplantSchedule.forEach(entry => {
+    if (!String(entry.schedule_date).startsWith(String(year))) return;
+    const label = entry.judge_result
+      ? `花芽分化確認済（${entry.judge_result}）`
+      : '花芽分化確認予定';
+    addMark(entry.schedule_date, 'transplant', { label });
   });
 
   return marks;
@@ -435,6 +1026,7 @@ function renderCalendar() {
           const cellMarks = marks[dateKey] || {};
           const hasRec = !!cellMarks.history;
           const hasSchedule = !!cellMarks.schedule;
+          const hasTransplant = !!cellMarks.transplant;
 
           let cls = '';
           if (isSun) cls += ' sun';
@@ -445,10 +1037,12 @@ function renderCalendar() {
           let inner = `<span class="day-label${cls}">${dayStr}</span>`;
           if (hasRec) inner += `<span class="day-badge has-record">✓</span>`;
           if (hasSchedule) inner += `<span class="day-badge has-schedule">●</span>`;
+          if (hasTransplant) inner += `<span class="day-badge has-transplant">🌱</span>`;
 
           const titleParts = [];
           if (hasRec) titleParts.push(cellMarks.history.label);
           if (hasSchedule) titleParts.push(cellMarks.schedule.label);
+          if (hasTransplant) titleParts.push(cellMarks.transplant.label);
 
           html += `<td class="${cls}" onclick="selectDate('${dateKey}')" title="${titleParts.join(' / ')}">${inner}</td>`;
           date++;
@@ -560,9 +1154,15 @@ function renderDetail() {
     </div>`;
   }
 
+  const recFieldId = rec ? (rec.field_id ?? null) : null;
+
   contentEl.innerHTML = `
     <div class="record-form">
       <h3>🐛 病害虫選択</h3>
+      <div style="margin-bottom:8px;">
+        <label style="font-size:.8rem;color:var(--muted);display:block;margin-bottom:4px;">🌱 圃場</label>
+        ${fieldSelectHTML('detail_field', recFieldId)}
+      </div>
       ${pestHTML}
       ${saveBtn}
       ${deleteBtn}
@@ -931,8 +1531,20 @@ function saveRecord() {
     vector[idx] = 1;
   });
 
-  const existingPesticideIds = (sprayHistory[selectedDate] && sprayHistory[selectedDate].pesticideIds) || [];
-  sprayHistory[selectedDate] = { pests, vector, pesticideIds: existingPesticideIds };
+  // 圃場は select の値をそのまま読む（未指定="" → null）。
+  // 既存レコードの pesticideIds / field_id は保持し、チェック切替で消さない。
+  const prev = sprayHistory[selectedDate] || {};
+  const existingPesticideIds = prev.pesticideIds || [];
+  // 圃場: select があればその値を正とする（未指定="" → null でリセット可）。
+  // select が無い経路（稀）だけ既存値を保持する。
+  const fieldSel = document.getElementById('detail_field');
+  let fieldId = prev.field_id ?? null;
+  if (fieldSel) fieldId = fieldSel.value !== '' ? Number(fieldSel.value) : null;
+  sprayHistory[selectedDate] = {
+    pests, vector,
+    pesticideIds: existingPesticideIds,
+    field_id: fieldId,
+  };
   saveRecords();
   renderCalendar();
   renderDetail();
@@ -974,10 +1586,13 @@ function renderSchedule() {
     const pestLabel = entry.pesticide_ids.length ? '💊' + entry.pesticide_ids.join('、') : '';
     const detail = [setLabel, pestLabel, entry.notes || ''].filter(Boolean).join(' / ') || '（詳細未設定）';
     const statusLabel = SCHEDULE_STATUS_LABEL[entry.status] || entry.status;
+    const fBadge = fieldBadge(entry.field_id);
+    const workerText = workerNamesText(assigneeIdsOf(entry));
+    const workerLine = workerText ? `<br><span style="color:var(--muted);font-size:.75rem;">👤 ${escapeHtml(workerText)}</span>` : '';
 
     return `<li class="schedule-item">
       <span class="s-date">${dateLabel}</span>
-      <span class="s-eb">[${statusLabel}] ${detail}</span>
+      <span class="s-eb">[${statusLabel}] ${detail}${fBadge ? `<br>${fBadge}` : ''}${workerLine}</span>
       <div class="s-actions">
         ${entry.status !== 'done' ? `<button class="btn btn-outline btn-sm" onclick="markScheduleDone(${entry.id})">✓ 実施済</button>` : ''}
         <button class="btn btn-primary btn-sm" onclick="generateNow(${entry.id})">${entry.rb_out_json ? '⚡再生成' : '⚡今すぐ'}</button>
@@ -988,11 +1603,495 @@ function renderSchedule() {
   }).join('');
 }
 
+// ═══════════════════════════════════════════
+// 定植暦（transplant_schedule）— 育苗圃苗の「花芽分化確認」。
+// 完了判定は外部組織（那賀地方いちご生産組合連合会）の判定。STN の P_external_wait。
+// ═══════════════════════════════════════════
+const TRANSPLANT_STATUS_LABEL = { scheduled: '予定', confirmed: '確認済', pending: '判定待ち', missed: '未実施' };
+const JUDGE_ORG_DEFAULT = '那賀地方いちご生産組合連合会';
+
+function renderTransplant() {
+  const list = document.getElementById('transplantList');
+  const sorted = [...transplantSchedule].sort((a, b) => a.schedule_date.localeCompare(b.schedule_date));
+
+  document.getElementById('transplantCount').textContent = sorted.length;
+  document.getElementById('transplantPeriod').textContent = sorted.length > 0
+    ? `${sorted[0].schedule_date} 〜 ${sorted[sorted.length - 1].schedule_date}`
+    : '—';
+
+  if (sorted.length === 0) {
+    list.innerHTML = '<li style="padding:20px;text-align:center;color:var(--muted);">まだ定植暦（花芽分化確認）の予定がありません<br>確認予定日を入力して追加してください</li>';
+    return;
+  }
+
+  const weekdays = ['日','月','火','水','木','金','土'];
+  list.innerHTML = sorted.map(entry => {
+    const d = new Date(entry.schedule_date + 'T00:00:00');
+    const dateLabel = `${d.getMonth()+1}/${d.getDate()}(${weekdays[d.getDay()]})`;
+    // 判定済み（判定日がある or status=confirmed）ならバッジも「確認済」に揃える。
+    const confirmed = entry.status === 'confirmed' || !!entry.judge_date;
+    const statusLabel = confirmed ? TRANSPLANT_STATUS_LABEL.confirmed
+                                   : (TRANSPLANT_STATUS_LABEL[entry.status] || entry.status);
+    // 時刻（何時から何時）。開始のみ/終了のみ/両方/未指定 を柔軟に表示。
+    let timeLabel = '';
+    if (entry.start_time && entry.end_time) timeLabel = `（${entry.start_time}〜${entry.end_time}）`;
+    else if (entry.start_time) timeLabel = `（${entry.start_time}〜）`;
+    else if (entry.end_time) timeLabel = `（〜${entry.end_time}）`;
+    const fBadge = fieldBadge(entry.field_id);
+    const org = entry.judge_org || JUDGE_ORG_DEFAULT;
+    // コホート・検鏡順・最終・担当（従業者）の表示。
+    const cohort = entry.cohort_id ? (COHORTS.find(c => c.id === entry.cohort_id) || null) : null;
+    let cohortLine = '';
+    if (cohort) {
+      const seqTag = entry.seq ? `検鏡${entry.seq}` : '';
+      const finalTag = entry.is_final ? '・最終' : '';
+      cohortLine = `<br><span style="font-size:.75rem;">🌱 ${escapeHtml(cohort.name)} ${seqTag}${finalTag}</span>`;
+    }
+    const workerLine = workerNamesHTML(assigneeIdsOf(entry));
+    // 判定記録（外部組織の判断）。ありなら判定結果・検査場所・判定日を表示。
+    let judgeLine = '';
+    if (entry.judge_result || entry.judge_date) {
+      const loc = entry.judge_location ? `・📍${escapeHtml(entry.judge_location)}` : '';
+      judgeLine = `<br><span style="color:var(--muted);font-size:.75rem;">🔬 判定: ${escapeHtml(entry.judge_result || '—')}（${escapeHtml(entry.judge_date || '—')}${loc}・${escapeHtml(org)}）</span>`;
+    } else {
+      judgeLine = `<br><span style="color:var(--muted);font-size:.75rem;">🔬 判定待ち（${escapeHtml(org)}）</span>`;
+    }
+    return `<li class="schedule-item">
+      <span class="s-date">${dateLabel}</span>
+      <span class="s-eb">[${statusLabel}] 花芽分化確認${timeLabel}${entry.notes ? ' / ' + escapeHtml(entry.notes) : ''}${fBadge ? `<br>${fBadge}` : ''}${cohortLine}${workerLine}${judgeLine}</span>
+      <div class="s-actions">
+        ${!confirmed ? `<button class="btn btn-primary btn-sm" onclick="recordTransplantJudge(${entry.id})">🔬 判定記録</button>` : ''}
+        ${confirmed ? `<button class="btn btn-outline btn-sm" onclick="revertTransplantJudge(${entry.id})" title="判定記録を消して未確定に戻す">↩ 未確定に戻す</button>` : ''}
+        <button class="btn btn-outline btn-sm" onclick="startTransplantEdit(${entry.id})">✎ 編集</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteTransplantEntry(${entry.id})">×</button>
+      </div>
+    </li>`;
+  }).join('');
+}
+
+async function addTransplantEntry() {
+  const dateInput = document.getElementById('tp_add_date');
+  const notesInput = document.getElementById('tp_add_notes');
+  const fieldSel = document.getElementById('tp_add_field');
+  const locSel = document.getElementById('tp_add_location');
+  const startInput = document.getElementById('tp_add_start');
+  const endInput = document.getElementById('tp_add_end');
+  const cohortSel = document.getElementById('tp_add_cohort');
+  const seqInput = document.getElementById('tp_add_seq');
+  const finalChk = document.getElementById('tp_add_final');
+  const schedule_date = dateInput.value;
+  const notes = notesInput.value.trim();
+  const fieldId = fieldSel && fieldSel.value !== '' ? Number(fieldSel.value) : null;
+  const location = locSel && locSel.value !== '' ? locSel.value : null;
+  const startTime = startInput && startInput.value !== '' ? startInput.value : null;
+  const endTime = endInput && endInput.value !== '' ? endInput.value : null;
+  const cohortId = cohortSel && cohortSel.value !== '' ? Number(cohortSel.value) : null;
+  const seq = seqInput && seqInput.value !== '' ? Number(seqInput.value) : null;
+  const isFinal = finalChk && finalChk.checked ? 1 : 0;
+  const assigneeIds = getWorkerMultiSelect('tp_add_worker');
+  if (!schedule_date) { alert('確認予定日を入力してください'); return; }
+  try {
+    const res = await fetch(API_BASE + '/transplant_schedule', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ schedule_date, start_time: startTime, end_time: endTime, notes: notes || null, field_id: fieldId, judge_location: location, cohort_id: cohortId, seq, is_final: isFinal, assignee_ids: assigneeIds, assignee_id: assigneeIds[0] ?? null }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    dateInput.value = '';
+    notesInput.value = '';
+    if (fieldSel) fieldSel.value = '';
+    if (locSel) locSel.value = '';
+    if (startInput) startInput.value = '';
+    if (endInput) endInput.value = '';
+    if (cohortSel) cohortSel.value = '';
+    if (seqInput) seqInput.value = '';
+    if (finalChk) finalChk.checked = false;
+    const addWorkerBox = document.getElementById('tp_add_worker');
+    if (addWorkerBox) addWorkerBox.querySelectorAll('.worker-multi-chk').forEach(el => el.checked = false);
+    await fetchTransplantFromServer(currentYear);
+    renderCalendar();
+    renderTransplant();
+  } catch (e) {
+    alert('定植暦の追加に失敗しました: ' + e.message);
+  }
+}
+
+// 外部組織（那賀地方いちご生産組合連合会）の判定記録フォームを開く。
+// 判定結果（分化あり/分化なし）＋検査場所＋判定日で完了（confirmed）になる。
+let tpJudgeResult = null;  // フォーム内の判定結果（ボタン選択で保持）
+function recordTransplantJudge(id) {
+  const entry = transplantSchedule.find(e => e.id === id);
+  if (!entry) return;
+  document.getElementById('tp_judge_id').value = id;
+  tpJudgeResult = entry.judge_result || null;
+  setJudgeResult(tpJudgeResult);
+  // 検査場所 select をマスター（INSPECTION_LOCATIONS）から動的生成し、既存値を復元。
+  const locWrap = document.getElementById('tp_judge_location_wrap');
+  locWrap.innerHTML = inspectionLocationSelectHTML('tp_judge_location', entry.judge_location || '');
+  document.getElementById('tp_judge_date').value = entry.judge_date || todayStr();
+  const form = document.getElementById('tp_judge_form');
+  form.style.display = 'block';
+  form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// 判定結果ボタン（分化あり/分化なし）の選択状態を切り替える。
+function setJudgeResult(result) {
+  tpJudgeResult = (tpJudgeResult === result) ? null : result;
+  const yes = document.getElementById('tp_judge_yes');
+  const no = document.getElementById('tp_judge_no');
+  const base = 'btn btn-sm';
+  yes.className = tpJudgeResult === '分化あり' ? 'btn btn-primary btn-sm' : base;
+  no.className = tpJudgeResult === '分化なし' ? 'btn btn-primary btn-sm' : base;
+}
+
+function cancelTransplantJudge() {
+  document.getElementById('tp_judge_form').style.display = 'none';
+}
+
+async function submitTransplantJudge() {
+  const id = document.getElementById('tp_judge_id').value;
+  const location = document.getElementById('tp_judge_location').value;
+  const date = document.getElementById('tp_judge_date').value;
+  if (!tpJudgeResult) { alert('判定結果（分化あり/分化なし）を選択してください'); return; }
+  if (!date) { alert('判定日を入力してください'); return; }
+  await updateTransplant(id, {
+    status: 'confirmed',
+    judge_result: tpJudgeResult,
+    judge_location: location || null,
+    judge_date: date,
+  });
+}
+
+async function startTransplantEdit(id) {
+  const entry = transplantSchedule.find(e => e.id === id);
+  if (!entry) return;
+  document.getElementById('tp_edit_id').value = id;
+  document.getElementById('tp_edit_date').value = entry.schedule_date;
+  document.getElementById('tp_edit_start').value = entry.start_time || '';
+  document.getElementById('tp_edit_end').value = entry.end_time || '';
+  document.getElementById('tp_edit_notes').value = entry.notes || '';
+  document.getElementById('tp_edit_status').value = entry.status || 'scheduled';
+  renderFieldSelects();
+  // コホート・検鏡順・最終・担当を復元（select は renderFieldSelects が再生成済み）。
+  const seqEl = document.getElementById('tp_edit_seq');
+  if (seqEl) seqEl.value = entry.seq || '';
+  const finalEl = document.getElementById('tp_edit_final');
+  if (finalEl) finalEl.checked = !!entry.is_final;
+  document.getElementById('tp_edit_form').style.display = 'block';
+  document.getElementById('tp_edit_form').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function cancelTransplantEdit() {
+  document.getElementById('tp_edit_form').style.display = 'none';
+}
+
+async function submitTransplantEdit() {
+  const id = document.getElementById('tp_edit_id').value;
+  const schedule_date = document.getElementById('tp_edit_date').value;
+  const startInput = document.getElementById('tp_edit_start');
+  const endInput = document.getElementById('tp_edit_end');
+  const notes = document.getElementById('tp_edit_notes').value.trim();
+  const status = document.getElementById('tp_edit_status').value;
+  const fieldSel = document.getElementById('tp_edit_field');
+  const fieldId = fieldSel && fieldSel.value !== '' ? Number(fieldSel.value) : null;
+  const locSel = document.getElementById('tp_edit_location');
+  const location = locSel ? locSel.value : '';
+  const cohortSel = document.getElementById('tp_edit_cohort');
+  const seqInput = document.getElementById('tp_edit_seq');
+  const finalChk = document.getElementById('tp_edit_final');
+  const cohortId = cohortSel && cohortSel.value !== '' ? Number(cohortSel.value) : null;
+  const seq = seqInput && seqInput.value !== '' ? Number(seqInput.value) : null;
+  const isFinal = finalChk && finalChk.checked ? 1 : 0;
+  const assigneeIds = getWorkerMultiSelect('tp_edit_worker');
+  if (!schedule_date) { alert('確認予定日を入力してください'); return; }
+  await updateTransplant(id, {
+    schedule_date,
+    start_time: startInput && startInput.value !== '' ? startInput.value : null,
+    end_time: endInput && endInput.value !== '' ? endInput.value : null,
+    notes: notes || null, status, field_id: fieldId, judge_location: location || null,
+    cohort_id: cohortId, seq, is_final: isFinal, assignee_ids: assigneeIds, assignee_id: assigneeIds[0] ?? null,
+  });
+}
+
+// 判定済み（確認済）の予定を未確定に戻す。
+// 判定結果・判定日をクリアし status を「予定」に戻す（検鏡場所は計画属性として保持）。
+// 間違えて判定記録した場合の取り消し用。
+async function revertTransplantJudge(id) {
+  if (!confirm('この判定記録を消して未確定（予定）に戻しますか？')) return;
+  await updateTransplant(id, { status: 'scheduled', judge_result: null, judge_date: null });
+}
+
+async function updateTransplant(id, body) {
+  try {
+    const res = await fetch(API_BASE + '/transplant_schedule/' + id, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    cancelTransplantEdit();
+    cancelTransplantJudge();
+    await fetchTransplantFromServer(currentYear);
+    renderCalendar();
+    renderTransplant();
+  } catch (e) {
+    alert('更新に失敗しました: ' + e.message);
+  }
+}
+
+async function deleteTransplantEntry(id) {
+  if (!confirm('この定植暦（花芽分化確認）を削除しますか？')) return;
+  try {
+    const res = await fetch(API_BASE + '/transplant_schedule/' + id, { method: 'DELETE' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    await fetchTransplantFromServer(currentYear);
+    renderCalendar();
+    renderTransplant();
+    loadServerTransplantPlans().then(renderTransplantPlans);
+  } catch (e) {
+    alert('削除に失敗しました: ' + e.message);
+  }
+}
+
+// 定植予定（transplant_plan）— コホートごとの定植日・担当・実績を表示。
+// 自動導出（ブリッジ）は /api/operations/status 側で見るため、ここでは
+// 手動オーバーライド（transplant_plan 行）とコホート検鏡のトリガー状況を併記する。
+function renderTransplantPlans() {
+  const box = document.getElementById('transplantPlanList');
+  if (!box) return;
+  const cohortsWithPlan = COHORTS.filter(c =>
+    TRANSPLANT_PLANS.some(p => p.cohort_id === c.id) ||
+    transplantSchedule.some(t => t.cohort_id === c.id));
+  if (cohortsWithPlan.length === 0) {
+    box.innerHTML = '<div style="padding:12px;text-align:center;color:var(--muted);font-size:.82rem;">コホートが登録されていません（🌱 コホートマスターから追加）</div>';
+    return;
+  }
+  box.innerHTML = cohortsWithPlan.map(c => {
+    const plan = TRANSPLANT_PLANS.find(p => p.cohort_id === c.id) || null;
+    const inps = transplantSchedule.filter(t => t.cohort_id === c.id)
+      .sort((a, b) => (a.seq || 0) - (b.seq || 0));
+    // トリガー判定（分化あり・または最終で分化なし）→ 自動日付（判定日の翌日）。
+    let trigger = null;
+    for (const t of inps) {
+      const res = (t.judge_result || '').trim();
+      const judged = !!t.judge_date || t.status === 'confirmed';
+      if (!judged) continue;
+      if (res.includes('あり') || (res.includes('なし') && t.is_final)) { trigger = t; break; }
+    }
+    let autoDate = null;
+    if (trigger && trigger.judge_date) {
+      // 翌日をローカル日付部から組み立てる（toISOString はタイムゾーンで日付がずれるため不使用）。
+      const d = new Date(trigger.judge_date + 'T00:00:00');
+      d.setDate(d.getDate() + 1);
+      autoDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+    const effDate = (plan && plan.schedule_date) || autoDate;
+    const dateLabel = effDate
+      ? `${effDate}${plan && plan.schedule_date ? '（手動）' : '（自動）'}`
+      : '未定（トリガー未達）';
+    const statusLabel = plan ? (plan.status === 'done' ? '✅ 定植済' : plan.status === 'missed' ? '❌ 未実施' : '📅 予定') : '—';
+    const planWorkerText = plan ? workerNamesText(assigneeIdsOf(plan)) : '';
+    const inpsLabel = inps.length
+      ? inps.map(t => `検鏡${t.seq || '?'}${t.is_final ? '(最終)' : ''}:${t.judge_result || '未判定'}`).join(' → ')
+      : '検鏡未登録';
+    return `<div style="border:1px solid #eee;border-radius:8px;padding:10px 12px;margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+        <div style="font-weight:bold;font-size:.9rem;">🌱 ${escapeHtml(c.name)}</div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <span style="font-size:.78rem;">定植: <strong>${dateLabel}</strong> ${statusLabel}</span>
+          <button class="btn btn-outline btn-sm" onclick="openTransplantPlanEdit(${c.id})">✎ 定植予定</button>
+        </div>
+      </div>
+      <div style="font-size:.75rem;color:var(--muted);margin-top:4px;">${escapeHtml(inpsLabel)}</div>
+      ${planWorkerText ? `<div style="font-size:.75rem;color:var(--muted);margin-top:2px;">👤 定植担当: ${escapeHtml(planWorkerText)}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// 定植予定（transplant_plan）の手動編集モーダル（日付・担当・実績）。
+function openTransplantPlanEdit(cohortId) {
+  const existing = document.getElementById('transplant-plan-modal');
+  if (existing) existing.remove();
+  const cohort = COHORTS.find(c => c.id === cohortId);
+  const plan = TRANSPLANT_PLANS.find(p => p.cohort_id === cohortId) || null;
+  const overlay = document.createElement('div');
+  overlay.id = 'transplant-plan-modal';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;font-family:"Hiragino Sans","Meiryo",sans-serif;';
+  overlay.innerHTML = `
+    <div style="background:white;border-radius:16px;padding:20px;max-width:440px;width:92%;box-shadow:0 8px 32px rgba(0,0,0,.5);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <strong style="font-size:1rem;">🌱 定植予定 — ${escapeHtml(cohort ? cohort.name : cohortId)}</strong>
+        <button onclick="document.getElementById('transplant-plan-modal').remove()" style="background:transparent;border:none;color:#888;cursor:pointer;font-size:1.2rem;">✕</button>
+      </div>
+      <div style="font-size:.78rem;color:#888;margin-bottom:10px;">日付を空欄にすると自動導出（トリガー判定日の翌日）に任せます。</div>
+      <label style="font-size:.78rem;color:#666;display:block;margin-bottom:2px;">定植日（手動上書き）</label>
+      <input id="tp_plan_date" type="date" value="${plan && plan.schedule_date ? plan.schedule_date : ''}" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:8px;">
+      <label style="font-size:.78rem;color:#666;display:block;margin-bottom:2px;">定植担当（従業者）</label>
+      <div id="tp_plan_worker_wrap"></div>
+      <label style="font-size:.78rem;color:#666;display:block;margin-bottom:2px;">実績</label>
+      <select id="tp_plan_status" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:8px;">
+        <option value="scheduled"${plan && plan.status === 'scheduled' ? ' selected' : ''}>予定</option>
+        <option value="done"${plan && plan.status === 'done' ? ' selected' : ''}>定植済</option>
+        <option value="missed"${plan && plan.status === 'missed' ? ' selected' : ''}>未実施</option>
+      </select>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn btn-primary btn-sm" onclick="saveTransplantPlan(${cohortId})">💾 保存</button>
+        ${plan ? `<button class="btn btn-danger btn-sm" onclick="deleteTransplantPlan(${plan.id})">🗑 削除</button>` : ''}
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('transplant-plan-modal').remove()">キャンセル</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  document.getElementById('tp_plan_worker_wrap').innerHTML =
+    workerMultiSelectHTML('tp_plan_worker', plan ? assigneeIdsOf(plan) : []);
+}
+
+async function saveTransplantPlan(cohortId) {
+  const date = document.getElementById('tp_plan_date').value || null;
+  const assigneeIds = getWorkerMultiSelect('tp_plan_worker');
+  const status = document.getElementById('tp_plan_status').value;
+  try {
+    const res = await fetch(API_BASE + '/transplant_plan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cohort_id: cohortId, schedule_date: date, assignee_ids: assigneeIds, assignee_id: assigneeIds[0] ?? null, status }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    document.getElementById('transplant-plan-modal').remove();
+    await loadServerTransplantPlans();
+    renderTransplantPlans();
+  } catch (e) {
+    alert('保存に失敗しました: ' + e.message);
+  }
+}
+
+async function deleteTransplantPlan(id) {
+  if (!confirm('この定植予定を手動上書きごと削除しますか？（自動導出には影響しません）')) return;
+  try {
+    const res = await fetch(API_BASE + '/transplant_plan/' + id, { method: 'DELETE' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    document.getElementById('transplant-plan-modal').remove();
+    await loadServerTransplantPlans();
+    renderTransplantPlans();
+  } catch (e) {
+    alert('削除に失敗しました: ' + e.message);
+  }
+}
+
+// 熱消毒予定（heat_schedule）— コホートごとのベッド準備（熱消毒）の着手日・期限日・担当・実績。
+function renderHeatSchedules() {
+  const box = document.getElementById('heatScheduleList');
+  if (!box) return;
+  // 検鏡・定植・熱消毒のいずれかを持つコホートを対象（熱消毒単独登録も表示）。
+  const cohortsWithHeat = COHORTS.filter(c =>
+    HEAT_SCHEDULES.some(h => h.cohort_id === c.id) ||
+    TRANSPLANT_PLANS.some(p => p.cohort_id === c.id) ||
+    transplantSchedule.some(t => t.cohort_id === c.id));
+  if (cohortsWithHeat.length === 0) {
+    box.innerHTML = '<div style="padding:12px;text-align:center;color:var(--muted);font-size:.82rem;">コホートが登録されていません（🌱 コホートマスターから追加）</div>';
+    return;
+  }
+  box.innerHTML = cohortsWithHeat.map(c => {
+    const hs = HEAT_SCHEDULES.find(h => h.cohort_id === c.id) || null;
+    const startLabel = hs && hs.start_date ? hs.start_date : '未定';
+    const deadlineLabel = hs && hs.deadline_date ? hs.deadline_date : '未定';
+    const statusLabel = hs ? (hs.status === 'done' ? '✅ 熱消毒済' : hs.status === 'started' ? '🔥 消毒開始' : hs.status === 'missed' ? '❌ 未実施' : '📅 予定') : '—';
+    const hsWorkerText = hs ? workerNamesText(assigneeIdsOf(hs)) : '';
+    return `<div style="border:1px solid #eee;border-radius:8px;padding:10px 12px;margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+        <div style="font-weight:bold;font-size:.9rem;">🔥 ${escapeHtml(c.name)}</div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <span style="font-size:.78rem;">着手: <strong>${startLabel}</strong> ／ 期限: <strong>${deadlineLabel}</strong> ${statusLabel}</span>
+          <button class="btn btn-outline btn-sm" onclick="openHeatScheduleEdit(${c.id})">✎ 熱消毒予定</button>
+        </div>
+      </div>
+      ${hsWorkerText ? `<div style="font-size:.75rem;color:var(--muted);margin-top:2px;">👤 熱消毒担当: ${escapeHtml(hsWorkerText)}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// 熱消毒予定（heat_schedule）の手動編集モーダル（着手日・期限日・担当・実績）。
+function openHeatScheduleEdit(cohortId) {
+  const existing = document.getElementById('heat-schedule-modal');
+  if (existing) existing.remove();
+  const cohort = COHORTS.find(c => c.id === cohortId);
+  const hs = HEAT_SCHEDULES.find(h => h.cohort_id === cohortId) || null;
+  const overlay = document.createElement('div');
+  overlay.id = 'heat-schedule-modal';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;font-family:"Hiragino Sans","Meiryo",sans-serif;';
+  overlay.innerHTML = `
+    <div style="background:white;border-radius:16px;padding:20px;max-width:440px;width:92%;box-shadow:0 8px 32px rgba(0,0,0,.5);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <strong style="font-size:1rem;">🔥 熱消毒予定 — ${escapeHtml(cohort ? cohort.name : cohortId)}</strong>
+        <button onclick="document.getElementById('heat-schedule-modal').remove()" style="background:transparent;border:none;color:#888;cursor:pointer;font-size:1.2rem;">✕</button>
+      </div>
+      <div style="font-size:.78rem;color:#888;margin-bottom:10px;">定植の1か月前に着手し3週間以上実施します。日付は手動で指定します。</div>
+      <label style="font-size:.78rem;color:#666;display:block;margin-bottom:2px;">熱消毒着手日</label>
+      <input id="hs_start_date" type="date" value="${hs && hs.start_date ? hs.start_date : ''}" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:8px;">
+      <label style="font-size:.78rem;color:#666;display:block;margin-bottom:2px;">完了期限日</label>
+      <input id="hs_deadline_date" type="date" value="${hs && hs.deadline_date ? hs.deadline_date : ''}" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:8px;">
+      <label style="font-size:.78rem;color:#666;display:block;margin-bottom:2px;">熱消毒担当（従業者）</label>
+      <div id="hs_worker_wrap"></div>
+      <label style="font-size:.78rem;color:#666;display:block;margin-bottom:2px;">実績</label>
+      <select id="hs_status" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:8px;">
+        <option value="scheduled"${!hs || hs.status === 'scheduled' ? ' selected' : ''}>予定</option>
+        <option value="started"${hs && hs.status === 'started' ? ' selected' : ''}>消毒開始</option>
+        <option value="done"${hs && hs.status === 'done' ? ' selected' : ''}>熱消毒済</option>
+        <option value="missed"${hs && hs.status === 'missed' ? ' selected' : ''}>未実施</option>
+      </select>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn btn-primary btn-sm" onclick="saveHeatSchedule(${cohortId})">💾 保存</button>
+        ${hs ? `<button class="btn btn-danger btn-sm" onclick="deleteHeatSchedule(${hs.id})">🗑 削除</button>` : ''}
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('heat-schedule-modal').remove()">キャンセル</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  document.getElementById('hs_worker_wrap').innerHTML =
+    workerMultiSelectHTML('hs_worker', hs ? assigneeIdsOf(hs) : []);
+}
+
+async function saveHeatSchedule(cohortId) {
+  const startDate = document.getElementById('hs_start_date').value || null;
+  const deadlineDate = document.getElementById('hs_deadline_date').value || null;
+  const assigneeIds = getWorkerMultiSelect('hs_worker');
+  const status = document.getElementById('hs_status').value;
+  try {
+    const res = await fetch(API_BASE + '/heat_schedule', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cohort_id: cohortId, start_date: startDate, deadline_date: deadlineDate, assignee_ids: assigneeIds, assignee_id: assigneeIds[0] ?? null, status }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    document.getElementById('heat-schedule-modal').remove();
+    await loadServerHeatSchedules();
+    renderHeatSchedules();
+  } catch (e) {
+    alert('保存に失敗しました: ' + e.message);
+  }
+}
+
+async function deleteHeatSchedule(id) {
+  if (!confirm('この熱消毒予定を削除しますか？')) return;
+  try {
+    const res = await fetch(API_BASE + '/heat_schedule/' + id, { method: 'DELETE' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    document.getElementById('heat-schedule-modal').remove();
+    await loadServerHeatSchedules();
+    renderHeatSchedules();
+  } catch (e) {
+    alert('削除に失敗しました: ' + e.message);
+  }
+}
+
 async function addScheduleEntry() {
   const dateInput = document.getElementById('sched_add_date');
   const notesInput = document.getElementById('sched_add_notes');
+  const fieldSel = document.getElementById('sched_add_field');
   const schedule_date = dateInput.value;
   const notes = notesInput.value.trim();
+  const fieldId = fieldSel && fieldSel.value !== '' ? Number(fieldSel.value) : null;
+  const assigneeIds = getWorkerMultiSelect('sched_add_worker');
 
   if (!schedule_date) { alert('予定日を入力してください'); return; }
 
@@ -1000,11 +2099,14 @@ async function addScheduleEntry() {
     const res = await fetch(API_BASE + '/spray_schedule', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ schedule_date, notes: notes || null }),
+      body: JSON.stringify({ schedule_date, notes: notes || null, field_id: fieldId, assignee_ids: assigneeIds }),
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     dateInput.value = '';
     notesInput.value = '';
+    if (fieldSel) fieldSel.value = '';
+    const addWorkerBox = document.getElementById('sched_add_worker');
+    if (addWorkerBox) addWorkerBox.querySelectorAll('.worker-multi-chk').forEach(el => el.checked = false);
     await fetchScheduleFromServer(currentYear);
     renderCalendar();
     renderSchedule();
@@ -1019,9 +2121,14 @@ function startScheduleEdit(id) {
   if (!entry) return;
   document.getElementById('sched_edit_id').value = id;
   document.getElementById('sched_edit_date').value = entry.schedule_date;
+  // 元の日付を保持。無効な日付（例: 非閏年の 2/29）は <input type=date> が
+  // 表示拒否して値が空になるため、保存時にフォールバックして使う。
+  document.getElementById('sched_edit_form').dataset.origDate = entry.schedule_date || '';
   document.getElementById('sched_edit_set').value = (entry.set_ids || []).join('、');
   document.getElementById('sched_edit_notes').value = entry.notes || '';
   document.getElementById('sched_edit_status').value = entry.status || 'scheduled';
+  // 圃場selectをこの行の field_id に合わせて再生成
+  renderFieldSelects();
   // 元のセットを保持（変更判定用）
   document.getElementById('sched_edit_form').dataset.origSet = JSON.stringify(entry.set_ids || []);
   document.getElementById('sched_edit_form').style.display = 'block';
@@ -1032,22 +2139,33 @@ function cancelScheduleEdit() {
   const form = document.getElementById('sched_edit_form');
   form.style.display = 'none';
   form.dataset.origSet = '';
+  form.dataset.origDate = '';
 }
 
 async function submitScheduleEdit() {
   const id = document.getElementById('sched_edit_id').value;
-  const schedule_date = document.getElementById('sched_edit_date').value;
+  const formEl = document.getElementById('sched_edit_form');
+  // <input type=date> は無効な日付（例: 非閏年の 2/29）を表示拒否し値が空になる。
+  // その場合は元の日程をフォールバックし、圃場・セット等の他フィールド保存を継続する
+  // （「日程を入力してください」で中断され field_id が保存されないのを回避）。
+  let schedule_date = document.getElementById('sched_edit_date').value;
+  const origDate = formEl.dataset.origDate || '';
+  if (!schedule_date) schedule_date = origDate;
+  if (!schedule_date) { alert('日程を入力してください'); return; }
   const setText = document.getElementById('sched_edit_set').value.trim();
   const notes = document.getElementById('sched_edit_notes').value.trim();
   const status = document.getElementById('sched_edit_status').value;
-  if (!schedule_date) { alert('日程を入力してください'); return; }
 
-  const origSet = JSON.parse(document.getElementById('sched_edit_form').dataset.origSet || '[]');
+  const origSet = JSON.parse(formEl.dataset.origSet || '[]');
   // 編集後のセット配列（"セット6、セット2" → ["セット6","セット2"]）
   const newSet = setText ? setText.split(/[,、]/).map(s => s.trim()).filter(Boolean) : [];
   const setChanged = JSON.stringify(origSet) !== JSON.stringify(newSet);
 
-  const body = { schedule_date, notes: notes || null, status };
+  const fieldSel = document.getElementById('sched_edit_field');
+  const fieldId = fieldSel && fieldSel.value !== '' ? Number(fieldSel.value) : null;
+  const assigneeIds = getWorkerMultiSelect('sched_edit_worker');
+
+  const body = { schedule_date, notes: notes || null, status, field_id: fieldId, assignee_ids: assigneeIds };
   if (setChanged) {
     // セット変更時は処方（rb_out_json/pesticide_ids）をクリアし次回cronで再生成
     body.set_ids = newSet;
@@ -1071,23 +2189,254 @@ async function submitScheduleEdit() {
   }
 }
 
-// 処方生成の即時実行（cronを待たず）。Slack通知も同時に飛ぶ。
+// 「⚡今すぐ」2段階フロー 第一段階: プレース状態（2トークン）を**投入なし**で取得し、確認モーダルを開く。
 async function generateNow(id) {
   const btn = event && event.target;
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ 生成中…'; }
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ 確認中…'; }
   try {
+    const res = await fetch(API_BASE + '/spray_schedule/' + id + '/place');
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    showPlaceFiringModal(id, data);
+  } catch (e) {
+    alert('プレース状態の取得に失敗しました: ' + e.message);
+    renderSchedule();  // ボタン状態（ラベル・disabled）を再構築
+  }
+}
+
+// ── 発火確認モーダル補助（圃場種トークンのクライアント側生成＋認知の再計算）──
+// サーバーの _build_field_type_token と同一の文字列を生成する。
+// サーバーは「DB の fields 行」から解決するが、クライアントは loadServerFields()
+// で同じ DB を読んだ FIELDS（fields テーブルの全カラム）から解決するため、
+// 結果は一致する（fields.id で引ける限り）。
+function computeFieldToken(f) {
+  if (!f) return null;
+  const label = FIELD_TYPE_LABEL[f.type] || f.type;
+  let area = '';
+  if (f.area_value != null && f.area_unit) {
+    area = `（${f.area_value}${AREA_UNIT_LABEL[f.area_unit] || f.area_unit}）`;
+  }
+  return `${label} ${f.name}${area}`;
+}
+// perception.py の check_presence + check_vector をクライアントで再現した
+// 「認知（第一トランジション）」の再計算。field_token / matrix_token の
+// 組合せから {ok, presence:{ok,reason}, vector:{ok,reason}} を返す。
+function computePerceptionLocal(fieldToken, matrixToken) {
+  const presence = (fieldToken && matrixToken)
+    ? { ok: true, reason: null }
+    : { ok: false, reason: 'トークン不足: ' + [!fieldToken && 'field_type', !matrixToken && 'pest_matrix'].filter(Boolean).join('、') };
+  let vector = { ok: true, reason: null };
+  if (!matrixToken) {
+    vector = { ok: false, reason: '行列トークンなし（セット未設定/BOX未対応）' };
+  } else {
+    let v = null;
+    try { v = JSON.parse(matrixToken); } catch (e) {}
+    if (!Array.isArray(v)) {
+      vector = { ok: false, reason: '行列トークンの型不一致（JSON list でない）' };
+    } else {
+      if (v.length !== 10) vector = { ok: false, reason: `次元不一致: ${v.length}次元（10次元を想定）` };
+      else if (v.some(x => x !== 0 && x !== 1)) vector = { ok: false, reason: 'トークンの型不一致: 2値でない要素を含む' };
+      else if (!v.some(x => x)) vector = { ok: false, reason: 'トークンなし（全ゼロ）' };
+    }
+  }
+  const ok = presence.ok && vector.ok;
+  return { ok, presence, vector, reason: ok ? null : [presence.reason, vector.reason].filter(Boolean).join('、') };
+}
+// 認知ブロック（OK=緑 / NG=赤・理由明記）の HTML。
+function perceptionBlockHTML(pc) {
+  if (!pc) return '';
+  const isOK = pc.ok;
+  const badgeBg = isOK ? '#e8f5e9' : '#ffebee';
+  const badgeFg = isOK ? '#2e7d32' : '#c62828';
+  const checkLine = (label, ok, reason) => {
+    const dot = ok ? '✅' : '❌';
+    const txt = ok ? label : `${label}：${escapeHtml(reason || 'NG')}`;
+    const color = ok ? '#2e7d32' : '#c62828';
+    return `<div style="display:flex;gap:6px;align-items:flex-start;font-size:.8rem;color:${color};">${dot}<span>${txt}</span></div>`;
+  };
+  return `
+    <div style="border:1px solid ${isOK ? '#a5d6a7' : '#ef9a9a'};background:${badgeBg};border-radius:10px;padding:12px 14px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <span style="font-size:.85rem;font-weight:bold;color:#444;">🔍 認知</span>
+        <span style="font-size:.72rem;padding:2px 10px;border-radius:20px;background:${badgeBg};color:${badgeFg};font-weight:bold;border:1px solid ${isOK ? '#a5d6a7' : '#ef9a9a'};">${isOK ? 'OK' : 'NG'}</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px;">
+        ${checkLine('トークンのそろい', pc.presence && pc.presence.ok, pc.presence && pc.presence.reason)}
+        ${checkLine('行列チェック（10次元・2値・1個以上）', pc.vector && pc.vector.ok, pc.vector && pc.vector.reason)}
+      </div>
+    </div>`;
+}
+
+// 発火確認モーダル — プレース（圃場種・病害虫予測行列）を表示し、OK で発行。
+// 圃場が未設定（発火で認知 NG になる場合）は、モーダル内ですぐ圃場を選べるよう
+// 圃場 select を同梱する。選択すると認知を再計算し OK（発行）が有効化され、
+// OK で行の field_id に保存してから発火する（「圃場を選んでも反映されない」対策）。
+function showPlaceFiringModal(id, place) {
+  const existing = document.getElementById('place-firing-modal');
+  if (existing) existing.remove();
+
+  const t = place.tokens || {};
+  const pmRow = t.pest_matrix
+    ? `<div style="display:flex;align-items:flex-start;gap:8px;"><span style="white-space:nowrap;color:#666;">🦠 病害虫予測行列</span><code style="font-size:.85rem;background:#f0f0f0;padding:2px 6px;border-radius:6px;">${escapeHtml(t.pest_matrix)}</code></div>`
+    : `<div style="display:flex;align-items:flex-start;gap:8px;"><span style="white-space:nowrap;color:#666;">🦠 病害虫予測行列</span><span style="color:#bbb;">未設定（セット未設定/BOX未対応）</span></div>`;
+
+  // 圃場 select（行の field_id を既定値にする）。未設定行でもここで選べる。
+  const fieldOptions = ['<option value="">圃場未指定</option>']
+    .concat((FIELDS || []).map(f => {
+      const sel = String(f.id) === String(place.field_id) ? ' selected' : '';
+      const area = formatFieldArea(f);
+      const label = `${FIELD_TYPE_LABEL[f.type] || ''} ${f.name}${area ? '（' + area + '）' : ''}`;
+      return `<option value="${f.id}"${sel}>${escapeHtml(label)}</option>`;
+    }));
+
+  // 認知（第一トランジション）の OK/NG 表示 — perception.py の check_presence
+  // + check_vector をクライアントで再現した再計算（サーバーと同一の判定）。
+  let pc = computePerceptionLocal(t.field_type, t.pest_matrix);
+  // 認知 NG → 次に進まない（OK（発行）ボタンを無効化し、RBP/Slack を実行しない）。
+  let pcNG = !pc || !pc.ok;
+  let selectedFieldId = (place.field_id == null) ? null : Number(place.field_id);
+
+  // 圃場種ラベル（現在選択中の圃場で動的生成）。未指定は「未設定」。
+  const ftLabel = () => {
+    const f = selectedFieldId != null ? (FIELDS || []).find(x => x.id === selectedFieldId) : null;
+    const tok = computeFieldToken(f);
+    const inner = tok
+      ? `<span style="white-space:nowrap;color:#666;">🌱 圃場種</span><span style="font-weight:bold;color:#2e7d32;">${escapeHtml(tok)}</span>`
+      : `<span style="white-space:nowrap;color:#666;">🌱 圃場種</span><span style="color:#bbb;">未設定</span>`;
+    return `<div id="firing_field_token" style="display:flex;align-items:flex-start;gap:8px;">${inner}</div>`;
+  };
+  // 認知 NG / OK の注記。
+  const noteBlock = () => pcNG
+    ? `<div id="firing_note" style="margin-top:12px;font-size:.78rem;color:#c62828;font-weight:bold;">⚠ 認知が NG のため、発火（RBP 処方生成・Slack 通知）は実行されません。上記の理由を確認し、対応してから再度試してください。</div>`
+    : `<div id="firing_note" style="margin-top:12px;font-size:.78rem;color:#666;">OK を押すと、プレースに投入して <b>RBP 処方生成</b> を実行し、<b>Slack に通知</b> されます。</div>`;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'place-firing-modal';
+  overlay.style.cssText = `
+    position: fixed; inset: 0; z-index: 99999;
+    background: rgba(0,0,0,.85);
+    display: flex; align-items: center; justify-content: center;
+    font-family: "Hiragino Sans", "Meiryo", sans-serif;
+    animation: fadeIn .2s ease;
+  `;
+  overlay.innerHTML = `
+    <div style="background:white;border-radius:16px;padding:0;max-width:480px;width:95%;box-shadow:0 8px 32px rgba(0,0,0,.5);display:flex;flex-direction:column;overflow:hidden;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #eee;">
+        <strong style="font-size:1.05rem;">⚡ 発火確認 — ${escapeHtml(place.set_label || '処方')}</strong>
+        <button id="closePlaceFiring" style="background:transparent;color:#888;border:none;font-size:1.3rem;cursor:pointer;padding:4px 8px;">✕</button>
+      </div>
+      <div style="padding:20px;">
+        <div style="font-size:.78rem;color:#888;margin-bottom:8px;">${escapeHtml(place.schedule_date || '')} の発火で、次のトークンをプレースに投入します。</div>
+        <div style="border:1px solid #eee;border-radius:10px;padding:14px;background:#fafafa;display:flex;flex-direction:column;gap:12px;">
+          ${ftLabel()}
+          ${pmRow}
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <label style="font-size:.78rem;color:#666;">🌱 発火する圃場（OK でこの行に保存されます）</label>
+            <select id="firing_field_select" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+              ${fieldOptions.join('')}
+            </select>
+            <small id="firing_field_hint" style="color:#bbb;font-size:.72rem;"></small>
+          </div>
+        </div>
+        <div id="firing_perception">${perceptionBlockHTML(pc)}</div>
+        ${noteBlock()}
+      </div>
+      <div style="padding:12px 20px;border-top:1px solid #eee;display:flex;gap:8px;justify-content:flex-end;">
+        <button id="cancelPlaceFiring" class="btn btn-outline btn-sm">キャンセル</button>
+        <button id="confirmPlaceFiring" class="btn btn-primary btn-sm">OK（発行）</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  // 圃場 select の変更 → 認知を再計算し、OK（発行）の可用性と注記を即反映する。
+  // 「圃場を選んでも反映されない」根本対策: 発火直前に圃場を指定できるようにし、
+  // 認知（field_type トークン）をその場で満たす。
+  const selectEl = overlay.querySelector('#firing_field_select');
+  selectEl.addEventListener('change', () => {
+    selectedFieldId = selectEl.value === '' ? null : Number(selectEl.value);
+    const f = selectedFieldId != null ? (FIELDS || []).find(x => x.id === selectedFieldId) : null;
+    const fieldToken = computeFieldToken(f);
+    pc = computePerceptionLocal(fieldToken, t.pest_matrix);
+    pcNG = !pc || !pc.ok;
+    overlay.querySelector('#firing_perception').innerHTML = perceptionBlockHTML(pc);
+    const okBtn = overlay.querySelector('#confirmPlaceFiring');
+    okBtn.disabled = pcNG;
+    okBtn.style.opacity = pcNG ? '.5' : '';
+    okBtn.style.cursor = pcNG ? 'not-allowed' : '';
+    // 圃場種ラベルも即時更新
+    const ftEl = overlay.querySelector('#firing_field_token');
+    if (ftEl) ftEl.outerHTML = ftLabel();
+    // 注記を差し替え
+    const note = overlay.querySelector('#firing_note');
+    if (note) {
+      note.style.color = pcNG ? '#c62828' : '#666';
+      note.innerHTML = pcNG
+        ? '⚠ 認知が NG のため、発火（RBP 処方生成・Slack 通知）は実行されません。上記の理由を確認し、対応してから再度試してください。'
+        : 'OK を押すと、プレースに投入して <b>RBP 処方生成</b> を実行し、<b>Slack に通知</b> されます。';
+    }
+    overlay.querySelector('#firing_field_hint').textContent = f ? `投入: ${f.name}` : '圃場が未指定です（認知 NG のままです）';
+  });
+
+  // キャンセル（✕/キャンセル/背景クリック）は発火をリセットする:
+  // モーダルを閉じ、呼び出し元の「⚡今すぐ」ボタン（プレビュー取得時に disabled にした）を
+  // renderSchedule() で再構築して元（enabled・正しいラベル）に戻す。
+  const cancelFiring = () => { overlay.remove(); renderSchedule(); };
+  overlay.querySelector('#closePlaceFiring').addEventListener('click', cancelFiring);
+  overlay.querySelector('#cancelPlaceFiring').addEventListener('click', cancelFiring);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) cancelFiring(); });
+  overlay.querySelector('#confirmPlaceFiring').addEventListener('click', () => confirmPlaceFiring(id, overlay));
+
+  // 初期状態の反映（未指定 → OK 無効 + ヒント表示）
+  overlay.querySelector('#confirmPlaceFiring').disabled = pcNG;
+  if (pcNG) { overlay.querySelector('#confirmPlaceFiring').style.opacity = '.5'; overlay.querySelector('#confirmPlaceFiring').style.cursor = 'not-allowed'; }
+  overlay.querySelector('#firing_field_hint').textContent = selectedFieldId != null ? '行に設定済み' : '圃場が未指定です（認知 NG のままです）';
+}
+
+// 第二段階: OK → 圃場を該行に保存（発火確認モーダルで変更した場合）＋プレース投入＋処方生成（RBP）＋Slack 通知 を実行する。
+async function confirmPlaceFiring(id, overlay) {
+  const btn = overlay && overlay.querySelector('#confirmPlaceFiring');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ 発行中…'; }
+  try {
+    // 発火確認モーダルで圃場を選択/変更していたら、まず該行の field_id を保存する。
+    // これにより「圃場を選んでもプレースに入らない（発火時に field_id=null）」を防ぐ。
+    // （生成は行の field_id を読むため、ここで保存してから /generate を叩く。）
+    const selectEl = overlay && overlay.querySelector('#firing_field_select');
+    if (selectEl) {
+      const row = (spraySchedule || []).find(e => e.id === Number(id));
+      const chosen = selectEl.value === '' ? null : Number(selectEl.value);
+      const prev = row ? (row.field_id == null ? null : Number(row.field_id)) : null;
+      if (chosen !== prev) {
+        await fetch(API_BASE + '/spray_schedule/' + id, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ field_id: chosen }),
+        });
+      }
+    }
     const res = await fetch(API_BASE + '/spray_schedule/' + id + '/generate', { method: 'POST' });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    if (overlay) overlay.remove();
     const names = (data.pesticides || []).join('、') || '（該当薬剤なし）';
     const slackNote = data.slack === 'ok' ? 'Slackに通知しました。' : 'Slack通知に失敗しました（DBには保存済み）。';
-    alert(`${data.set_label || '処方'} 生成完了\n💊 ${names}\n${slackNote}`);
+    let tokenNote = '';
+    if (data.tokens) {
+      const parts = [];
+      if (data.tokens.field_type) parts.push('🌱 圃場種: ' + data.tokens.field_type);
+      if (data.tokens.pest_matrix) parts.push('🦠 予測行列: ' + data.tokens.pest_matrix);
+      tokenNote = parts.length ? '\n📍 プレース投入:\n' + parts.join('\n') : '\n📍 プレース投入: なし（圃場/セット未設定）';
+    }
+    // 認知の OK/NG（投入後の2トークンに対する判定）
+    const pc = data.perception;
+    const pcNote = pc ? `\n🔍 認知: ${pc.ok ? 'OK' : 'NG'}` + (pc.ok ? '' : '（' + pc.reason + '）') : '';
+    alert(`${data.set_label || '処方'} 発行完了\n💊 ${names}\n${slackNote}${tokenNote}${pcNote}`);
     await fetchScheduleFromServer(currentYear);
     renderCalendar();
     renderSchedule();
   } catch (e) {
-    alert('処方生成に失敗しました: ' + e.message);
-    renderSchedule();  // ボタン状態（ラベル・disabled）を再構築
+    alert('発火（発行）に失敗しました: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = 'OK（発行）'; }
   }
 }
 
@@ -1211,11 +2560,15 @@ function renderSprayHistory() {
   sorted.forEach(spray => {
     const d = new Date(spray.date + 'T00:00:00');
     const dateLabel = `${d.getMonth()+1}/${d.getDate()}(${weekdays[d.getDay()]})`;
+    // 圃場は sprayHistory hash に持久化（sprays 配列には無い）。
+    const histRec = sprayHistory[spray.date];
+    const fieldBadge = histRec ? fieldBadge(histRec.field_id) : '';
 
     html += `<li class="spray-entry">
       <div class="spray-entry-header">
         <span class="spray-entry-date">${spray.date}</span>
         <span class="spray-entry-weekday">${dateLabel}</span>
+        ${fieldBadge ? `<span class="spray-entry-field">${fieldBadge}</span>` : ''}
       </div>`;
 
     // Show each pesticide with PHI bar and rotation info
@@ -1255,21 +2608,107 @@ function renderSprayHistory() {
 // ═══════════════════════════════════════════
 // Tabs
 // ═══════════════════════════════════════════
-const TAB_LABELS = { detail: '📋 日次詳細', schedule: '📅 防除暦', history: '🧴 防除履歴', import: '📥 インポート', inventory: '📦 在庫管理' };
+const TAB_LABELS = { detail: '📋 日次詳細', schedule: '📅 防除暦', transplant: '🌱 定植暦（花芽分化）', history: '🧴 防除履歴', import: '📥 インポート', inventory: '📦 在庫管理' };
+
+// ─────────────────────────────────────────────────────────────
+// トップポータル（タイル形式）
+// 画面キー → 表示方法。tab=既存のタブ（日次詳細等）、
+// master=モーダル系マスター、ext=別ページ（/operations 等）。
+// ─────────────────────────────────────────────────────────────
+const PORTAL_SCREENS = {
+  detail:     { kind: 'tab',  label: '日次詳細' },
+  schedule:   { kind: 'tab',  label: '防除暦' },
+  transplant: { kind: 'tab',  label: '定植暦（花芽分化）' },
+  history:    { kind: 'tab',  label: '防除履歴' },
+  import:     { kind: 'tab',  label: 'インポート' },
+  inventory:  { kind: 'tab',  label: '在庫管理' },
+  disease:    { kind: 'master', label: '病害虫マスター',   fn: 'openDiseaseMaster' },
+  pesticide:  { kind: 'master', label: '薬剤マスター',     fn: 'openPesticideMaintenance' },
+  field:      { kind: 'master', label: '圃場マスター',     fn: 'openFieldMaster' },
+  inspection: { kind: 'master', label: '検鏡場所マスター', fn: 'openInspectionLocationMaster' },
+  worker:     { kind: 'master', label: '従業者マスター',   fn: 'openWorkerMaster' },
+  cohort:     { kind: 'master', label: 'コホートマスター', fn: 'openCohortMaster' },
+  knowledge:  { kind: 'ext',  label: '境界言語知識',   href: '/knowledge' },
+  viz:        { kind: 'ext',  label: '境界言語図表',   href: '/viz' },
+  designer:   { kind: 'ext',  label: 'グラフデザイナー', href: '/designer' },
+  operations: { kind: 'ext',  label: '運航管理センター', href: '/operations' },
+  stn:        { kind: 'ext',  label: 'STN',           href: '/stn' },
+  humos:      { kind: 'ext',  label: 'HUMOS コンソール', href: '/humos' },
+  chat:       { kind: 'ext',  label: 'AIアシスタント',   href: '/chat' },
+};
+
+// 現在のビュー: 'portal' | 'app'（app=カレンダー+タブ）
+let currentView = 'portal';
+
+function setAppTitle() {
+  const t = document.getElementById('appTitle');
+  if (t) t.textContent = currentView === 'portal'
+    ? '🌿 RBP 防除スケジューラ'
+    : '🌿 RBP 防除スケジュールリスト';
+}
+
+// ポータルを表示（トップ画面）
+function showPortal() {
+  currentView = 'portal';
+  document.body.classList.add('portal-mode');
+  document.body.classList.remove('app-mode');
+  setAppTitle();
+  // 履歴に反映（ブラウザ戻るでポータルへ戻せる）
+  if (history.replaceState) history.replaceState(null, '', '/');
+}
+
+// 指定画面を開く（タイルクリック）。一画面ずつ表示。
+function showScreen(key) {
+  const s = PORTAL_SCREENS[key];
+  if (!s) return;
+  if (s.kind === 'ext') { window.location.href = s.href; return; }
+  // tab / master は同ページ内で開く
+  currentView = 'app';
+  document.body.classList.remove('portal-mode');
+  document.body.classList.add('app-mode');
+  setAppTitle();
+  if (s.kind === 'master') {
+    switchTab('detail');            // 裏に日次詳細を準備
+    const fn = typeof s.fn === 'function' ? s.fn : window[s.fn];
+    if (fn) fn();
+  } else {
+    switchTab(key);
+  }
+}
+
+// ハッシュ変化（ブラウザの戻る/進む・ページ内 #<key> リンク）でも画面を開く。
+// 初期ロード時の deep-link は init() が処理する。ここは「既にロード済みで
+// ハッシュだけが変わった」ケースを補う。
+window.addEventListener('hashchange', () => {
+  const key = (location.hash || '').replace('#', '');
+  if (key && PORTAL_SCREENS[key]) showScreen(key);
+});
 
 function switchTab(tabName) {
+  // タブを開いたらポータルは隠す
+  if (currentView === 'portal') {
+    currentView = 'app';
+    document.body.classList.remove('portal-mode');
+    document.body.classList.add('app-mode');
+    setAppTitle();
+  }
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-' + tabName).classList.add('active');
   // Update menu label & highlight
   const label = document.getElementById('menuLabel');
   if (label) label.textContent = TAB_LABELS[tabName] || tabName;
-  const menuItems = document.querySelectorAll('.menu-item');
-  const tabs = { detail: 0, schedule: 1, history: 2, import: 3, inventory: 4 };
-  menuItems.forEach((item, i) => {
-    item.classList.toggle('active', i === tabs[tabName]);
+  // data-tab 属性で判定（非タブ項目が混在してもインデックスズレしない）。
+  document.querySelectorAll('.menu-item').forEach(item => {
+    item.classList.toggle('active', item.dataset.tab === tabName);
   });
 
-  if (tabName === 'schedule') renderSchedule();
+  if (tabName === 'schedule') { renderFieldSelects(); renderSchedule(); }
+  if (tabName === 'transplant') {
+    renderFieldSelects();
+    renderTransplant();
+    loadServerTransplantPlans().then(renderTransplantPlans);
+    loadServerHeatSchedules().then(renderHeatSchedules);
+  }
   if (tabName === 'history') renderSprayHistory();
   if (tabName === 'inventory') renderInventory();
 }
@@ -1637,6 +3076,9 @@ window.openMobilePanel = null; // set below on mobile; called from selectDate()
 
 // ═══════════════════════════════════════════
 // Debug: show JS errors on screen (mobile diagnosis)
+// 出所（ページ本体 / リソース / 拡張機能注入）をスタック付きで表示する。
+// ※ 拡張機能が注入したスクリプトの構文エラーもこのハンドラに捕まるため、
+//   その場合はスタックに注入コード（＝犯人）が表示される。✕ で閉じられる。
 // ═══════════════════════════════════════════
 window.addEventListener('error', (e) => {
   let box = document.getElementById('debug-error-box');
@@ -1644,9 +3086,56 @@ window.addEventListener('error', (e) => {
     box = document.createElement('div');
     box.id = 'debug-error-box';
     box.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#fee;z-index:999999;padding:8px;font-size:12px;font-family:monospace;max-height:200px;overflow:auto;border-bottom:2px solid red;';
+    box.innerHTML = '<span id="debug-error-close" style="cursor:pointer;float:right;font-weight:bold;padding:0 4px;" title="閉じる">✕</span>';
     document.body.prepend(box);
   }
-  box.innerHTML += `<div>[ERR] ${e.message || e} at ${e.filename}:${e.lineno}</div>`;
+  // リソース読み込みエラー（<script>/<img>/<link> 等）か JS 実行エラーかを区別
+  const isRes = e.target && e.target.tagName;
+  const where = isRes
+    ? `<${e.target.tagName.toLowerCase()}> ${e.target.src || e.target.href || ''}`
+    : `${e.filename || '(inline)'}:${e.lineno}:${e.columnno}`;
+  // 本物（ユーザー操作由来）か合成（スクリプトが投げた）か。
+  // 構文エラーは isTrusted=true（パーサーが本物として報告）のはず。
+  const trusted = e.isTrusted === false ? '合成' : '本物(trusted)';
+  // スタックトレース（出所を特定。拡張機能注入ならそのコードが表示される）
+  const st = (e.error && e.error.stack)
+    ? `<details style="margin-top:2px;"><summary>スタック（出所）</summary><pre style="white-space:pre-wrap;margin:4px 0;">${String(e.error.stack).replace(/</g, '&lt;')}</pre></details>`
+    : '';
+  // 犯人特定: このページに chrome-extension:// 由来のリソース（=関与する拡張機能）を棚卸し
+  const exts = Array.from(document.querySelectorAll('script[src],link[href]'))
+    .map(el => el.src || el.href)
+    .filter(u => u && u.indexOf('chrome-extension://') === 0);
+  const extNote = exts.length
+    ? `<div style="color:#a00;">⚠ chrome-extension 由来リソース ${exts.length} 件: ${exts.map(u=>u.replace(/</g,'&lt;')).join(' , ')}</div>`
+    : `<div style="color:#060;">DOMに chrome-extension 由来リソースは ${0} 件（＝エラーはDOM外のコンテキスト、例:拡張機能メインワールド注入・ページスクリプト）</div>`;
+  // 環境報告: UA・ドキュメント状態・全スクリプトの完全な棚卸し（注入スクリプトの検出）
+  // 外部オリジンのsrc / インラインは先頭部分を表示 → プロキシ・ポリシー注入を必ず捕まえる
+  const ua = navigator.userAgent;
+  const scripts = Array.from(document.scripts).map(s => {
+    if (s.src) return 'src=' + s.src;
+    const t = (s.textContent || '').replace(/\s+/g, ' ').trim();
+    return 'inline(len=' + t.length + ' head="' + t.slice(0, 60) + '")';
+  });
+  const foreign = scripts.filter(x => x.startsWith('src=') && x.indexOf('src=' + location.origin) !== 0);
+  // 外部注入エラーの自動判定:
+  //  (a) 構文エラー（実行スタックなし）かつ (b) DOMに外部オリジン/拡張機能のスクリプトがない
+  //  → このページのスクリプトではない。シンクライアント・端末セキュリティがブラウザ層に
+  //    注入したコードの破損。アプリ本体とは無関係で、動作には影響しない。
+  const isSyntax = /SyntaxError/.test(e.message || '');
+  const noAppScriptInvolved = !isRes && !exts.length && !foreign.length;
+  const verdict = (isSyntax && noAppScriptInvolved)
+    ? `<div style="color:#0a0;font-weight:bold;margin-top:3px;">✅ 判定: アプリ本体とは無関係（外部注入）。シンクライアント/端末セキュリティがブラウザに注入したスクリプトの破損。全機能は正常に動作します。✕ で閉じてください。</div>`
+    : (isRes ? '' : `<div style="color:#a00;margin-top:3px;">⚠ このページのスクリプト由来の可能性あり。全スクリプト棚卸しを確認してください。</div>`);
+  const envNote = `<div style="color:#333;margin-top:2px;">環境: UA=${ua.replace(/</g,'&lt;')} ｜ ドキュメント=${document.readyState} ｜ スクリプト${scripts.length}個（外部オリジン${foreign.length}個）</div>`
+    + `<details style="margin-top:1px;"><summary>全スクリプト棚卸し（${scripts.length}個）</summary><pre style="white-space:pre-wrap;margin:4px 0;">${scripts.map(x => x.replace(/</g,'&lt;')).join('\n')}</pre></details>`;
+  box.insertAdjacentHTML('beforeend',
+    `<div>[ERR] ${isRes ? 'リソース失敗' : (e.message || e)} @ ${where}（${trusted}）${st}${extNote}${verdict}${envNote}</div>`);
+});
+window.addEventListener('click', (e) => {
+  if (e.target && e.target.id === 'debug-error-close') {
+    const b = document.getElementById('debug-error-box');
+    if (b) b.remove();
+  }
 });
 
 // ═══════════════════════════════════════════
@@ -1804,6 +3293,14 @@ function getCategoryLabel(cat) {
   const map = { fungicide: '殺菌剤', insecticide: '殺虫剤', acaricide: '殺ダニ剤' };
   return map[cat] || cat;
 }
+
+// 薬剤商品マスターの選択語彙（制御語彙）。
+// 剤形=技術的形態（RBP行列に入る）／梱包形態=容器／内容の形=物理状態（液体/粉/タブレット…）
+// 既存の自由記述値（WP/SC/DF…）は select 描画時に現値補完で自動追加される（失わない）。
+const FORMULATION_OPTIONS = ['水和剤','顆粒水和剤','水溶剤','顆粒水溶剤','乳剤','懸濁剤','粒剤','粉剤','顆粒剤','フロアブル','オイル'];
+const PACKAGING_OPTIONS = ['袋','ボトル','缶','箱','本','枚'];
+const CONTENT_FORM_OPTIONS = ['液体','粉','顆粒','タブレット','粒','ペレット'];
+const PACK_UNIT_OPTIONS = ['kg','g','L','mL'];
 
 function openDiseaseMaster() {
   const overlay = document.createElement('div');
@@ -2012,7 +3509,7 @@ function showPesticideDetail(id) {
     { key: 'id', label: 'ID', readonly: true },
     { key: 'name', label: '商品名' },
     { key: 'activeIngredient', label: '有効成分' },
-    { key: 'category', label: '種類', type: 'select', options: ['fungicide', 'insecticide', 'acaricide'] },
+    { key: 'category', label: '種類', type: 'select', options: ['fungicide', 'insecticide', 'acaricide'], labelFn: getCategoryLabel },
     { key: 'dilutionRate', label: '希釈率' },
     { key: 'phiDays', label: 'PHI日数' },
     { key: 'maxApplications', label: '最大使用回数' },
@@ -2020,6 +3517,16 @@ function showPesticideDetail(id) {
     { key: 'system', label: '作用機作' },
     { key: 'systemCode', label: 'システムコード' },
     { key: 'mixingRestriction', label: '混用注意' },
+    // 商品マスター（買う・使うために必要な情報）
+    { key: 'brand', label: 'メーカー' },
+    { key: 'formulation', label: '剤形（技術的形態）', type: 'select', options: FORMULATION_OPTIONS },
+    { key: 'packaging', label: '梱包形態（容器）', type: 'select', options: PACKAGING_OPTIONS },
+    { key: 'contentForm', label: '内容の形（物理状態）', type: 'select', options: CONTENT_FORM_OPTIONS },
+    { key: 'applicationRate', label: '散布量（L/10a）', type: 'number' },
+    { key: 'capacity', label: '容量（1個あたり）', type: 'number' },
+    { key: 'packSize', label: '販売単位（何個で売っているか）', type: 'number' },
+    { key: 'packUnit', label: '容量単位', type: 'select', options: PACK_UNIT_OPTIONS },
+    { key: 'price', label: '単価（円）', type: 'number' },
   ];
 
   const targetNamesStr = (p.targetNames || []).join('\n');
@@ -2041,9 +3548,17 @@ function showPesticideDetail(id) {
           <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">${f.label}</label>
           ${f.type === 'select'
             ? `<select id="edit_${f.key}" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
-                ${(f.options||[]).map(opt => `<option value="${opt}" ${p[f.key]===opt?'selected':''}>${getCategoryLabel(opt)}</option>`).join('')}
+                ${(() => {
+                  const cur = String(p[f.key] || '');
+                  const opts = (f.options||[]).slice();
+                  if (cur && !opts.includes(cur)) opts.push(cur); // 既存の自由記述値を補完（失わない）
+                  const lbl = f.labelFn || ((o) => o);
+                  // 空の値は「—」で表示（先頭の実オプションを偽装表示しない）
+                  const emptyOpt = `<option value="" ${cur===''?'selected':''}>—</option>`;
+                  return emptyOpt + opts.map(opt => `<option value="${escapeAttr(opt)}" ${cur===opt?'selected':''}>${escapeAttr(lbl(opt))}</option>`).join('');
+                })()}
                </select>`
-            : `<input id="edit_${f.key}" type="text" value="${escapeAttr(String(p[f.key] || ''))}" ${f.readonly ? 'readonly style="background:#f5f5f5;"' : 'style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;"'}>`
+            : `<input id="edit_${f.key}" type="${f.type === 'number' ? 'number' : 'text'}" step="any" value="${escapeAttr(String(p[f.key] || ''))}" ${f.readonly ? 'readonly style="background:#f5f5f5;"' : 'style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;"'}>`
           }
         </div>
       `).join('')}
@@ -2076,7 +3591,7 @@ function escapeAttr(s) {
 }
 
 function escapeHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 async function savePesticide(id) {
@@ -2111,6 +3626,15 @@ async function savePesticide(id) {
     system: getField('system'),
     systemCode: getField('systemCode'),
     mixingRestriction: getField('mixingRestriction'),
+    brand: getField('brand'),
+    formulation: getField('formulation'),
+    packaging: getField('packaging'),
+    contentForm: getField('contentForm'),
+    applicationRate: parseFloat(getField('applicationRate')) || null,
+    capacity: parseFloat(getField('capacity')) || null,
+    packSize: parseFloat(getField('packSize')) || null,
+    packUnit: getField('packUnit'),
+    price: parseFloat(getField('price')) || null,
     targetVector,
     targetNames,
     mixingBanTargets,
@@ -2210,6 +3734,50 @@ function showAddPesticideForm() {
         <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">混用注意</label>
         <input id="edit_mixingRestriction" type="text" placeholder="銅剤と混合不可" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
       </div>
+      <div>
+        <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">メーカー</label>
+        <input id="edit_brand" type="text" placeholder="住園化学" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+      </div>
+      <div>
+        <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">剤形（技術的形態）</label>
+        <select id="edit_formulation" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+          <option value=""></option>${FORMULATION_OPTIONS.map(o => `<option value="${o}">${o}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">梱包形態（容器）</label>
+        <select id="edit_packaging" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+          <option value=""></option>${PACKAGING_OPTIONS.map(o => `<option value="${o}">${o}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">内容の形（物理状態）</label>
+        <select id="edit_contentForm" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+          <option value=""></option>${CONTENT_FORM_OPTIONS.map(o => `<option value="${o}">${o}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">散布量（L/10a）</label>
+        <input id="edit_applicationRate" type="number" step="any" placeholder="0.5" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+      </div>
+      <div>
+        <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">容量（1個あたり）</label>
+        <input id="edit_capacity" type="number" step="any" placeholder="5" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+      </div>
+      <div>
+        <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">販売単位（何個で売っているか）</label>
+        <input id="edit_packSize" type="number" step="any" placeholder="1" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+      </div>
+      <div>
+        <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">容量単位</label>
+        <select id="edit_packUnit" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+          <option value=""></option>${PACK_UNIT_OPTIONS.map(o => `<option value="${o}">${o}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">単価（円）</label>
+        <input id="edit_price" type="number" step="any" placeholder="25000" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+      </div>
     </div>
     <div style="margin-top:10px;">
       <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">対象病害虫（改行区切り）*</label>
@@ -2265,6 +3833,15 @@ async function addPesticide() {
     system: getField('system').trim(),
     systemCode: getField('systemCode').trim(),
     mixingRestriction: getField('mixingRestriction').trim(),
+    brand: getField('brand').trim(),
+    formulation: getField('formulation').trim(),
+    packaging: getField('packaging').trim(),
+    contentForm: getField('contentForm').trim(),
+    applicationRate: parseFloat(getField('applicationRate')) || null,
+    capacity: parseFloat(getField('capacity')) || null,
+    packSize: parseFloat(getField('packSize')) || null,
+    packUnit: getField('packUnit').trim(),
+    price: parseFloat(getField('price')) || null,
     targetVector,
     targetNames,
     mixingBanTargets,
@@ -2299,6 +3876,1055 @@ function exportPesticides() {
   a.download = `pesticides_export_${new Date().toISOString().slice(0,10)}.json`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+// ═══════════════════════════════════════════
+// 圃場マスター（育苗／本圃）— フルCRUD
+// 唯一無二の正は DB の fields テーブル。静的スナップショットは持たない（loadServerFields）。
+// Cloudflare Pages（/api 無し）では読み込みが空のまま（書き込みは非永続 — 他マスターと同等）。
+// ═══════════════════════════════════════════
+
+const FIELD_TYPE_OPTIONS = [
+  { value: 'nursery', label: '🌱 育苗' },
+  { value: 'main', label: '🌾 本圃' },
+];
+const FIELD_AREA_UNIT_OPTIONS = [
+  { value: '', label: '未設定' },
+  { value: 'm2', label: 'm²' },
+  { value: 'tan', label: '反' },
+  { value: 'tsubo', label: '坪' },
+];
+
+async function openFieldMaster() {
+  const existing = document.getElementById('field-master-modal');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'field-master-modal';
+  overlay.style.cssText = `
+    position: fixed; inset: 0; z-index: 99999;
+    background: rgba(0,0,0,.85);
+    display: flex; align-items: center; justify-content: center;
+    font-family: "Hiragino Sans", "Meiryo", sans-serif;
+    animation: fadeIn .2s ease;
+  `;
+
+  overlay.innerHTML = `
+    <div style="
+      background: white; border-radius: 16px;
+      padding: 0; max-width: 640px; width: 95%; height: 85vh;
+      box-shadow: 0 8px 32px rgba(0,0,0,.5);
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    ">
+      <div style="
+        display:flex;justify-content:space-between;align-items:center;
+        padding:16px 20px;border-bottom:1px solid #eee;flex-shrink:0;
+      ">
+        <strong style="font-size:1.05rem;">🌱 圃場マスター</strong>
+        <button id="closeFieldMaster" style="background:transparent;color:#888;border:none;font-size:1.3rem;cursor:pointer;padding:4px 8px;">✕</button>
+      </div>
+
+      <div style="
+        display:flex;gap:8px;padding:12px 20px;border-bottom:1px solid #eee;flex-shrink:0;align-items:center;
+      ">
+        <input id="fieldSearchInput" type="text" placeholder="圃場名で検索..."
+          style="flex:1;min-width:120px;padding:6px 10px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;"
+          oninput="renderFieldList()">
+        <select id="fieldTypeFilter" onchange="renderFieldList()"
+          style="padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+          <option value="all">全部類</option>
+          <option value="nursery">育苗</option>
+          <option value="main">本圃</option>
+        </select>
+        <button onclick="showAddFieldForm()" class="btn btn-primary btn-sm" style="white-space:nowrap;">＋ 追加</button>
+      </div>
+
+      <div id="fieldList" style="flex:1;overflow-y:auto;padding:8px 20px;">
+        <div style="text-align:center;padding:24px;color:#999;">読込中…</div>
+      </div>
+
+      <div id="fieldDetailPanel" style="
+        display:none;border-top:1px solid #eee;padding:16px 20px;
+        max-height:45vh;overflow-y:auto;flex-shrink:0;background:#fafafa;
+      "></div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  overlay.querySelector('#closeFieldMaster').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+  await loadServerFields();
+  renderFieldList();
+}
+
+function getFilteredFields() {
+  const q = (document.getElementById('fieldSearchInput')?.value || '').toLowerCase();
+  const cat = document.getElementById('fieldTypeFilter')?.value || 'all';
+  return FIELDS.filter(f => {
+    const matchCat = cat === 'all' || f.type === cat;
+    const matchSearch = !q || (f.name || '').toLowerCase().includes(q);
+    return matchCat && matchSearch;
+  });
+}
+
+function renderFieldList() {
+  const list = document.getElementById('fieldList');
+  if (!list) return;
+  const filtered = getFilteredFields();
+  if (filtered.length === 0) {
+    list.innerHTML = '<div style="text-align:center;padding:24px;color:#999;">圃場がありません</div>';
+    return;
+  }
+  let html = `<div style="font-size:.78rem;color:#888;margin-bottom:8px;">${filtered.length}圃場</div>`;
+  filtered.forEach(f => {
+    const typeBadge = FIELD_TYPE_LABEL[f.type] || f.type;
+    const area = formatFieldArea(f);
+    const m2 = fieldAreaM2(f);
+    const tip = m2 != null ? ` title="${m2} m²"` : '';
+    html += `
+      <div style="
+        display:flex;align-items:center;gap:10px;padding:10px 12px;
+        border:1px solid #eee;border-radius:8px;margin-bottom:6px;
+        cursor:pointer;transition:border-color .15s;
+      " onmouseover="this.style.borderColor='#4a7c59'" onmouseout="this.style.borderColor='#eee'"
+        onclick="showFieldDetail(${f.id})">
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:bold;font-size:.9rem;">${escapeHtml(f.name || '?')}</div>
+          <div style="font-size:.75rem;color:#666;">${area || '面積未設定'}${m2 != null ? `（${m2} m²）` : ''}</div>
+        </div>
+        <span ${tip} style="
+          font-size:.7rem;padding:2px 8px;border-radius:10px;
+          background:#e8f5e8;color:#2e7d32;font-weight:bold;white-space:nowrap;
+        ">${typeBadge}</span>
+      </div>`;
+  });
+  list.innerHTML = html;
+}
+
+function showFieldDetail(id) {
+  const f = FIELDS.find(x => x.id === id);
+  if (!f) return;
+  const panel = document.getElementById('fieldDetailPanel');
+  if (!panel) return;
+
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <strong style="font-size:.95rem;">📋 ${escapeHtml(f.name)} (${f.id}) — 編集</strong>
+      <div style="display:flex;gap:6px;">
+        <button onclick="saveField(${f.id})" class="btn btn-primary btn-sm">💾 保存</button>
+        <button onclick="deleteField(${f.id})" class="btn btn-danger btn-sm">🗑 削除</button>
+        <button onclick="hideFieldDetailPanel()" style="background:transparent;border:none;color:#888;cursor:pointer;font-size:1.1rem;padding:4px 8px;">✕</button>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;">
+      <div>
+        <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">圃場名</label>
+        <input id="edit_field_name" type="text" value="${escapeAttr(String(f.name || ''))}"
+          style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+      </div>
+      <div>
+        <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">種類</label>
+        <select id="edit_field_type" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+          ${FIELD_TYPE_OPTIONS.map(o => `<option value="${o.value}" ${f.type===o.value?'selected':''}>${o.label}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">面積（数値）</label>
+        <input id="edit_field_area_value" type="number" step="any" value="${f.area_value ?? ''}"
+          style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;" placeholder="空欄で未設定">
+      </div>
+      <div>
+        <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">面積（単位）</label>
+        <select id="edit_field_area_unit" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+          ${FIELD_AREA_UNIT_OPTIONS.map(o => `<option value="${o.value}" ${f.area_unit===o.value?'selected':''}>${o.label}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div style="margin-top:16px;border-top:1px solid #ddd;padding-top:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <strong style="font-size:.9rem;">🛏 ベッド台帳（本舗の構成品・一列ずつ）</strong>
+        <button onclick="showAddBedForm(${f.id})" class="btn btn-outline btn-sm">＋ ベッド追加</button>
+      </div>
+      <div id="bedList_${f.id}"><div style="font-size:.8rem;color:#999;">読込中…</div></div>
+    </div>
+    <div style="margin-top:16px;border-top:1px solid #ddd;padding-top:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <strong style="font-size:.9rem;">🧩 構成品（HUMOS entity 層・v1.2.0）</strong>
+        <span style="font-size:.72rem;color:#999;">object_component（オブジェクトに所属）</span>
+      </div>
+      <div id="compList_${f.id}"><div style="font-size:.8rem;color:#999;">読込中…</div></div>
+    </div>
+  `;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  renderBeds(f.id);
+  renderComponents(f.id);
+}
+
+// ── 構成品（object_component・HUMOS entity 層 v1.2.0） ──
+// /api/entity からオブジェクトの構成品を取得して表示する。
+// ベッドは beds（ドメインDB）の同期ミラー（編集は上のベッド台帳で）。
+// プランタン/育苗棚は HUMOS 固有（値をこの場で編集可能）。
+async function renderComponents(fieldId) {
+  const box = document.getElementById('compList_' + fieldId);
+  if (!box) return;
+  try {
+    const res = await fetch('/api/entity?subject_id=mikakura&domain_id=iichigo');
+    const data = await res.json();
+    let obj = null;
+    for (const e of (data.entities || [])) {
+      if (e.entity_id !== 'field') continue;
+      obj = e.objects.find(o => String(o.object_id) === String(fieldId));
+      if (obj) break;
+    }
+    if (!obj) { box.innerHTML = '<div style="font-size:.8rem;color:#999;">（オブジェクト未登録）</div>'; return; }
+    const comps = obj.components || [];
+    if (!comps.length) {
+      box.innerHTML = '<div style="font-size:.8rem;color:#999;">（構成品なし）</div>';
+      return;
+    }
+    const LABELS = { bed: 'ベッド', planter: 'プランタン', rack: '育苗棚' };
+    const RACK_KEYS = [['height','高さ'], ['width','幅'], ['depth','奥行き'],
+                       ['row_count','列数'], ['row_length','列長']];
+    let html = '';
+    comps.forEach(c => {
+      const label = LABELS[c.comp_type] || c.comp_type;
+      const a = c.attrs || {};
+      if (c.comp_type === 'bed') {
+        // ベッドは beds の同期ミラー（編集はベッド台帳で）
+        html += `<div style="font-size:.8rem;color:#666;padding:3px 0;">
+          🛏 ${escapeHtml(label)} <span style="color:#aaa;">${escapeHtml(c.name||'')}</span>
+          — 長さ ${a.length_m ?? ''}m・幅 ${a.width_m ?? ''}m・${escapeHtml(a.mulch_type||'')}
+          <span style="color:#bbb;">（同期ミラー・編集は上のベッド台帳で）</span></div>`;
+      } else if (c.comp_type === 'planter') {
+        html += `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:.82rem;">
+          🌱 ${escapeHtml(label)}
+          <label style="color:#666;">個数</label>
+          <input id="comp_planter_count_${fieldId}" type="number" value="${a.count ?? ''}"
+            style="width:80px;padding:3px 6px;border:1px solid #ccc;border-radius:6px;font-size:.82rem;" placeholder="未入力">
+          <button onclick="saveComponent(${fieldId},'planter','p1',{count:parseFloat(document.getElementById('comp_planter_count_${fieldId}').value)||null})"
+            class="btn btn-outline btn-sm" style="padding:2px 8px;font-size:.75rem;">💾</button>
+        </div>`;
+      } else if (c.comp_type === 'rack') {
+        let inputs = '';
+        RACK_KEYS.forEach(([k, lb]) => {
+          inputs += `<div><label style="font-size:.72rem;color:#666;display:block;">${lb}</label>
+            <input id="comp_rack_${k}_${fieldId}" type="number" step="any" value="${a[k] ?? ''}"
+              style="width:100%;padding:3px 6px;border:1px solid #ccc;border-radius:6px;font-size:.82rem;" placeholder="未入力"></div>`;
+        });
+        html += `<div style="padding:6px 0;">
+          <div style="display:flex;align-items:center;gap:8px;font-size:.82rem;margin-bottom:6px;">🗄 ${escapeHtml(label)}</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:6px;">${inputs}</div>
+          <div style="margin-top:6px;">
+            <button onclick="saveComponent(${fieldId},'rack','r1',{height:parseFloat(document.getElementById('comp_rack_height_${fieldId}').value)||null,width:parseFloat(document.getElementById('comp_rack_width_${fieldId}').value)||null,depth:parseFloat(document.getElementById('comp_rack_depth_${fieldId}').value)||null,row_count:parseFloat(document.getElementById('comp_rack_row_count_${fieldId}').value)||null,row_length:parseFloat(document.getElementById('comp_rack_row_length_${fieldId}').value)||null})"
+              class="btn btn-outline btn-sm" style="padding:2px 10px;font-size:.75rem;">💾 保存</button>
+          </div>
+        </div>`;
+      }
+    });
+    box.innerHTML = html;
+  } catch (e) {
+    box.innerHTML = '<div style="font-size:.8rem;color:#c0392b;">読込エラー: ' + escapeHtml(e.message) + '</div>';
+  }
+}
+
+// 構成品の属性を HUMOS entity 層に保存（PUT /api/entity/component）。
+async function saveComponent(fieldId, compType, compId, attrs) {
+  try {
+    const res = await fetch('/api/entity/component', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subject_id: 'mikakura', domain_id: 'iichigo',
+                             entity_id: 'field',
+                             object_id: String(fieldId), comp_type: compType,
+                             comp_id: compId, attrs })
+    });
+    const out = await res.json();
+    if (!res.ok) { alert('保存失敗: ' + (out.error || res.status)); return; }
+    renderComponents(fieldId);
+  } catch (e) { alert('保存エラー: ' + e.message); }
+}
+
+// ── ベッド台帳（beds）— 圃場の関連テーブル（本舗の構成品・一列ずつの長さ） ──
+// マルチ選定の認知/要求評価の緒言（要求ベクトルの軸）。diseases が薬剤選定の
+// 認知の緒言なら、beds がマルチ選定の認知の緒言（どのベッドにマルチが必要か）。
+async function renderBeds(fieldId) {
+  const box = document.getElementById('bedList_' + fieldId);
+  if (!box) return;
+  try {
+    const res = await fetch(`/api/beds?field_id=${fieldId}`);
+    const data = await res.json();
+    const beds = data.beds || [];
+    if (!beds.length) {
+      box.innerHTML = '<div style="font-size:.8rem;color:#999;padding:6px;">（ベッド未登録。＋ベッド追加で登録してください。）</div>';
+      return;
+    }
+    let html = `<table style="width:100%;border-collapse:collapse;font-size:.8rem;">
+      <tr style="color:#888;text-align:left;border-bottom:1px solid #eee;">
+        <th style="padding:4px;">#</th><th>列名</th><th>列番号</th><th>長さ(m)</th><th>幅(m)</th><th>マルチ種別</th><th></th>
+      </tr>`;
+    beds.forEach(b => {
+      html += `<tr style="border-bottom:1px solid #f0f0f0;">
+        <td style="padding:4px;color:#4a7c59;font-weight:bold;">${b.id}</td>
+        <td>${escapeHtml(b.name || '?')}</td>
+        <td>${b.seq ?? ''}</td>
+        <td>${b.length_m ?? ''}</td>
+        <td>${b.width_m ?? ''}</td>
+        <td>${escapeHtml(b.mulch_type || '')}</td>
+        <td style="text-align:right;white-space:nowrap;">
+          <button onclick="showEditBedForm(${b.id})" class="btn btn-outline btn-sm" style="padding:2px 8px;font-size:.75rem;">✎</button>
+          <button onclick="deleteBed(${fieldId},${b.id})" class="btn btn-danger btn-sm" style="padding:2px 8px;font-size:.75rem;">🗑</button>
+        </td>
+      </tr>`;
+    });
+    html += '</table>';
+    box.innerHTML = html;
+  } catch (e) {
+    box.innerHTML = '<div style="font-size:.8rem;color:#c0392b;">読込エラー: ' + escapeHtml(e.message) + '</div>';
+  }
+}
+
+function _bedFormHTML(bed, fieldId) {
+  const isNew = !bed;
+  const v = bed || {};
+  return `
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-top:8px;">
+      <div><label style="font-size:.72rem;color:#666;display:block;">列名</label>
+        <input id="bed_name" type="text" value="${escapeAttr(String(v.name || ''))}" style="width:100%;padding:4px 6px;border:1px solid #ccc;border-radius:6px;font-size:.82rem;"></div>
+      <div><label style="font-size:.72rem;color:#666;display:block;">列番号</label>
+        <input id="bed_seq" type="number" value="${v.seq ?? ''}" style="width:100%;padding:4px 6px;border:1px solid #ccc;border-radius:6px;font-size:.82rem;"></div>
+      <div><label style="font-size:.72rem;color:#666;display:block;">長さ(m)</label>
+        <input id="bed_length" type="number" step="any" value="${v.length_m ?? ''}" style="width:100%;padding:4px 6px;border:1px solid #ccc;border-radius:6px;font-size:.82rem;"></div>
+      <div><label style="font-size:.72rem;color:#666;display:block;">幅(m)</label>
+        <input id="bed_width" type="number" step="any" value="${v.width_m ?? ''}" style="width:100%;padding:4px 6px;border:1px solid #ccc;border-radius:6px;font-size:.82rem;"></div>
+      <div><label style="font-size:.72rem;color:#666;display:block;">マルチ種別</label>
+        <input id="bed_mulch" type="text" value="${escapeAttr(String(v.mulch_type || ''))}" placeholder="白黒/黒/透明" style="width:100%;padding:4px 6px;border:1px solid #ccc;border-radius:6px;font-size:.82rem;"></div>
+      <div><label style="font-size:.72rem;color:#666;display:block;">備考</label>
+        <input id="bed_notes" type="text" value="${escapeAttr(String(v.notes || ''))}" style="width:100%;padding:4px 6px;border:1px solid #ccc;border-radius:6px;font-size:.82rem;"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px;">
+      <button onclick="saveBed(${fieldId}${isNew ? '' : ',' + bed.id})" class="btn btn-primary btn-sm">💾 保存</button>
+      <button onclick="renderBeds(${fieldId})" style="background:transparent;border:none;color:#888;cursor:pointer;font-size:.85rem;">キャンセル</button>
+    </div>`;
+}
+
+function showAddBedForm(fieldId) {
+  const box = document.getElementById('bedList_' + fieldId);
+  if (!box) return;
+  box.innerHTML = `<div style="background:#f0f7f2;border:1px solid #4a7c59;border-radius:8px;padding:10px;">
+    <strong style="font-size:.85rem;">＋ ベッド追加</strong>${_bedFormHTML(null, fieldId)}</div>`;
+}
+
+function showEditBedForm(bedId) {
+  // 編集対象のベッドを再取得してフォーム表示
+  fetch(`/api/beds/${bedId}`).then(r => r.json()).then(bed => {
+    const box = document.getElementById('bedList_' + bed.field_id);
+    if (!box) return;
+    box.innerHTML = `<div style="background:#fff8e1;border:1px solid #d4b106;border-radius:8px;padding:10px;">
+      <strong style="font-size:.85rem;">✎ ベッド編集（${escapeHtml(bed.name)}）</strong>${_bedFormHTML(bed, bed.field_id)}</div>`;
+  });
+}
+
+function _bedBodyFromForm() {
+  const num = (id) => { const v = (document.getElementById(id)?.value || '').trim(); return v === '' ? null : parseFloat(v); };
+  return {
+    name: (document.getElementById('bed_name')?.value || '').trim(),
+    seq: num('bed_seq'),
+    length_m: num('bed_length'),
+    width_m: num('bed_width'),
+    mulch_type: (document.getElementById('bed_mulch')?.value || '').trim() || null,
+    notes: (document.getElementById('bed_notes')?.value || '').trim() || null,
+  };
+}
+
+async function saveBed(fieldId, bedId) {
+  const body = _bedBodyFromForm();
+  if (!body.name) { alert('列名を入力してください'); return; }
+  try {
+    let res;
+    if (bedId) {
+      res = await fetch(`/api/beds/${bedId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    } else {
+      body.field_id = fieldId;
+      res = await fetch('/api/beds', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    }
+    const data = await res.json();
+    if (!res.ok) { alert('保存に失敗: ' + (data.error || res.statusText)); return; }
+    renderBeds(fieldId);
+  } catch (e) { alert('通信エラー: ' + e.message); }
+}
+
+async function deleteBed(fieldId, bedId) {
+  if (!confirm('このベッドを削除してもよろしいですか？')) return;
+  try {
+    const res = await fetch(`/api/beds/${bedId}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) { alert('削除に失敗: ' + (data.error || res.statusText)); return; }
+    renderBeds(fieldId);
+  } catch (e) { alert('通信エラー: ' + e.message); }
+}
+
+function hideFieldDetailPanel() {
+  const panel = document.getElementById('fieldDetailPanel');
+  if (panel) panel.style.display = 'none';
+}
+
+// 追加フォーム（編集フォームと同じ panel を流用）
+function showAddFieldForm() {
+  const panel = document.getElementById('fieldDetailPanel');
+  if (!panel) return;
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <strong style="font-size:.95rem;">＋ 圃場追加</strong>
+      <div style="display:flex;gap:6px;">
+        <button onclick="addField()" class="btn btn-primary btn-sm">💾 登録</button>
+        <button onclick="hideFieldDetailPanel()" style="background:transparent;border:none;color:#888;cursor:pointer;font-size:1.1rem;padding:4px 8px;">✕</button>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;">
+      <div>
+        <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">圃場名</label>
+        <input id="edit_field_name" type="text" value="" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+      </div>
+      <div>
+        <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">種類</label>
+        <select id="edit_field_type" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+          ${FIELD_TYPE_OPTIONS.map(o => `<option value="${o.value}">${o.label}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">面積（数値）</label>
+        <input id="edit_field_area_value" type="number" step="any" value="" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;" placeholder="空欄で未設定">
+      </div>
+      <div>
+        <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">面積（単位）</label>
+        <select id="edit_field_area_unit" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+          ${FIELD_AREA_UNIT_OPTIONS.map(o => `<option value="${o.value}">${o.label}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+  `;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// 面積値・単位のフォーム値を body に変換（未設定は null）
+function _fieldBodyFromForm() {
+  const name = (document.getElementById('edit_field_name')?.value || '').trim();
+  const type = document.getElementById('edit_field_type')?.value || 'main';
+  const unit = document.getElementById('edit_field_area_unit')?.value || '';
+  const valueRaw = (document.getElementById('edit_field_area_value')?.value || '').trim();
+  let area_value = null, area_unit = null;
+  if (valueRaw !== '') {
+    const v = parseFloat(valueRaw);
+    if (isNaN(v)) throw new Error('面積は数値で入力してください');
+    area_value = v;
+  }
+  if (unit !== '') area_unit = unit;
+  return { name, type, area_value, area_unit };
+}
+
+async function saveField(id) {
+  let body;
+  try { body = _fieldBodyFromForm(); } catch (e) { alert(e.message); return; }
+  if (!body.name) { alert('圃場名を入力してください'); return; }
+  try {
+    const res = await fetch(`/api/fields/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert('保存に失敗しました: ' + (data.error || res.statusText)); return; }
+    await loadServerFields();
+    renderFieldList();
+    showFieldDetail(id);
+    renderFieldSelects(); // 防除暦/履歴のselectを最新に
+    alert('保存しました！');
+  } catch (e) {
+    alert('通信エラー: ' + e.message);
+  }
+}
+
+async function deleteField(id) {
+  const f = FIELDS.find(x => x.id === id);
+  if (!confirm(`圃場「${f ? f.name : id}」を削除してもよろしいですか？\n（防除暦・防除履歴・在庫での参照は解除されます）`)) return;
+  try {
+    const res = await fetch(`/api/fields/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) { alert('削除に失敗しました: ' + (data.error || res.statusText)); return; }
+    await loadServerFields();
+    renderFieldList();
+    hideFieldDetailPanel();
+    renderFieldSelects();
+    alert('削除しました！');
+  } catch (e) {
+    alert('通信エラー: ' + e.message);
+  }
+}
+
+async function addField() {
+  let body;
+  try { body = _fieldBodyFromForm(); } catch (e) { alert(e.message); return; }
+  if (!body.name) { alert('圃場名を入力してください'); return; }
+  try {
+    const res = await fetch(`/api/fields`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert('登録に失敗しました: ' + (data.error || res.statusText)); return; }
+    await loadServerFields();
+    renderFieldList();
+    hideFieldDetailPanel();
+    renderFieldSelects();
+    alert('登録しました！');
+  } catch (e) {
+    alert('通信エラー: ' + e.message);
+  }
+}
+
+// ═══════════════════════════════════════════
+// 検鏡場所マスター（inspection_locations）— 花芽分化の顕微鏡検査場所
+// 圃場マスター（fields）と同型の名前マスター。
+// ═══════════════════════════════════════════
+async function openInspectionLocationMaster() {
+  const existing = document.getElementById('insp-loc-master-modal');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'insp-loc-master-modal';
+  overlay.style.cssText = `
+    position: fixed; inset: 0; z-index: 99999;
+    background: rgba(0,0,0,.85);
+    display: flex; align-items: center; justify-content: center;
+    font-family: "Hiragino Sans", "Meiryo", sans-serif;
+    animation: fadeIn .2s ease;
+  `;
+  overlay.innerHTML = `
+    <div style="
+      background: white; border-radius: 16px;
+      padding: 0; max-width: 560px; width: 95%; height: 80vh;
+      box-shadow: 0 8px 32px rgba(0,0,0,.5);
+      display: flex; flex-direction: column; overflow: hidden;
+    ">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #eee;flex-shrink:0;">
+        <strong style="font-size:1.05rem;">🔬 検鏡場所マスター</strong>
+        <button id="closeInspLocMaster" style="background:transparent;color:#888;border:none;font-size:1.3rem;cursor:pointer;padding:4px 8px;">✕</button>
+      </div>
+      <div style="display:flex;gap:8px;padding:12px 20px;border-bottom:1px solid #eee;flex-shrink:0;align-items:center;">
+        <input id="inspLocSearchInput" type="text" placeholder="場所名で検索..."
+          style="flex:1;min-width:120px;padding:6px 10px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;"
+          oninput="renderInspLocList()">
+        <button onclick="showAddInspLocForm()" class="btn btn-primary btn-sm" style="white-space:nowrap;">＋ 追加</button>
+      </div>
+      <div style="font-size:.78rem;color:#888;padding:8px 20px 0;">花芽分化の顕微鏡検査を行う場所を管理します（定植暦の判定記録で選択）。</div>
+      <div id="inspLocList" style="flex:1;overflow-y:auto;padding:8px 20px;">
+        <div style="text-align:center;padding:24px;color:#999;">読込中…</div>
+      </div>
+      <div id="inspLocDetailPanel" style="display:none;border-top:1px solid #eee;padding:16px 20px;max-height:45vh;overflow-y:auto;flex-shrink:0;background:#fafafa;"></div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#closeInspLocMaster').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+  await loadServerInspectionLocations();
+  renderInspLocList();
+}
+
+function getFilteredInspLocs() {
+  const q = (document.getElementById('inspLocSearchInput')?.value || '').toLowerCase();
+  return INSPECTION_LOCATIONS.filter(l => !q || (l.name || '').toLowerCase().includes(q));
+}
+
+function renderInspLocList() {
+  const list = document.getElementById('inspLocList');
+  if (!list) return;
+  const filtered = getFilteredInspLocs();
+  if (filtered.length === 0) {
+    list.innerHTML = '<div style="text-align:center;padding:24px;color:#999;">検鏡場所がありません</div>';
+    return;
+  }
+  let html = `<div style="font-size:.78rem;color:#888;margin-bottom:8px;">${filtered.length}件</div>`;
+  filtered.forEach(l => {
+    html += `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #eee;border-radius:8px;margin-bottom:6px;cursor:pointer;transition:border-color .15s;"
+        onmouseover="this.style.borderColor='#27ae60'" onmouseout="this.style.borderColor='#eee'"
+        onclick="showInspLocDetail(${l.id})">
+        <div style="flex:1;min-width:0;font-weight:bold;font-size:.9rem;">${escapeHtml(l.name || '?')}</div>
+        <span style="font-size:.7rem;padding:2px 8px;border-radius:10px;background:#eafaf1;color:#2e7d32;font-weight:bold;white-space:nowrap;">🔬 検鏡場所</span>
+      </div>`;
+  });
+  list.innerHTML = html;
+}
+
+function showInspLocDetail(id) {
+  const l = INSPECTION_LOCATIONS.find(x => x.id === id);
+  if (!l) return;
+  const panel = document.getElementById('inspLocDetailPanel');
+  if (!panel) return;
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <strong style="font-size:.95rem;">📋 ${escapeHtml(l.name)} (${l.id}) — 編集</strong>
+      <div style="display:flex;gap:6px;">
+        <button onclick="saveInspLoc(${l.id})" class="btn btn-primary btn-sm">💾 保存</button>
+        <button onclick="deleteInspLoc(${l.id})" class="btn btn-danger btn-sm">🗑 削除</button>
+        <button onclick="hideInspLocDetailPanel()" style="background:transparent;border:none;color:#888;cursor:pointer;font-size:1.1rem;padding:4px 8px;">✕</button>
+      </div>
+    </div>
+    <div>
+      <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">場所名</label>
+      <input id="edit_insploc_name" type="text" value="${escapeAttr(String(l.name || ''))}"
+        style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+    </div>
+  `;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function hideInspLocDetailPanel() {
+  const panel = document.getElementById('inspLocDetailPanel');
+  if (panel) panel.style.display = 'none';
+}
+
+function showAddInspLocForm() {
+  const panel = document.getElementById('inspLocDetailPanel');
+  if (!panel) return;
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <strong style="font-size:.95rem;">＋ 検鏡場所追加</strong>
+      <div style="display:flex;gap:6px;">
+        <button onclick="addInspLoc()" class="btn btn-primary btn-sm">💾 登録</button>
+        <button onclick="hideInspLocDetailPanel()" style="background:transparent;border:none;color:#888;cursor:pointer;font-size:1.1rem;padding:4px 8px;">✕</button>
+      </div>
+    </div>
+    <div>
+      <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">場所名</label>
+      <input id="edit_insploc_name" type="text" value="" placeholder="例: JA紀の里地域本部"
+        style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
+    </div>
+  `;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function saveInspLoc(id) {
+  const name = (document.getElementById('edit_insploc_name')?.value || '').trim();
+  if (!name) { alert('場所名を入力してください'); return; }
+  try {
+    const res = await fetch(`/api/inspection_locations/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert('保存に失敗しました: ' + (data.error || res.statusText)); return; }
+    await loadServerInspectionLocations();
+    renderInspLocList();
+    showInspLocDetail(id);
+    alert('保存しました！');
+  } catch (e) {
+    alert('通信エラー: ' + e.message);
+  }
+}
+
+async function deleteInspLoc(id) {
+  const l = INSPECTION_LOCATIONS.find(x => x.id === id);
+  if (!confirm(`検鏡場所「${l ? l.name : id}」を削除してもよろしいですか？`)) return;
+  try {
+    const res = await fetch(`/api/inspection_locations/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) { alert('削除に失敗しました: ' + (data.error || res.statusText)); return; }
+    await loadServerInspectionLocations();
+    renderInspLocList();
+    hideInspLocDetailPanel();
+    alert('削除しました！');
+  } catch (e) {
+    alert('通信エラー: ' + e.message);
+  }
+}
+
+async function addInspLoc() {
+  const name = (document.getElementById('edit_insploc_name')?.value || '').trim();
+  if (!name) { alert('場所名を入力してください'); return; }
+  try {
+    const res = await fetch(`/api/inspection_locations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert('登録に失敗しました: ' + (data.error || res.statusText)); return; }
+    await loadServerInspectionLocations();
+    renderInspLocList();
+    hideInspLocDetailPanel();
+    alert('登録しました！');
+  } catch (e) {
+    alert('通信エラー: ' + e.message);
+  }
+}
+
+// ═══════════════════════════════════════════
+// 従業者マスター（workers）— 持ち込み・作業の「誰」
+// ═══════════════════════════════════════════
+async function openWorkerMaster() {
+  const existing = document.getElementById('worker-master-modal');
+  if (existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'worker-master-modal';
+  overlay.style.cssText = `
+    position: fixed; inset: 0; z-index: 99999;
+    background: rgba(0,0,0,.85);
+    display: flex; align-items: center; justify-content: center;
+    font-family: "Hiragino Sans", "Meiryo", sans-serif;
+    animation: fadeIn .2s ease;
+  `;
+  overlay.innerHTML = `
+    <div style="background: white; border-radius: 16px; padding: 0; max-width: 600px; width: 95%; height: 80vh; box-shadow: 0 8px 32px rgba(0,0,0,.5); display: flex; flex-direction: column; overflow: hidden;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #eee;flex-shrink:0;">
+        <strong style="font-size:1.05rem;">👤 従業者マスター</strong>
+        <button id="closeWorkerMaster" style="background:transparent;color:#888;border:none;font-size:1.3rem;cursor:pointer;padding:4px 8px;">✕</button>
+      </div>
+      <div style="display:flex;gap:8px;padding:12px 20px;border-bottom:1px solid #eee;flex-shrink:0;align-items:center;">
+        <input id="workerSearchInput" type="text" placeholder="氏名で検索..." style="flex:1;min-width:120px;padding:6px 10px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;" oninput="renderWorkerList()">
+        <button onclick="showAddWorkerForm()" class="btn btn-primary btn-sm" style="white-space:nowrap;">＋ 追加</button>
+      </div>
+      <div style="font-size:.78rem;color:#888;padding:8px 20px 0;">持ち込み・作業の「誰」を管理します（検鏡の持ち込み担当・定植担当を割り当て）。</div>
+      <div id="workerList" style="flex:1;overflow-y:auto;padding:8px 20px;"><div style="text-align:center;padding:24px;color:#999;">読込中…</div></div>
+      <div id="workerDetailPanel" style="display:none;border-top:1px solid #eee;padding:16px 20px;max-height:45vh;overflow-y:auto;flex-shrink:0;background:#fafafa;"></div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#closeWorkerMaster').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  await loadServerWorkers();
+  renderWorkerList();
+}
+function getFilteredWorkers() {
+  const q = (document.getElementById('workerSearchInput')?.value || '').toLowerCase();
+  return WORKERS.filter(w => !q || (w.name || '').toLowerCase().includes(q));
+}
+function renderWorkerList() {
+  const list = document.getElementById('workerList');
+  if (!list) return;
+  const filtered = getFilteredWorkers();
+  if (filtered.length === 0) { list.innerHTML = '<div style="text-align:center;padding:24px;color:#999;">従業者がいません</div>'; return; }
+  let html = `<div style="font-size:.78rem;color:#888;margin-bottom:8px;">${filtered.length}件</div>`;
+  filtered.forEach(w => {
+    const sub = [w.role, w.org].filter(Boolean).join('・');
+    html += `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #eee;border-radius:8px;margin-bottom:6px;cursor:pointer;transition:border-color .15s;"
+        onmouseover="this.style.borderColor='#27ae60'" onmouseout="this.style.borderColor='#eee'" onclick="showWorkerDetail(${w.id})">
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:bold;font-size:.9rem;">${escapeHtml(w.name || '?')}</div>
+          <div style="font-size:.75rem;color:#888;">${escapeHtml(sub || '—')}${w.phone ? ' ・📞 ' + escapeHtml(w.phone) : ''}</div>
+        </div>
+        <span style="font-size:.7rem;padding:2px 8px;border-radius:10px;background:#eafaf1;color:#2e7d32;font-weight:bold;white-space:nowrap;">👤 従業者</span>
+      </div>`;
+  });
+  list.innerHTML = html;
+}
+function showWorkerDetail(id) {
+  const w = WORKERS.find(x => x.id === id);
+  if (!w) return;
+  const panel = document.getElementById('workerDetailPanel');
+  if (!panel) return;
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <strong style="font-size:.95rem;">📋 ${escapeHtml(w.name)} (${w.id}) — 編集</strong>
+      <div style="display:flex;gap:6px;">
+        <button onclick="saveWorker(${w.id})" class="btn btn-primary btn-sm">💾 保存</button>
+        <button onclick="deleteWorker(${w.id})" class="btn btn-danger btn-sm">🗑 削除</button>
+        <button onclick="hideWorkerDetailPanel()" style="background:transparent;border:none;color:#888;cursor:pointer;font-size:1.1rem;padding:4px 8px;">✕</button>
+      </div>
+    </div>
+    <div><label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">氏名</label>
+      <input id="edit_worker_name" type="text" value="${escapeAttr(String(w.name || ''))}" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:8px;"></div>
+    <div><label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">役割</label>
+      <input id="edit_worker_role" type="text" value="${escapeAttr(String(w.role || ''))}" placeholder="例: 持ち込み担当" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:8px;"></div>
+    <div><label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">電話</label>
+      <input id="edit_worker_phone" type="text" value="${escapeAttr(String(w.phone || ''))}" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:8px;"></div>
+    <div><label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">所属</label>
+      <input id="edit_worker_org" type="text" value="${escapeAttr(String(w.org || ''))}" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;"></div>`;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function hideWorkerDetailPanel() {
+  const panel = document.getElementById('workerDetailPanel');
+  if (panel) panel.style.display = 'none';
+}
+function showAddWorkerForm() {
+  const panel = document.getElementById('workerDetailPanel');
+  if (!panel) return;
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <strong style="font-size:.95rem;">＋ 従業者追加</strong>
+      <div style="display:flex;gap:6px;">
+        <button onclick="addWorker()" class="btn btn-primary btn-sm">💾 登録</button>
+        <button onclick="hideWorkerDetailPanel()" style="background:transparent;border:none;color:#888;cursor:pointer;font-size:1.1rem;padding:4px 8px;">✕</button>
+      </div>
+    </div>
+    <div><label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">氏名</label>
+      <input id="edit_worker_name" type="text" value="" placeholder="例: 山田太郎" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:8px;"></div>
+    <div><label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">役割</label>
+      <input id="edit_worker_role" type="text" value="" placeholder="例: 持ち込み担当" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:8px;"></div>
+    <div><label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">電話</label>
+      <input id="edit_worker_phone" type="text" value="" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:8px;"></div>
+    <div><label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">所属</label>
+      <input id="edit_worker_org" type="text" value="" placeholder="例: JA紀の里" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;"></div>`;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+async function saveWorker(id) {
+  const name = (document.getElementById('edit_worker_name')?.value || '').trim();
+  if (!name) { alert('氏名を入力してください'); return; }
+  try {
+    const res = await fetch(`/api/workers/${id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, role: document.getElementById('edit_worker_role').value.trim() || null, phone: document.getElementById('edit_worker_phone').value.trim() || null, org: document.getElementById('edit_worker_org').value.trim() || null }),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert('保存に失敗しました: ' + (data.error || res.statusText)); return; }
+    await loadServerWorkers(); renderWorkerList(); showWorkerDetail(id); renderFieldSelects();
+    alert('保存しました！');
+  } catch (e) { alert('通信エラー: ' + e.message); }
+}
+async function deleteWorker(id) {
+  const w = WORKERS.find(x => x.id === id);
+  if (!confirm(`従業者「${w ? w.name : id}」を削除してもよろしいですか？`)) return;
+  try {
+    const res = await fetch(`/api/workers/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) { alert('削除に失敗しました: ' + (data.error || res.statusText)); return; }
+    await loadServerWorkers(); renderWorkerList(); hideWorkerDetailPanel(); renderFieldSelects();
+    alert('削除しました！');
+  } catch (e) { alert('通信エラー: ' + e.message); }
+}
+async function addWorker() {
+  const name = (document.getElementById('edit_worker_name')?.value || '').trim();
+  if (!name) { alert('氏名を入力してください'); return; }
+  try {
+    const res = await fetch(`/api/workers`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, role: document.getElementById('edit_worker_role').value.trim() || null, phone: document.getElementById('edit_worker_phone').value.trim() || null, org: document.getElementById('edit_worker_org').value.trim() || null }),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert('登録に失敗しました: ' + (data.error || res.statusText)); return; }
+    await loadServerWorkers();
+    // 検索フィルタを空にして新登録が隠れないようにする。
+    const ws = document.getElementById('workerSearchInput');
+    if (ws) ws.value = '';
+    renderWorkerList(); hideWorkerDetailPanel(); renderFieldSelects();
+    alert('登録しました！');
+  } catch (e) { alert('通信エラー: ' + e.message); }
+}
+
+// ═══════════════════════════════════════════
+// コホート（育苗バッチ）マスター（cohorts）
+// ═══════════════════════════════════════════
+async function openCohortMaster() {
+  const existing = document.getElementById('cohort-master-modal');
+  if (existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'cohort-master-modal';
+  overlay.style.cssText = `
+    position: fixed; inset: 0; z-index: 99999;
+    background: rgba(0,0,0,.85);
+    display: flex; align-items: center; justify-content: center;
+    font-family: "Hiragino Sans", "Meiryo", sans-serif;
+    animation: fadeIn .2s ease;
+  `;
+  overlay.innerHTML = `
+    <div style="background: white; border-radius: 16px; padding: 0; max-width: 600px; width: 95%; height: 80vh; box-shadow: 0 8px 32px rgba(0,0,0,.5); display: flex; flex-direction: column; overflow: hidden;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #eee;flex-shrink:0;">
+        <strong style="font-size:1.05rem;">🌱 コホートマスター（育苗バッチ）</strong>
+        <button id="closeCohortMaster" style="background:transparent;color:#888;border:none;font-size:1.3rem;cursor:pointer;padding:4px 8px;">✕</button>
+      </div>
+      <div style="display:flex;gap:8px;padding:12px 20px;border-bottom:1px solid #eee;flex-shrink:0;align-items:center;">
+        <input id="cohortSearchInput" type="text" placeholder="バッチ名で検索..." style="flex:1;min-width:120px;padding:6px 10px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;" oninput="renderCohortList()">
+        <button onclick="showAddCohortForm()" class="btn btn-primary btn-sm" style="white-space:nowrap;">＋ 追加</button>
+      </div>
+      <div style="font-size:.78rem;color:#888;padding:8px 20px 0;">イチゴ栽培サイクル（育苗→熱消毒→定植→収穫→廃棄）を管理します。1 コホート = 1 大きなまとまり（年をまたぐ）= 1 プロジェクト。命名は「第N期」。</div>
+      <div id="cohortList" style="flex:1;overflow-y:auto;padding:8px 20px;"><div style="text-align:center;padding:24px;color:#999;">読込中…</div></div>
+      <div id="cohortDetailPanel" style="display:none;border-top:1px solid #eee;padding:16px 20px;max-height:45vh;overflow-y:auto;flex-shrink:0;background:#fafafa;"></div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#closeCohortMaster').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  await loadServerCohorts();
+  renderCohortList();
+}
+// 西暦年 → 和暦表記（例: 2026 → 令和8年(2026)）。
+function yearToWadai(year) {
+  const y = Number(year);
+  if (!y) return '';
+  let era, n;
+  if (y >= 2019) { era = '令和'; n = y - 2018; }
+  else if (y >= 1989) { era = '平成'; n = y - 1988; }
+  else if (y >= 1926) { era = '昭和'; n = y - 1925; }
+  else { era = '明治'; n = y - 1867; }
+  return `${era}${n}年(${y})`;
+}
+// コホートの副題（収穫年=和暦・育苗開始年月）。
+function cohortSubtitle(c) {
+  const parts = [];
+  if (c.harvest_year) parts.push('収穫 ' + yearToWadai(c.harvest_year));
+  if (c.seedling_start) parts.push('育苗開始 ' + escapeHtml(c.seedling_start));
+  return parts.join(' ・ ');
+}
+function getFilteredCohorts() {
+  const q = (document.getElementById('cohortSearchInput')?.value || '').toLowerCase();
+  return COHORTS.filter(c => !q || (c.name || '').toLowerCase().includes(q));
+}
+function renderCohortList() {
+  const list = document.getElementById('cohortList');
+  if (!list) return;
+  const filtered = getFilteredCohorts();
+  if (filtered.length === 0) { list.innerHTML = '<div style="text-align:center;padding:24px;color:#999;">コホートがいません</div>'; return; }
+  let html = `<div style="font-size:.78rem;color:#888;margin-bottom:8px;">${filtered.length}件</div>`;
+  filtered.forEach(c => {
+    const field = c.field_id ? (FIELDS.find(f => f.id === c.field_id) || null) : null;
+    const inps = transplantSchedule.filter(t => t.cohort_id === c.id).length;
+    const sub = cohortSubtitle(c);
+    html += `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #eee;border-radius:8px;margin-bottom:6px;cursor:pointer;transition:border-color .15s;"
+        onmouseover="this.style.borderColor='#27ae60'" onmouseout="this.style.borderColor='#eee'" onclick="showCohortDetail(${c.id})">
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:bold;font-size:.9rem;">${escapeHtml(c.name || '?')}</div>
+          <div style="font-size:.75rem;color:#888;">${sub ? escapeHtml(sub) + ' ・' : ''}${field ? escapeHtml(field.name) + ' ・' : ''}検鏡 ${inps}件${c.notes ? ' ・' + escapeHtml(c.notes) : ''}</div>
+        </div>
+        <span style="font-size:.7rem;padding:2px 8px;border-radius:10px;background:#eafaf1;color:#2e7d32;font-weight:bold;white-space:nowrap;">🌱 コホート</span>
+      </div>`;
+  });
+  list.innerHTML = html;
+}
+function showCohortDetail(id) {
+  const c = COHORTS.find(x => x.id === id);
+  if (!c) return;
+  const panel = document.getElementById('cohortDetailPanel');
+  if (!panel) return;
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <strong style="font-size:.95rem;">📋 ${escapeHtml(c.name)} (${c.id}) — 編集</strong>
+      <div style="display:flex;gap:6px;">
+        <button onclick="saveCohort(${c.id})" class="btn btn-primary btn-sm">💾 保存</button>
+        <button onclick="deleteCohort(${c.id})" class="btn btn-danger btn-sm">🗑 削除</button>
+        <button onclick="hideCohortDetailPanel()" style="background:transparent;border:none;color:#888;cursor:pointer;font-size:1.1rem;padding:4px 8px;">✕</button>
+      </div>
+    </div>
+    <div><label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">名称（第N期）</label>
+      <input id="edit_cohort_name" type="text" value="${escapeAttr(String(c.name || ''))}" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:8px;"></div>
+    <div style="display:flex;gap:8px;">
+      <div style="flex:1;"><label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">期番号（第N期）</label>
+        <input id="edit_cohort_period" type="number" min="1" value="${c.period_no != null ? c.period_no : ''}" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;"></div>
+      <div style="flex:1;"><label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">収穫年（西暦）</label>
+        <input id="edit_cohort_harvest" type="number" min="2000" value="${c.harvest_year != null ? c.harvest_year : ''}" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;"></div>
+    </div>
+    <div style="margin-top:8px;"><label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">育苗開始年月（例: 2025-11）</label>
+      <input id="edit_cohort_seedling" type="text" value="${escapeAttr(String(c.seedling_start || ''))}" placeholder="2025-11" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:8px;"></div>
+    <div><label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">圃場</label>
+      <div id="edit_cohort_field_wrap"></div></div>
+    <div><label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">備考</label>
+      <input id="edit_cohort_notes" type="text" value="${escapeAttr(String(c.notes || ''))}" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;"></div>`;
+  document.getElementById('edit_cohort_field_wrap').innerHTML = fieldSelectHTML('edit_cohort_field', c.field_id || '');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function hideCohortDetailPanel() {
+  const panel = document.getElementById('cohortDetailPanel');
+  if (panel) panel.style.display = 'none';
+}
+function showAddCohortForm() {
+  const panel = document.getElementById('cohortDetailPanel');
+  if (!panel) return;
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <strong style="font-size:.95rem;">＋ コホート追加</strong>
+      <div style="display:flex;gap:6px;">
+        <button onclick="addCohort()" class="btn btn-primary btn-sm">💾 登録</button>
+        <button onclick="hideCohortDetailPanel()" style="background:transparent;border:none;color:#888;cursor:pointer;font-size:1.1rem;padding:4px 8px;">✕</button>
+      </div>
+    </div>
+    <div><label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">名称（第N期）</label>
+      <input id="edit_cohort_name" type="text" value="" placeholder="空欄なら期番号から「第N期」を自動生成" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:8px;"></div>
+    <div style="display:flex;gap:8px;">
+      <div style="flex:1;"><label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">期番号（第N期）</label>
+        <input id="edit_cohort_period" type="number" min="1" value="" placeholder="例: 5" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;"></div>
+      <div style="flex:1;"><label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">収穫年（西暦）</label>
+        <input id="edit_cohort_harvest" type="number" min="2000" value="" placeholder="例: 2026" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;"></div>
+    </div>
+    <div style="margin-top:8px;"><label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">育苗開始年月（例: 2025-11）</label>
+      <input id="edit_cohort_seedling" type="text" value="" placeholder="2025-11" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;margin-bottom:8px;"></div>
+    <div><label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">圃場</label>
+      <div id="edit_cohort_field_wrap"></div></div>
+    <div><label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">備考</label>
+      <input id="edit_cohort_notes" type="text" value="" style="width:100%;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;"></div>`;
+  document.getElementById('edit_cohort_field_wrap').innerHTML = fieldSelectHTML('edit_cohort_field', '');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+// コホートフォームの共通フィールドを読む（名称・期番号・収穫年・育苗開始年月・圃場・備考）。
+function readCohortForm() {
+  const name = (document.getElementById('edit_cohort_name')?.value || '').trim();
+  const period = (document.getElementById('edit_cohort_period')?.value || '').trim();
+  const harvest = (document.getElementById('edit_cohort_harvest')?.value || '').trim();
+  const seedling = (document.getElementById('edit_cohort_seedling')?.value || '').trim();
+  const fieldSel = document.getElementById('edit_cohort_field');
+  const fieldId = fieldSel && fieldSel.value !== '' ? Number(fieldSel.value) : null;
+  const notes = (document.getElementById('edit_cohort_notes')?.value || '').trim();
+  return {
+    name: name || null,
+    period_no: period !== '' ? Number(period) : null,
+    harvest_year: harvest !== '' ? Number(harvest) : null,
+    seedling_start: seedling || null,
+    field_id: fieldId,
+    notes: notes || null,
+  };
+}
+async function saveCohort(id) {
+  const f = readCohortForm();
+  if (!f.name) { alert('名称（第N期）を入力してください'); return; }
+  try {
+    const res = await fetch(`/api/cohorts/${id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(f),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert('保存に失敗しました: ' + (data.error || res.statusText)); return; }
+    await loadServerCohorts(); renderCohortList(); showCohortDetail(id); renderFieldSelects();
+    alert('保存しました！');
+  } catch (e) { alert('通信エラー: ' + e.message); }
+}
+async function deleteCohort(id) {
+  const c = COHORTS.find(x => x.id === id);
+  if (!confirm(`コホート「${c ? c.name : id}」を削除してもよろしいですか？（検鏡の割当は解除されます）`)) return;
+  try {
+    const res = await fetch(`/api/cohorts/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) { alert('削除に失敗しました: ' + (data.error || res.statusText)); return; }
+    await loadServerCohorts(); renderCohortList(); hideCohortDetailPanel(); renderFieldSelects();
+    await fetchTransplantFromServer(currentYear); renderTransplant();
+    alert('削除しました！');
+  } catch (e) { alert('通信エラー: ' + e.message); }
+}
+async function addCohort() {
+  const f = readCohortForm();
+  if (!f.name && f.period_no == null) { alert('名称か期番号（第N期）を入力してください'); return; }
+  try {
+    const res = await fetch(`/api/cohorts`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(f),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert('登録に失敗しました: ' + (data.error || res.statusText)); return; }
+    await loadServerCohorts();
+    const cs = document.getElementById('cohortSearchInput');
+    if (cs) cs.value = '';
+    renderCohortList(); hideCohortDetailPanel(); renderFieldSelects();
+    alert('登録しました！');
+  } catch (e) { alert('通信エラー: ' + e.message); }
 }
 
 // ═══════════════════════════════════════════
@@ -2472,6 +5098,7 @@ function renderInventory() {
             ${item.purchaseDate ? ` 購入: ${item.purchaseDate}` : ''}
             ${item.expiryDate ? ` 期限: ${item.expiryDate}` : ''}
           </div>
+          ${item.field_id ? `<div style="margin-top:4px;">${fieldBadge(item.field_id)}</div>` : ''}
           ${item.notes ? `<div style="font-size:.72rem;color:#999;margin-top:2px;font-style:italic;">${escapeHtml(item.notes)}</div>` : ''}
         </div>
         <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
@@ -2568,6 +5195,10 @@ function openInventoryAddModal() {
             <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">購入日</label>
             <input id="inv_add_purchaseDate" type="date" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
           </div>
+          <div>
+            <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">🌱 圃場</label>
+            ${fieldSelectHTML('inv_add_field_id', '')}
+          </div>
         </div>
         <div style="margin-top:10px;">
           <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">メモ</label>
@@ -2609,6 +5240,8 @@ function openInventoryAddModal() {
           supplier: document.getElementById('inv_add_supplier').value.trim(),
           purchaseDate: document.getElementById('inv_add_purchaseDate').value,
           notes: document.getElementById('inv_add_notes').value.trim(),
+          field_id: (document.getElementById('inv_add_field_id')?.value || '') !== ''
+            ? Number(document.getElementById('inv_add_field_id').value) : null,
         }),
       });
       const data = await res.json();
@@ -2817,6 +5450,10 @@ function openInventoryEditModal(invId) {
             <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">購入日</label>
             <input id="inv_edit_purchaseDate" type="date" value="${item.purchaseDate || ''}" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;">
           </div>
+          <div>
+            <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">🌱 圃場</label>
+            ${fieldSelectHTML('inv_edit_field_id', item.field_id ?? null)}
+          </div>
         </div>
         <div style="margin-top:10px;">
           <label style="font-size:.75rem;color:#666;display:block;margin-bottom:2px;">メモ</label>
@@ -2850,6 +5487,8 @@ function openInventoryEditModal(invId) {
           supplier: document.getElementById('inv_edit_supplier').value.trim(),
           purchaseDate: document.getElementById('inv_edit_purchaseDate').value,
           notes: document.getElementById('inv_edit_notes').value.trim(),
+          field_id: (document.getElementById('inv_edit_field_id')?.value || '') !== ''
+            ? Number(document.getElementById('inv_edit_field_id').value) : null,
         }),
       });
       const data = await res.json();

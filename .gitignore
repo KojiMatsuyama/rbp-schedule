@@ -11,3 +11,6 @@ data/stb.db-wal
 data/stb.db.bak_*
 server.log
 rbp-algebra/dist-newstyle-user/
+.venv/
+*.db
+scratchpad/

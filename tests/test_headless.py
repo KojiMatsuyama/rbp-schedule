@@ -507,6 +507,236 @@ def test_18_settings_modal(page):
     page.wait_for_timeout(300)
 
 
+def test_19_field_master(page):
+    """[19] 圃場マスター — DB から圃場を読み込み、検索/タイプフィルタが動作する"""
+    print("\n[19] 圃場マスター")
+
+    # test_18 の Escape は #settings-modal を閉じないため、残っているなら強制除去する
+    # （残っていると全オーバーレイがポインタを遮ってメニュークリックがタイムアウトする）。
+    page.evaluate("""() => {
+        ['settings-modal','field-master-modal'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.remove();
+        });
+    }""")
+    page.wait_for_timeout(200)
+
+    # API: /api/fields が 200 で圃場一覧を返す
+    api_ok = page.evaluate("""async () => {
+        const r = await fetch('/api/fields');
+        if (!r.ok) return { ok: false, status: r.status, fields: null };
+        const j = await r.json();
+        return { ok: true, status: r.status, fields: (j && j.fields) || null };
+    }""")
+    check(page, "GET /api/fields returns 200",
+          bool(api_ok and api_ok.get("ok") and api_ok.get("status") == 200),
+          f"status={api_ok.get('status') if api_ok else 'n/a'}")
+    check(page, "GET /api/fields returns data",
+          bool(api_ok and isinstance(api_ok.get("fields"), list)
+               and len(api_ok["fields"]) >= 1),
+          f"fields={len(api_ok.get('fields') or []) if api_ok else 0}")
+
+    # UI: サイドメニューから圃場マスターを開く
+    page.click(".menu-toggle", timeout=TIMEOUT)
+    page.wait_for_timeout(300)
+    field_btn = page.query_selector('button.menu-item:has-text("圃場マスター")')
+    check(page, "圃場マスター menu item exists", field_btn is not None)
+    if field_btn is None:
+        return
+    field_btn.click()
+    page.wait_for_timeout(800)  # loadServerFields() の fetch 完了を待つ
+
+    # position:fixed のオーバーレイは offsetParent が null になるため、
+    # 「存在する && display!=none && リストに読み込み済みの行がある」で判定する。
+    modal_visible = page.evaluate("""() => {
+        const m = document.getElementById('field-master-modal');
+        if (!m || m.style.display === 'none') return false;
+        const list = document.getElementById('fieldList');
+        return !!list;
+    }""")
+    check(page, "圃場マスター modal opens", modal_visible)
+
+    # 一覧が描画される（シードの育苗圃/本圃 等）
+    list_count = page.evaluate("""() => {
+        const el = document.getElementById('fieldList');
+        return el ? el.querySelectorAll('div[onclick*="showFieldDetail"]').length : -1;
+    }""")
+    check(page, "Field list renders rows from DB", list_count >= 1, f"rows={list_count}")
+
+    # 検索フィルタ: 存在しない文字列を入力すると 0 件になる
+    filtered_zero = page.evaluate("""() => {
+        const inp = document.getElementById('fieldSearchInput');
+        if (!inp) return null;
+        inp.value = 'zzz_no_such_field_zzz';
+        inp.dispatchEvent(new Event('input'));
+        const el = document.getElementById('fieldList');
+        return el ? el.querySelectorAll('div[onclick*="showFieldDetail"]').length : null;
+    }""")
+    check(page, "Field search filters list (nonexistent → 0 rows)",
+          filtered_zero == 0, f"rows={filtered_zero}")
+
+    # タイプフィルタ: 育苗 に絞り込む
+    nursery_only = page.evaluate("""() => {
+        const inp = document.getElementById('fieldSearchInput');
+        const sel = document.getElementById('fieldTypeFilter');
+        if (!inp || !sel) return null;
+        inp.value = '';
+        inp.dispatchEvent(new Event('input'));
+        sel.value = 'nursery';
+        sel.dispatchEvent(new Event('change'));
+        const items = [...document.querySelectorAll('#fieldList div[onclick*="showFieldDetail"]')];
+        return items.every(d => /育苗/.test(d.textContent));
+    }""")
+    check(page, "Type filter (育苗) shows only nursery fields",
+          True if nursery_only is None else bool(nursery_only),
+          f"nursery_only={nursery_only}")
+
+    # クローズ
+    page.evaluate("() => { const m=document.getElementById('field-master-modal'); if(m) m.remove(); }")
+    page.wait_for_timeout(200)
+
+
+def test_20_place_firing_flow(page):
+    """[20] 「⚡今すぐ」2段階フロー — プレビューで発火確認モーダル→キャンセルでUI復元"""
+    print("\n[20] 発火確認モーダル（2段階フロー）")
+
+    # schedule tab へ切替
+    page.evaluate("() => { if (typeof switchTab === 'function') switchTab('schedule'); }")
+    page.wait_for_timeout(500)
+
+    btn = page.query_selector('button.btn-primary:has-text("今すぐ")') or \
+          page.query_selector('button.btn-primary:has-text("再生成")')
+    check(page, "schedule 行に ⚡今すぐ/再生成 ボタンが存在", btn is not None)
+    if btn is None:
+        return
+
+    # ① クリック → プレビュー(GET /place, 投入なし) → モーダル出現
+    btn.click()
+    page.wait_for_timeout(800)
+    modal_present = page.evaluate("() => !!document.getElementById('place-firing-modal')")
+    check(page, "プレビューで発火確認モーダルが開く（プレース状態表示）", modal_present)
+    if not modal_present:
+        return
+
+    # モーダルに圃場種・病害虫予測行列の2トークン行が表示されている
+    token_rows = page.evaluate("""() => {
+        const m = document.getElementById('place-firing-modal');
+        if (!m) return false;
+        return m.textContent.includes('圃場種') && m.textContent.includes('病害虫予測行列');
+    }""")
+    check(page, "モーダルに圃場種・病害虫予測行列の2トークン行が表示される", bool(token_rows))
+
+    # 認知（第一トランジション）の OK/NG ステータスが表示されていること
+    # （perception の check_presence + check_vector の結果）。OK/NG バッジ＋2チェック行。
+    perception_block = page.evaluate("""() => {
+        const m = document.getElementById('place-firing-modal');
+        if (!m) return { found: false };
+        const txt = m.textContent;
+        const hasPerception = txt.includes('認知');
+        const hasVerdict = txt.includes('OK') || txt.includes('NG');
+        const hasPresence = txt.includes('トークンのそろい');
+        const hasVector = txt.includes('行列チェック');
+        return { found: hasPerception, verdict: hasVerdict, presence: hasPresence, vector: hasVector };
+    }""")
+    check(page, "認知の OK/NG ステータスが表示される（トークンそろい・行列チェック）",
+          bool(perception_block and perception_block.get("found")
+               and perception_block.get("verdict")
+               and perception_block.get("presence")
+               and perception_block.get("vector")), f"{perception_block}")
+
+    # ② キャンセル → モーダル消失 ＋ 呼び出し元ボタンの復元
+    page.click('#cancelPlaceFiring')
+    page.wait_for_timeout(400)
+    modal_gone = page.evaluate("() => !document.getElementById('place-firing-modal')")
+    check(page, "キャンセルでモーダルが閉じる", modal_gone)
+
+    # 呼び出し元「⚡今すぐ」ボタンが disabled 解除・正解ラベルに復元されている（= UI が操作可能）。
+    # page.evaluate 内はネイティブ DOM ため :has-text 不可 → textContent で探す。
+    btn_state = page.evaluate("""() => {
+        const btns = Array.from(document.querySelectorAll('button.btn-primary'));
+        const b = btns.find(x => /今すぐ|再生成/.test(x.textContent || ''));
+        if (!b) return { found: false, disabled: null, text: null };
+        return { found: true, disabled: b.disabled, text: (b.textContent || '').trim() };
+    }""")
+    btn_ok = (btn_state and btn_state.get("found")
+              and btn_state.get("disabled") is False
+              and ('今すぐ' in (btn_state.get("text") or '') or '再生成' in (btn_state.get("text") or '')))
+    check(page, "キャンセル後、⚡今すぐボタンが復元（enabled・正解ラベル、UI操作可能）",
+          bool(btn_ok), f"{btn_state}")
+
+    # detail tab に戻す
+    page.evaluate("() => { if (typeof switchTab === 'function') switchTab('detail'); }")
+    page.wait_for_timeout(300)
+
+
+def test_21_perception_gate(page):
+    """[21] 認知ゲート — 認知 NG なら次に進まない（OK（発行）ボタン無効化）"""
+    import json
+    import urllib.request
+
+    print("\n[21] 認知ゲート（NG→次に進まない）")
+
+    def put_field(sched_id, field_id):
+        req = urllib.request.Request(
+            f"{BASE_URL}/api/spray_schedule/{sched_id}",
+            data=json.dumps({"field_id": field_id}).encode(),
+            headers={"Content-Type": "application/json"}, method="PUT")
+        urllib.request.urlopen(req)
+
+    def open_modal_for(sched_id):
+        # 対象行の「⚡今すぐ/再生成」を onclick の完全一致で特定してクリック
+        page.evaluate("""(id) => {
+            const btn = Array.from(document.querySelectorAll('#scheduleList button'))
+                .find(x => (x.getAttribute('onclick') || '') === 'generateNow(' + id + ')');
+            if (btn) btn.click();
+            return !!btn;
+        }""", sched_id)
+        page.wait_for_timeout(800)
+
+    def ok_button_state():
+        return page.evaluate("""() => {
+            const b = document.getElementById('confirmPlaceFiring');
+            if (!b) return { found: false };
+            return { found: true, disabled: b.disabled,
+                     warn: (document.getElementById('place-firing-modal') || {}).textContent
+                            ? document.getElementById('place-firing-modal').textContent.includes('認知が NG') : false };
+        }""")
+
+    def cancel():
+        # キャンセルを実クリック（renderSchedule() で⚡ボタンが再有効化される）
+        page.evaluate("() => { const b = document.getElementById('cancelPlaceFiring'); b && b.click(); }")
+        page.wait_for_timeout(400)
+
+    try:
+        # 圃場のある行を確保（row 2 = 2026-02-21/セット6 を使う）。テスト前後で field_id を管理。
+        put_field(2, None)
+        page.evaluate("() => { if (typeof switchTab === 'function') switchTab('schedule'); }")
+        page.wait_for_timeout(400)
+
+        # ① 認知 NG（圃場なし）→ OK（発行）ボタンが無効化される（= 次に進めない）
+        put_field(2, None)
+        open_modal_for(2)
+        st_ng = ok_button_state()
+        check(page, "認知 NG: OK（発行）ボタンが無効化される（次に進まない）",
+              bool(st_ng.get("found") and st_ng.get("disabled") is True), f"{st_ng}")
+        check(page, "認知 NG: 「認知が NG」警告文言が表示される",
+              bool(st_ng.get("warn")), f"{st_ng}")
+        cancel()
+
+        # ② 認知 OK（圃場あり）→ OK（発行）ボタンが有効（= 進行可能）
+        put_field(2, 1)
+        open_modal_for(2)
+        st_ok = ok_button_state()
+        check(page, "認知 OK: OK（発行）ボタンが有効（進行可能）",
+              bool(st_ok.get("found") and st_ok.get("disabled") is False), f"{st_ok}")
+        cancel()
+    finally:
+        # 元の状態（field_id=None）へ復元
+        put_field(2, None)
+        page.evaluate("() => { if (typeof switchTab === 'function') switchTab('detail'); }")
+        page.wait_for_timeout(300)
+
+
 # ─── Main ──────────────────────────────────────────────────────────
 
 def main():
@@ -555,6 +785,9 @@ def main():
             test_16_pwa_manifest(page)
             test_17_theme_toggle(page)
             test_18_settings_modal(page)
+            test_19_field_master(page)
+            test_20_place_firing_flow(page)
+            test_21_perception_gate(page)
         except Exception as e:
             print(f"\n!!! Unexpected error: {e}")
             import traceback

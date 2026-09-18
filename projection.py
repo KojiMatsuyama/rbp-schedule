@@ -15,10 +15,23 @@
   - agentic_chat / scripts からの双方は APP_ROOT を sys.path に入れて
     `import projection` するだけで通る。
 
-2つの投射レンダラ:
-  render_projection  — チャット診断レポート（詳細・ブリッジ履歴付き）
+投射レンダラ:
+  render_projection  — チャット診断レポート（投射1。詳細・ブリッジ履歴付き）
+  render_selection_token / render_inventory_token
+                      — 投射2（作動つき投射）。後続トランジションの入力
+                         プレースへ発行するトークンを生成する。
   build_slack_text   — cron 防除暦向け Slack 短文
+
+「投射2」とは:
+  投射1と内容は同じ（処方結果・スコア・trace を写像する）が、加えて**作動
+  （プログラム）**を伴う。すなわち後続トランジション（薬剤選定 / 在庫チェック）
+  の「入力プレース」へ発行するトークンを生成し、その発火をトリガーする投射。
+  前段 state.py の _tokens_store と同じく「プレース＝投入された文字列」の構造で、
+  ChatState の eval_token / selection_token / inventory_token フィールドを
+  各トランジションの入力プレースとして揃えている。
 """
+
+import json
 
 # =====================================================================
 # チャット投射 — render_projection
@@ -227,6 +240,57 @@ def render_projection(state: dict) -> str:
             parts.append(f"- {c}（2剤セット）")
 
     return "\n".join(parts)
+
+
+# =====================================================================
+# 投射2 — 作動つき投射（後続トランジションの入力プレースへトークン発行）
+# =====================================================================
+# 投射1（render_projection）は処方結果を人間が読む文章に「写像」するだけ。
+# 投射2は同じ内容を写像するほか、**作動（プログラム）**として後続トランジション
+# の入力プレースへ発行するトークンを生成する。生成するトークンは
+# 「プレース＝投入された文字列（JSON）」の単一構造で揃えている。
+
+
+def render_selection_token(vector: list, eval_box_id: str | None = None) -> str:
+    """
+    投射2（選定用）— 要求評価の「薬剤選定（決定）トランジション」のプレースへ
+    発行するトークンを生成する。
+
+    10次元ベクトル・トークンと評価BOXをJSONに束ねる。薬剤選定（decision.decide）
+    はこのプレースから vector / eval_box_id を復元して発火する。
+
+    Args:
+        vector: 認知が作った10次元・2値ベクトル
+        eval_box_id: 要求評価で分類した評価BOXのID（None 可）
+
+    Returns:
+        選定プレースへの発行トークン（JSON文字列）。
+        例: '{"vector": [1,0,0,0,0,0,0,0,1,0], "eval_box_id": "EB-01"}'
+    """
+    return json.dumps(
+        {"vector": vector, "eval_box_id": eval_box_id}, ensure_ascii=False
+    )
+
+
+def render_inventory_token(prescription: list) -> str | None:
+    """
+    投射2（在庫用）— 決定後の「在庫チェック」トランジションのプレースへ発行
+    する処方トークンを生成する（＝本質問の投射2の作動）。
+
+    処方結果（薬剤名+数量）をJSONにシリアライズして放出。在庫チェックは
+    このプレースが投入されて初めて発火する。処方が空のときは発行しない
+    （None → 在庫チェックは「処方なし」を返す）。
+
+    Args:
+        prescription: 決定が作った処方リスト
+            [{"name": "ベルクート", "quantity": 3, "id": "P01"}, ...]
+
+    Returns:
+        在庫プレースへの発行トークン（JSON文字列）または None（処方が空）。
+    """
+    if not prescription:
+        return None
+    return json.dumps(prescription, ensure_ascii=False)
 
 
 # =====================================================================

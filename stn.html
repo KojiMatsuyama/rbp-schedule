@@ -1,0 +1,1820 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STN・ライブ — ペトリネット × ドメイン × 膜（接地）</title>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #242836;
+  --border: #2e3348;
+  --text: #e2e4ed;
+  --text-dim: #8b8fa3;
+  --accent: #6c8cff;
+  --accent-glow: rgba(108, 140, 255, 0.25);
+  --danger: #ff5c6c;
+  --success: #4ecb71;
+  --warn: #ffb84c;
+  --cog: #6c8cff;
+  --eval: #4ecb71;
+  --decide: #ffb84c;
+  --proj: #c084fc;
+  --exec: #f472b6;
+  --membrane: #22d3ee;   /* 膜（IF・接地の点）: 物理界が記号界へトークンを発射する点 */
+}
+
+body {
+  font-family: 'Segoe UI', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+}
+
+/* ── Top bar ── */
+.topbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 10px 18px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.topbar .title { font-size: 15px; font-weight: 600; letter-spacing: .5px; }
+.topbar .title .sub { color: var(--text-dim); font-weight: 400; font-size: 12px; margin-left: 8px; }
+.topbar .nav { display: flex; gap: 6px; margin-left: 6px; }
+.topbar .nav a {
+  color: var(--text-dim); text-decoration: none; font-size: 12px;
+  padding: 4px 9px; border-radius: 5px; border: 1px solid transparent;
+}
+.topbar .nav a:hover { color: var(--text); border-color: var(--border); background: var(--surface2); }
+.topbar .nav a.active { color: var(--accent); border-color: var(--accent); }
+.topbar .spacer { flex: 1; }
+.topbar .clock { font-variant-numeric: tabular-nums; color: var(--text-dim); font-size: 12px; }
+
+/* ── Toolbar（パネル② head のツール一式＋再生ストリップ） ── */
+.toolbar {
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--surface2), var(--surface));
+  user-select: none;
+}
+.toolbar .spacer { flex: 1; }
+.toolbar select {
+  padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface2); color: var(--text); font-size: 11px; max-width: 150px;
+}
+
+/* ── Toolbar buttons ── */
+.btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface2); color: var(--text); font-size: 12px; cursor: pointer;
+  transition: all .15s;
+}
+.btn:hover { border-color: var(--accent); background: var(--accent-glow); }
+.btn.active { border-color: var(--accent); color: var(--accent); }
+.btn-sm { padding: 3px 8px; font-size: 11px; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.seg button {
+  padding: 4px 10px; background: var(--surface2); color: var(--text-dim);
+  border: none; cursor: pointer; font-size: 11px;
+}
+.seg button.active { background: var(--accent); color: #fff; }
+.seg button + button { border-left: 1px solid var(--border); }
+
+/* ── 時系列再生（§5.5） ── */
+.replay-ctl { display: inline-flex; align-items: center; gap: 6px; }
+.replay-ctl .rp-time { font-variant-numeric: tabular-nums; color: var(--accent); font-size: 11px; min-width: 96px; text-align: right; }
+.replay-ctl .rp-step { color: var(--text-dim); font-size: 10px; }
+.btn.playing { border-color: var(--accent); color: var(--accent); background: var(--accent-glow); }
+
+/* ── Petri net ── */
+/* 全ノードのバウンディングボックスを viewBox にして preserveAspectRatio=meet で
+   等倍スケーリング → 幅が広いネット（ドラッグで広げた等）も全体がパネルに収まる。 */
+#petriWrap { width: 100%; height: 100%; }
+#petriWrap svg { display: block; width: 100%; height: 100%; }
+.pn-place { fill: var(--surface2); stroke: var(--border); stroke-width: 1.5; }
+.pn-place.has-token { stroke: var(--accent); }
+.pn-token { fill: var(--accent); }
+.pn-trans { fill: var(--surface2); stroke-width: 1.5; cursor: grab; }
+.pn-trans:active, .pn-place-g:active { cursor: grabbing; }
+.pn-place-g { cursor: grab; }
+.pn-trans.enabled { filter: drop-shadow(0 0 6px currentColor); }
+.pn-trans:hover { filter: brightness(1.4); }
+.pn-edge { stroke: var(--text-dim); stroke-width: 1.2; fill: none; opacity: .55; }
+.pn-edge.cp { stroke: var(--accent); stroke-width: 2; opacity: .9; }
+/* 時系列再生: 再生カーソル時刻までに発火済み → 発光（発火の痕跡） */
+.pn-trans.fired rect { fill: var(--surface2); opacity: 1; }
+.pn-trans.fired { filter: drop-shadow(0 0 7px currentColor); }
+.pn-place.fired { stroke: var(--success); stroke-width: 2.5; }
+.pn-label { fill: var(--text); font-size: 10px; }
+.pn-label-dim { fill: var(--text-dim); font-size: 9px; }
+/* カラー付きプレース（1 プレースに複数トークン）: 円を大きくし、各トークンを
+   個別のドット＋ラベルで描画。lit=充足（塗り）、empty=未充足（輪郭のみ）。 */
+.pn-place.multi { stroke-width: 2; }
+.pn-tok { fill: var(--accent); }
+.pn-tok.empty { fill: none; stroke: var(--text-dim); stroke-width: 1.2; opacity: .8; }
+.pn-tok-lbl { fill: var(--text); font-size: 8px; }
+.pn-bottleneck { stroke: var(--danger); stroke-width: 2; }
+/* 階層（ドリルダウン）: 折りたたみマクロノード＋パンくず */
+.pn-macro { cursor: pointer; }
+.pn-macro rect { fill: var(--surface2); stroke: var(--accent); stroke-width: 1.6; stroke-dasharray: 4 2; }
+.pn-macro.fired rect { stroke: var(--success); stroke-dasharray: none; }
+.pn-macro:hover rect { filter: brightness(1.35); }
+.pn-macro .pn-macro-lbl { fill: var(--text); font-size: 11px; font-weight: 600; }
+.pn-macro .pn-macro-sub { fill: var(--text-dim); font-size: 8px; }
+.pn-macro .pn-macro-drill { fill: var(--accent); font-size: 9px; }
+.pn-macro.fired .pn-macro-drill { fill: var(--success); }
+.petri-crumb { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; margin-right: 8px; }
+.petri-crumb .crumb-link { color: var(--accent); cursor: pointer; }
+.petri-crumb .crumb-link:hover { text-decoration: underline; }
+.petri-crumb .crumb-sep { color: var(--text-dim); }
+.petri-crumb .crumb-cur { color: var(--text); font-weight: 600; }
+/* ドリルダウン中の「← 検鏡を閉じる」ボタン: 戻り経路を明示（アクセント強調） */
+#btnPetriBack { border-color: var(--accent); color: var(--accent); background: var(--accent-glow); }
+#btnPetriBack:hover { background: var(--accent); color: #fff; }
+.cp-legend { display: inline-flex; align-items: center; gap: 5px; color: var(--text-dim); font-size: 10px; margin-left: 14px; }
+.cp-legend-line { display: inline-block; width: 20px; height: 0; border-top: 1.2px solid var(--text-dim); opacity: .55; }
+.cp-legend-line.cp { border-top: 2px solid var(--accent); opacity: .9; }
+
+/* ── 膜（IF・接地の点）: 記号界(STN)が物理界(ドメイン)へ開く点 ──
+   構造ルール: pre に現れて post に現れないプレース = 内部トランジションが置かず、
+   ドメインオブジェクト（本圃 等）が固有時間で要求トークンを発射する入口。
+   描画: ダッシュリング＋外部矢印＋オブジェクトバッジ（誰が・いつ）。 */
+.pn-membrane { fill: rgba(34, 211, 238, 0.06); stroke: var(--membrane); stroke-width: 1.6; stroke-dasharray: 4 3; cursor: pointer; }
+.pn-membrane.has-token { fill: rgba(34, 211, 238, 0.18); stroke-width: 2; }
+.pn-membrane:hover { filter: drop-shadow(0 0 6px var(--membrane)); }
+.pn-membrane.firing { animation: memPulse 1.4s ease-in-out infinite; }
+@keyframes memPulse { 0%,100% { stroke-opacity: 1; } 50% { stroke-opacity: .35; } }
+.pn-membrane-lbl { fill: var(--membrane); font-size: 9px; font-weight: 600; }
+.pn-membrane-sub { fill: var(--text-dim); font-size: 8px; }
+.pn-membrane-badge { fill: var(--surface); stroke: var(--membrane); stroke-width: 1; }
+.pn-membrane-badge-tx { fill: var(--membrane); font-size: 8.5px; font-weight: 600; }
+.pn-membrane-arrow { stroke: var(--membrane); stroke-width: 1.5; fill: none; opacity: .85; }
+.pn-membrane-arrow-tx { fill: var(--membrane); font-size: 8px; font-weight: 700; }
+/* 相互ハイライト（ドメインカード ⇄ 膜） */
+.pn-membrane.hl { filter: drop-shadow(0 0 8px var(--membrane)); stroke-width: 2.5; }
+/* 膜（接地）= ドメインオブジェクト → マルチ敷設直前のプレース へのトークン発行弧。
+   独立ノードではなく「弧」で接地を示す: 破線（物理界由来）＋発行トークン＋オブジェクト名。 */
+.pn-mem-arc { stroke: var(--membrane); stroke-width: 1.8; stroke-dasharray: 5 4; fill: none; opacity: .85; cursor: pointer; }
+.pn-mem-arc.due { stroke-width: 2.6; opacity: 1; }
+.pn-mem-arc.firing { animation: memPulse 1.4s ease-in-out infinite; }
+.pn-mem-arc.hl { filter: drop-shadow(0 0 7px var(--membrane)); stroke-width: 2.8; opacity: 1; }
+.pn-mem-token { fill: var(--membrane); stroke: var(--surface); stroke-width: 1.2; }
+.pn-mem-cad { fill: var(--text-dim); font-size: 8px; }
+.pn-mem-tokval { fill: var(--membrane); font-size: 8px; font-weight: 600; }
+/* 物理界のオブジェクト（本圃 等）= 要求プレースの下方に置く独立ノード。
+   記号界（STN）の外から要求トークンを発行する主体。破線枠（物理界由来）＋アイコン。 */
+.pn-mem-obj-node { cursor: move; }
+.pn-mem-obj-node:active { cursor: grabbing; }
+.pn-mem-obj-node rect { fill: rgba(34, 211, 238, 0.07); stroke: var(--membrane); stroke-width: 1.4; stroke-dasharray: 4 3; }
+.pn-mem-obj-node.due rect { stroke-width: 2; fill: rgba(34, 211, 238, 0.14); }
+.pn-mem-obj-node.hl rect { filter: drop-shadow(0 0 7px var(--membrane)); stroke-width: 2.4; }
+.pn-mem-obj-node .obj-subj { fill: var(--membrane); font-size: 10px; font-weight: 700; }
+.pn-mem-obj-node .obj-role { fill: var(--text); font-size: 9px; font-weight: 600; }
+.pn-mem-obj-node .obj-sub { fill: var(--text-dim); font-size: 8px; }
+
+/* ── ペトリネット本体（上=STN 因果の骨格、下=ドメイン層 誰が・いつ） ── */
+.petri-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+#petriWrap { flex: 1 1 auto; min-height: 0; }
+/* ── 真界・ライブ: ドメイン層ストリップ（記号化された物理オブジェクトの台帳） ──
+   STN（因果の骨格）が「何が起きるか」を持つなら、ドメインは「誰が・いつ」を持つ。
+   2つのパネルは同じ真界の2つの射影。膜（接地の点）が両者の橋。 */
+.domain-strip {
+  flex: 0 0 auto; max-height: 46%; overflow-y: auto;
+  border-top: 1px solid var(--border); background: rgba(34, 211, 238, 0.03);
+  padding: 6px 10px 8px;
+}
+.domain-strip-head {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+  font-size: 10px; color: var(--text-dim); letter-spacing: .3px;
+}
+.domain-strip-head .ds-title { color: var(--membrane); font-weight: 700; font-size: 10.5px; }
+.domain-strip-head .ds-sep { flex: 1; height: 1px; background: var(--border); }
+.domain-cards { display: flex; gap: 8px; flex-wrap: wrap; }
+.domain-card {
+  display: flex; align-items: center; gap: 8px;
+  border: 1px solid var(--border); border-left: 3px solid var(--membrane);
+  border-radius: 6px; padding: 5px 9px; background: var(--surface2);
+  cursor: pointer; transition: all .12s; min-width: 150px;
+}
+.domain-card:hover, .domain-card.hl { border-color: var(--membrane); background: rgba(34, 211, 238, 0.08); }
+.domain-card .dc-icon { font-size: 16px; line-height: 1; }
+.domain-card .dc-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.domain-card .dc-name { font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; }
+.domain-card .dc-time { font-size: 10px; color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.domain-card .dc-time .dc-cad { color: var(--membrane); font-weight: 600; }
+.domain-card .dc-attr { color: var(--membrane); font-weight: 600; }
+.domain-card .dc-link { font-size: 9px; color: var(--text-dim); white-space: nowrap; }
+.domain-card .dc-status { margin-left: auto; font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 9px; white-space: nowrap; }
+.domain-card .dc-status.wait { color: var(--text-dim); background: var(--surface); }
+.domain-card .dc-status.due { color: var(--membrane); background: rgba(34, 211, 238, 0.15); }
+.domain-card .dc-status.fired { color: var(--success); background: rgba(78, 203, 113, 0.15); }
+.domain-empty { color: var(--text-dim); font-size: 11px; padding: 4px 2px; }
+
+/* ── Tooltip ── */
+#tooltip {
+  position: fixed; z-index: 100; pointer-events: none; display: none;
+  background: #000; color: #fff; border: 1px solid var(--border);
+  border-radius: 6px; padding: 8px 11px; font-size: 12px; line-height: 1.55;
+  max-width: 280px; box-shadow: 0 6px 20px rgba(0,0,0,.5);
+}
+#tooltip .tt-title { font-weight: 600; margin-bottom: 4px; }
+#tooltip .tt-row { display: flex; justify-content: space-between; gap: 16px; }
+#tooltip .tt-row span:first-child { color: var(--text-dim); }
+
+/* ── Modal (base) ── */
+.modal-back {
+  position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 200;
+  display: none; align-items: center; justify-content: center;
+}
+.modal-back.show { display: flex; }
+.modal {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  width: 520px; max-width: 92vw; max-height: 88vh; overflow-y: auto;
+  box-shadow: 0 12px 40px rgba(0,0,0,.6);
+}
+.modal-head { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; }
+.modal-head h3 { font-size: 14px; }
+.modal-head .x { margin-left: auto; cursor: pointer; color: var(--text-dim); font-size: 18px; }
+.modal-body { padding: 16px 18px; }
+.modal-foot { padding: 12px 18px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; }
+
+/* ── T ノードの判断ナレッジ（5段モデル）モーダル ── */
+.kb-modal { width: 640px; }
+.kb-sub { font-size: 11px; color: var(--text-dim); margin-top: 3px; }
+.kb-ground { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px; margin-left: 8px;
+  background: var(--surface2); color: var(--text-dim); }
+.kb-ground.ok { background: rgba(46,160,90,.18); color: var(--success); }
+.kb-ground.no { background: rgba(200,80,80,.15); color: var(--danger); }
+.kb-stages { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+.kb-stage { border: 1px solid var(--border); border-radius: 8px; background: var(--surface2);
+  overflow: hidden; }
+.kb-stage-head { display: flex; align-items: center; gap: 10px; padding: 9px 12px; cursor: pointer; }
+.kb-stage-head:hover { background: var(--surface); }
+.kb-stage-num { font-size: 11px; color: var(--text-dim); width: 16px; }
+.kb-stage-name { font-size: 13px; font-weight: 600; }
+.kb-stage-name .role { font-size: 10px; font-weight: 400; color: var(--text-dim); margin-left: 6px; }
+.kb-stage-badge { font-size: 10px; padding: 1px 7px; border-radius: 9px; }
+.kb-stage-badge.ok { background: rgba(46,160,90,.18); color: var(--success); }
+.kb-stage-badge.no { background: rgba(200,80,80,.15); color: var(--danger); }
+.kb-stage-act { margin-left: auto; font-size: 11px; color: var(--accent); }
+.kb-stage-arrow { text-align: center; color: var(--text-dim); font-size: 12px; line-height: 0.6; }
+.kb-stage-detail { border-top: 1px solid var(--border); padding: 10px 12px; display: none; }
+.kb-stage.open .kb-stage-detail { display: block; }
+.kb-row { font-size: 11px; margin-bottom: 8px; }
+.kb-row:last-child { margin-bottom: 0; }
+.kb-row .kb-k { color: var(--text-dim); display: inline-block; min-width: 78px; }
+.kb-row .kb-v { color: var(--text); word-break: break-word; }
+.kb-row .kb-v pre { margin: 4px 0 0; padding: 6px 8px; background: var(--surface); border-radius: 5px;
+  font-size: 10.5px; white-space: pre-wrap; word-break: break-word; }
+.kb-row .kb-tbl { font-size: 9.5px; color: var(--text-dim); background: var(--surface);
+  padding: 1px 5px; border-radius: 4px; margin-right: 4px; }
+.kb-empty { font-size: 11px; color: var(--text-dim); font-style: italic; }
+.kb-essence { margin-top: 12px; font-size: 11px; color: var(--text-dim); border-top: 1px dashed var(--border); padding-top: 8px; }
+
+</style>
+</head>
+<body>
+
+<!-- ── Top bar ── -->
+<header class="topbar">
+  <div class="title">STN・ライブ <span class="sub" id="serverSub">STB: 病害虫防除</span></div>
+  <nav class="nav" id="topNav"></nav>
+  <div class="spacer"></div>
+  <div class="clock" id="clock">--:--:--</div>
+</header>
+
+<!-- ── Toolbar（パネル② head のツール一式＋再生ストリップ） ── -->
+<div class="toolbar">
+  <span id="petriCrumb"></span>
+  <span class="hint" id="petriHint" style="color:var(--text-dim);font-size:11px;">STN（因果）× ドメイン（誰が・いつ）・膜=接地</span>
+  <span id="petriGround" title="普遍構造（認知→評価→決定→投射＋作動・作動=Tの正体）と接地（写生/接地）＋稼働ゲート（§12）"></span>
+  <div class="spacer"></div>
+  <select id="cohortNetSel" title="STB ドメインの STN（コホート＋固定 STN の統合）">
+    <option value="">STB ドメインの STN</option>
+  </select>
+  <button class="btn btn-sm" id="btnPetriBack" title="ドリルダウンしたサブネット（検鏡/熱消毒）を閉じて、コホート全体（折りたたみ）に戻る" style="display:none">← サブネットを閉じる</button>
+  <button class="btn btn-sm" id="btnPetriReset">全体</button>
+  <button class="btn btn-sm" id="btnPetriPosReset" title="ノードの配置を既定（自動レイアウト）に戻す">↺ 位置</button>
+  <span class="seg" title="ズーム（ホイールでも可）">
+    <button id="btnPetriZoomOut" title="縮小">−</button>
+    <button id="btnPetriZoomReset" title="全体表示（100%）">100%</button>
+    <button id="btnPetriZoomIn" title="拡大">＋</button>
+  </span>
+  <div class="replay-ctl" title="発火ログのタイムスタンプで状態の動きを再生（§5.5）">
+    <span class="rp-time" id="rpTime">--:--:--</span>
+    <span class="rp-step" id="rpStep"></span>
+    <div class="seg" id="speedSeg">
+      <button data-speed="1">1x</button>
+      <button data-speed="10" class="active">10x</button>
+      <button data-speed="100">100x</button>
+    </div>
+    <button class="btn btn-sm" id="btnReplay">▶ 再生</button>
+  </div>
+</div>
+
+<!-- ── ペトリネット本体（上=STN、下=ドメイン層） ── -->
+<div class="petri-body">
+  <div id="petriWrap"></div>
+  <!-- ドメイン層: 記号化された物理オブジェクトの台帳（誰が・いつ）。
+       STN（因果）とドメイン（実体）は同じ真界の2つの射影。膜（接地の点）が橋。 -->
+  <div class="domain-strip" id="domainStrip">
+    <div class="domain-strip-head">
+      <span class="ds-title">ドメイン層</span>
+      <span>記号化された物理オブジェクト（誰が・いつ）</span>
+      <span class="ds-sep"></span>
+      <span id="domainStripHint"></span>
+    </div>
+    <div class="domain-cards" id="domainCards"></div>
+  </div>
+</div>
+
+<!-- ── Tooltip ── -->
+<div id="tooltip"></div>
+
+<!-- ── T ノードの判断ナレッジ（5段モデル）モーダル ──
+     トランジションクリックで「認知→評価→決定→投射＋作動」の5段モデルを表示。
+     各段の「ナレッジ」クリックでその段の実際の知識行（rbp_*）を詳細表示（§12.7）。 -->
+<div class="modal-back" id="kbModalBack">
+  <div class="modal kb-modal">
+    <div class="modal-head">
+      <h3 id="kbTitle">判断ナレッジ</h3>
+      <span class="x" id="kbClose">✕</span>
+    </div>
+    <div class="modal-body" id="kbBody"></div>
+    <div class="modal-foot">
+      <a id="kbEditLink" href="#" target="_blank" class="btn btn-sm" style="text-decoration:none">✎ /knowledge で編集</a>
+      <button class="btn" id="kbCloseBtn">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ══════════════════════════════════════════════════════════════
+   STN・ライブ — ペトリネット（因果）× ドメイン（誰が・いつ）× 膜（接地）
+   運航管理センター operations.html パネル②を独立ページ化したもの。
+   自己完結型（CSS・JS インライン・共有モジュールなし）。
+   ══════════════════════════════════════════════════════════════ */
+
+const API = {
+  status:   '/api/operations/status',
+  timeline: '/api/operations/timeline',
+  net:      '/api/net',
+  humos:    '/api/humos',
+  cohorts:  '/api/cohorts',
+  // タスク（業務）の5段ナレッジ（認知/評価/決定/投射/作動・§12.7）。
+  taskKnowledge: (taskId) => `/api/rbp/tasks/${encodeURIComponent(taskId)}/knowledge`,
+};
+
+// トランジション → 役割カラー（cog/eval/decide/proj/exec）
+const T_COLOR = {
+  T_state: 'var(--cog)', T_perception: 'var(--cog)',
+  T_evaluation: 'var(--eval)', T_decision: 'var(--decide)',
+  T_projection: 'var(--proj)', T_rx_exec: 'var(--exec)',
+  T_inventory: 'var(--eval)', T_inventory_exec: 'var(--exec)',
+};
+
+const state = {
+  status: null,        // /api/operations/status
+  timeline: null,      // /api/operations/timeline
+  net: null,           // /api/net（固定 STN or コホートネット）
+  cohortNet: null,     // 選択中のコホート id（ネット切替）
+  petriDrill: null,    // ドリルダウン中のマクロ id（検鏡サブネット展開時）
+  petriDrilled: false, // 検鏡サブネットにドリルダウン中か（← 戻す ボタンの表示切替）
+  humos: null,         // /api/humos
+  selected: null,      // 選択中の def_id（ペトリにフォーカス）
+  replay: null,        // 時系列再生 {playing, speed, cursorMs, t0, t1, lastWall, rafId}
+  replaySpeed: 10,     // 選択中の再生速度（再生開始前に設定しても保持）
+};
+
+/* ── utilities ── */
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const SVGNS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs, parent) {
+  const e = document.createElementNS(SVGNS, tag);
+  if (attrs) for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function parseTs(s) {
+  if (!s) return null;
+  const t = new Date(String(s).replace(' ', 'T'));
+  return isNaN(t) ? null : t;
+}
+function fmtClock(d) {
+  if (!d) return '--:--:--';
+  const p = n => String(n).padStart(2, '0');
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+function fmtHM(ts) {
+  const d = parseTs(ts); if (!d) return '--';
+  const p = n => String(n).padStart(2, '0');
+  return `${p(d.getMonth()+1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+// firing_log / sos_log の ts は epoch 秒（humos._iso_to_epoch）。ms に変換。
+function epochToMs(ts) {
+  if (!ts) return null;
+  const ms = (typeof ts === 'number' && ts < 1e12) ? ts * 1000 : ts;
+  return ms;
+}
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+async function getJSON(url) {
+  const r = await fetch(url, { cache: 'no-store' });
+  if (!r.ok) throw new Error(`${r.status} ${url}`);
+  return r.json();
+}
+
+/* ── data loading ── */
+async function loadAll() {
+  const jobs = [
+    getJSON(API.status).then(d => state.status = d).catch(() => {}),
+    getJSON(API.timeline).then(d => state.timeline = d).catch(() => {}),
+    getJSON(API.humos).then(d => state.humos = d).catch(() => {}),
+  ];
+  await Promise.all(jobs);
+  render();
+}
+async function loadNet() {
+  // state.cohortNet: 数値=コホート id / null=固定 STN
+  // 呼び出し時点の cohort id を捕まえる。init() は loadNet()（初回=固定 STN）と
+  // loadCohorts() 内の loadNet()（統合ネット）を並列で発火するため、古い固定 STN
+  // 応答が遅れて解決すると state.net を上書きして固定 STN が残る（レース）。
+  // 解決時に state.cohortNet がまだ呼び出し時点と一致する（=最新）ときのみ採用。
+  const cid = state.cohortNet;
+  let url = API.net;
+  if (cid) url = `${API.net}?cohort_id=${cid}`;
+  try {
+    const net = await getJSON(url);
+    if (state.cohortNet === cid) { state.net = net; }
+  } catch (e) {}
+  updatePetriGroundBadge();
+  renderPetri();
+}
+// 普遍構造＋接地バッジ（§12: 骨格=普遍構造、ナレッジ=RBP、全 T 接地=稼働可能）
+function updatePetriGroundBadge() {
+  const el = document.getElementById('petriGround');
+  if (!el) return;
+  const N = state.net || {};
+  const R = N.runnability;
+  const UT = N.universal_transition;
+  if (!R && !UT) { el.innerHTML = ''; return; }
+  const stages = UT && UT.stages ? UT.stages.map(s => s.name).join('→') : '認知→評価→決定→投射→作動';
+  const g = R ? `${R.grounded_count ?? 0}/${R.total ?? 0}` : '?/?';
+  const ok = R && R.runnable;
+  const sketch = R && R.sketch && R.sketch.length ? `（写生 ${R.sketch.length}）` : '';
+  el.innerHTML =
+    `<span class="cp-legend-line" style="opacity:.4"></span>` +
+    `<span style="font-size:10px;color:var(--text-dim);margin-left:4px;" title="普遍構造（全 T に共通・作動=Tの正体）">骨格 ${esc(stages)}</span>` +
+    `<span style="font-size:10px;font-weight:700;margin-left:8px;color:${ok ? 'var(--success)' : 'var(--danger, #e0533d)'};" title="${ok ? '一連に接地→稼働可能（TrueNet）' : '未接地（写生あり）→稼働不可'}">接地 ${g}${sketch}</span>` +
+    `<a href="/knowledge" target="_blank" title="ナレッジ（RBP）を設計・実装（境界言語知識メンテナンス）" style="font-size:10px;color:var(--accent);text-decoration:none;margin-left:8px;">✎ナレッジ</a>`;
+}
+async function loadCohorts() {
+  try {
+    const d = await getJSON(API.cohorts);
+    const sel = $('#cohortNetSel');
+    if (!sel) return;
+    const cur = state.cohortNet;
+    // STB ドメインの STN 統合（ts/STBドメインSTN統合設計.md）: 「固定 STN」と
+    // 「第5期」は 1 つ。ドロップダウンは 1 つのネット（STB ドメインの STN）で、
+    // 収穫年（第5期/第6期）はネット名でなく**育苗バッチ（コホート）のデータ属性**。
+    // 収穫年ラベルは option の末尾にデータ属性として付与し、ネット名は固定。
+    const cohorts = d.cohorts || [];
+    // ネット名は収穫年非依存の「STB ドメインの STN」のみ（第5期/第6期はデータ属性で
+    // ネット名・ラベルに載せない）。option の value はコホート id（統合ネットを指す）。
+    // 旧: value="" の「STB ドメインの STN（第5期）」option を選んだ瞬間 cohortNet=null
+    // になり、固定 STN（薬剤選定ネット=削除されるべき別ネット）が再表示されていた。
+    // value=cohort id にして、選択しても統合ネットのままになるよう解消。
+    const label = 'STB ドメインの STN';
+    sel.innerHTML = cohorts.length
+      ? `<option value="${cohorts[0].id}">${label}</option>`
+      : `<option value="">${label}</option>`;
+    // 初期表示は統合ネット（コホート＋固定 STN マクロ）を自動選択。
+    // コホートが 1 つならその id、複数なら先頭、無ければ null（固定 STN のみ）。
+    if (cur == null && cohorts.length) {
+      state.cohortNet = Number(cohorts[0].id);
+      loadNet();
+    }
+    sel.value = state.cohortNet || '';
+  } catch (e) {}
+}
+
+/* ── instance helpers ── */
+function instances() { return (state.status && state.status.instances) || []; }
+// 合成プレース（net に存在しない・ブリッジが導出するもの）の名前解決。
+const SYNTH_PLACE = { P_transplant: '定植' };
+function placeName(id) {
+  if (SYNTH_PLACE[id]) return SYNTH_PLACE[id];
+  if (!state.net || !state.net.places) return id;
+  const p = state.net.places[id];
+  return p ? (p.name || id) : id;
+}
+// token_key → place_id の逆引き（発火ログの generated は token_key キー）
+function placeByTokenKey() {
+  const m = {};
+  if (state.net && state.net.places) {
+    Object.keys(state.net.places).forEach(p => {
+      const tk = state.net.places[p].token_key;
+      if (tk) m[tk] = p;
+    });
+  }
+  return m;
+}
+// 発火ログから、place が最後に到達した時刻（実際線の折れ点）。
+function placeReachTimes() {
+  const map = {};
+  const tk2p = placeByTokenKey();
+  const fl = (state.timeline && state.timeline.firing_log) || [];
+  for (const e of fl) {
+    const ms = epochToMs(e.ts); if (!ms) continue;
+    const gen = e.generated || {};
+    Object.keys(gen).forEach(tk => {
+      const p = tk2p[tk]; if (!p) return;
+      if (!map[p] || ms > map[p]) map[p] = ms;
+    });
+  }
+  return map;
+}
+
+/* ── ペトリネット ノード位置（ドラッグで移動・localStorage 永続化） ──
+   既定レイアウト（BFS 列＋中間 place）は密集ネットでは重なるため、
+   ノードをドラッグで自由配置し、ネット別に位置を永続化する。 */
+const PETRI_POS_KEY = 'stb_ops_petri_pos_v1';
+let petriPos = {};       // { [netKey]: { [nodeId]: {x, y} } }
+let petriLayout = null;  // 現在 renderPetri が描いた { svg, tPos, pPos }
+let petriNodeR = {};     // { [nodeId]: 半径 } — 弧の端点をノード端に当てるため（カラープレースは大きい）
+// 膜（接地）= ドメインオブジェクトノード → 要求プレース へのトークン発行弧。
+// オブジェクトノードは要求プレース（or 折りたたみマクロ）の下端から PETRI_MEM_GAP
+// だけ下（ノード中心）に配置し、プレースをドラッグすると追従する。
+// 固定 dy で置くと大きいマクロ（半径~46）と重なるため、半径相対で下端基準にする。
+let petriMemOffsets = {};
+const PETRI_MEM_GAP = 24;   // 対象ノード下端 → オブジェクトノード中心 の間隔
+const PETRI_MEM_OBJ_HH = 17; // オブジェクトノード矩形 92×34 の半高
+let petriDragged = false;
+function loadPetriPos() {
+  try { const s = JSON.parse(localStorage.getItem(PETRI_POS_KEY)); if (s && typeof s === 'object') return s; } catch(e) {}
+  return {};
+}
+function savePetriPos() {
+  try { localStorage.setItem(PETRI_POS_KEY, JSON.stringify(petriPos)); } catch(e) {}
+}
+// ドメインオブジェクトノード（膜・接地の点）の位置。要求プレースの相対オフセット
+// {dx,dy} で保持し、プレースをドラッグしてもオフセットを保ったまま追従する。
+// ネット別（petriNetKey）に永続化する。
+const PETRI_MEMPOS_KEY = 'stb_ops_petri_mempos_v1';
+let petriMemPos = {};  // { [netKey]: { [placeId]: {dx, dy} } }
+function loadPetriMemPos() {
+  try { const s = JSON.parse(localStorage.getItem(PETRI_MEMPOS_KEY)); if (s && typeof s === 'object') return s; } catch(e) {}
+  return {};
+}
+function savePetriMemPos() {
+  try { localStorage.setItem(PETRI_MEMPOS_KEY, JSON.stringify(petriMemPos)); } catch(e) {}
+}
+function petriMemPosFor() { const k = petriNetKey(); if (!petriMemPos[k]) petriMemPos[k] = {}; return petriMemPos[k]; }
+// 膜オブジェクトの現在オフセット（未ドラッグなら既定=対象ノード下端基準）。
+function memOffsetFor(pid, rTo) {
+  const k = petriNetKey();
+  const saved = petriMemPos[k] && petriMemPos[k][pid];
+  if (saved) return saved;
+  return { dx: 0, dy: rTo + PETRI_MEM_GAP + PETRI_MEM_OBJ_HH };
+}
+function petriNetKey() {
+  const base = state.cohortNet ? 'c' + state.cohortNet : 'fixed';
+  return state.petriDrill ? base + ':drill:' + state.petriDrill : base;
+}
+function petriPosFor() { const k = petriNetKey(); if (!petriPos[k]) petriPos[k] = {}; return petriPos[k]; }
+function petriNodePos(id) {
+  const L = petriLayout; if (!L) return null;
+  return L.tPos[id] || L.pPos[id] || null;
+}
+// ノード移動: グループの transform を更新＋接続弧の d を再計算
+function updatePetriNode(nodeId) {
+  const L = petriLayout; if (!L) return;
+  const pos = petriNodePos(nodeId); if (!pos) return;
+  // トランジションは .pn-trans、折りたたみマクロ（検鏡）は .pn-macro。
+  // 両方 data-tid を持つので OR で一致させ、マクロもドラッグで移動できるようにする。
+  const g = L.svg.querySelector(nodeId.startsWith('P')
+    ? `.pn-place-g[data-pid="${nodeId}"]`
+    : `.pn-trans[data-tid="${nodeId}"], .pn-macro[data-tid="${nodeId}"]`);
+  if (g) g.setAttribute('transform', `translate(${pos.x},${pos.y})`);
+  L.svg.querySelectorAll('.pn-edge').forEach(edge => {
+    if (edge.dataset.from === nodeId || edge.dataset.to === nodeId) {
+      const fp = petriNodePos(edge.dataset.from), tp = petriNodePos(edge.dataset.to);
+      if (fp && tp) edge.setAttribute('d', edgePath(fp, tp, null, petriNodeR[edge.dataset.from], petriNodeR[edge.dataset.to]));
+    }
+  });
+  // 膜（接地）: 要求プレース（or マクロ）をドラッグしたらオブジェクトノード・発行弧を追従。
+  repositionMembrane();
+}
+// ── ペトリネット表示: auto-fit（全体収容）＋ズーム＋ドラッグパン ──
+// petriZoom: 1=全体表示（フィット）、>1=拡大、<1=縮小。
+// petriPan: 背景ドラッグによる並進オフセット（SVG ユーザー座標）。
+// petriBaseVB: auto-fit 基準のバウンディングボックス viewBox {x,y,w,h}。
+let petriZoom = 1;
+let petriPan = { x: 0, y: 0 };
+let petriBaseVB = null;
+// 現在描画されているネットの識別（petriNetKey()=cohort+ドリル）。同じネットの
+// ライブ再描画ではズーム・パンを維持し、ネットが変わったときのみフィットに戻す。
+let petriCurrentNetKey = null;
+// 全ノードのバウンディングボックス（半径＋ラベル余白込み）を基準 viewBox にする。
+// renderPetri（描画後）とドラッグ終了（up）の両方で呼ぶ。基準を更新して apply する。
+// パン（petriPan）のリセットはここでは行わない: 呼び出し側が「ネット切替時」に
+// リセットし、同じネットのライブ再描画ではユーザーのパン位置を維持する。
+function petriFitViewBox() {
+  const L = petriLayout; if (!L) return;
+  const pad = 28;  // ラベル（プレース名・マクロ説明）がノード外へ出る分
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  const fit = (id, pos) => {
+    const r = (petriNodeR[id] || 13) + pad;
+    minX = Math.min(minX, pos.x - r); maxX = Math.max(maxX, pos.x + r);
+    minY = Math.min(minY, pos.y - r); maxY = Math.max(maxY, pos.y + r);
+  };
+  Object.keys(L.tPos).forEach(id => fit(id, L.tPos[id]));
+  Object.keys(L.pPos).forEach(id => fit(id, L.pPos[id]));
+  // 膜（接地）のオブジェクトノードもフィット範囲に含める（対象下端基準で配置）。
+  // 含めないと viewBox 下端でノードが切れる。
+  if (L.memTargetMap) {
+    Object.keys(L.memTargetMap).forEach(pid => {
+      const targetId = L.memTargetMap[pid];
+      const tp = (targetId && L.tPos[targetId]) || L.pPos[pid];
+      if (!tp) return;
+      const rTo = petriNodeR[targetId] || 13;
+      const off = petriMemOffsets[pid] || { dx: 0, dy: rTo + PETRI_MEM_GAP + PETRI_MEM_OBJ_HH };
+      const ox = tp.x + off.dx, oy = tp.y + off.dy;
+      // オブジェクトノード矩形 92×34（半幅46・半高 PETRI_MEM_OBJ_HH）＋ラベル余白
+      minX = Math.min(minX, ox - 46 - pad); maxX = Math.max(maxX, ox + 46 + pad);
+      minY = Math.min(minY, oy - PETRI_MEM_OBJ_HH - pad); maxY = Math.max(maxY, oy + PETRI_MEM_OBJ_HH + pad);
+    });
+  }
+  if (!isFinite(minX)) return;
+  petriBaseVB = { x: minX, y: minY, w: Math.max(1, maxX - minX), h: Math.max(1, maxY - minY) };
+  petriApplyViewBox();
+}
+// 基準 viewBox を中央基準で petriZoom 倍＋petriPan 並進して適用（preserveAspectRatio=meet）。
+function petriApplyViewBox() {
+  const L = petriLayout; if (!L || !petriBaseVB) return;
+  const z = petriZoom || 1;
+  const { x, y, w, h } = petriBaseVB;
+  const cx = x + w / 2, cy = y + h / 2;
+  const zw = w / z, zh = h / z;
+  const vx = cx - zw / 2 + (petriPan.x || 0);
+  const vy = cy - zh / 2 + (petriPan.y || 0);
+  L.svg.setAttribute('viewBox', `${vx.toFixed(1)} ${vy.toFixed(1)} ${zw.toFixed(1)} ${zh.toFixed(1)}`);
+}
+function petriZoomBy(f) {
+  petriZoom = Math.min(8, Math.max(0.4, (petriZoom || 1) * f));
+  petriApplyViewBox();
+  updatePetriZoomLabel();
+}
+function petriZoomReset() {
+  petriZoom = 1;
+  petriPan = { x: 0, y: 0 };
+  petriApplyViewBox();
+  updatePetriZoomLabel();
+}
+// **背景ドラッグでパン（左右・上下にスライド）**: ノード上はノードドラッグに任せ、
+// SVG 背景（空白）のみで並進する。ズーム中（全体が画面に収まらない時）に便利。
+function petriStartPan(e) {
+  if (e.button !== 0) return;
+  // ノード（プレース/トランジション/マクロ/ドメインオブジェクト）上ならノードドラッグに任せる。
+  if (e.target.closest && e.target.closest('.pn-place-g, .pn-trans, .pn-macro, .pn-mem-obj-node')) return;
+  const L = petriLayout; if (!L) return;
+  const ctm = L.svg.getScreenCTM(); if (!ctm || !ctm.a) return;
+  e.preventDefault();
+  const scale = ctm.a;  // 画面px / ユーザー座標（パン中はズーム不変で一定）
+  const startX = e.clientX, startY = e.clientY;
+  const startPan = { x: petriPan.x, y: petriPan.y };
+  let moved = false;
+  L.svg.style.cursor = 'grabbing';
+  function mv(ev) {
+    const dx = ev.clientX - startX, dy = ev.clientY - startY;
+    if (!moved && Math.hypot(dx, dy) < 3) return;
+    moved = true;
+    // ドラッグした方向へ中身を動かす（右に引っ張る→中身が右へ→viewBox の x は減る）
+    petriPan.x = startPan.x - dx / scale;
+    petriPan.y = startPan.y - dy / scale;
+    petriApplyViewBox();
+  }
+  function up() {
+    document.removeEventListener('mousemove', mv);
+    document.removeEventListener('mouseup', up);
+    L.svg.style.cursor = '';
+  }
+  document.addEventListener('mousemove', mv);
+  document.addEventListener('mouseup', up);
+}
+function updatePetriZoomLabel() {
+  const b = document.getElementById('btnPetriZoomReset');
+  if (b) b.textContent = Math.round((petriZoom || 1) * 100) + '%';
+}
+// ノードドラッグ開始（3px 未満はクリック扱いで showTransDetail を通す）
+function startPetriDrag(e, nodeId) {
+  e.preventDefault();
+  const L = petriLayout; if (!L) return;
+  const pos = petriNodePos(nodeId); if (!pos) return;
+  petriDragged = false;
+  const startX = e.clientX, startY = e.clientY;
+  const origX = pos.x, origY = pos.y;
+  const ctm = L.svg.getScreenCTM(); if (!ctm) return;
+  const pt = L.svg.createSVGPoint();
+  const toSvg = (cx, cy) => { pt.x = cx; pt.y = cy; return pt.matrixTransform(ctm.inverse()); };
+  function mv(ev) {
+    if (!petriDragged && Math.hypot(ev.clientX - startX, ev.clientY - startY) < 3) return;
+    if (!petriDragged) { petriDragged = true; hideTip(); }
+    const a = toSvg(startX, startY), b = toSvg(ev.clientX, ev.clientY);
+    const cur = petriNodePos(nodeId); if (!cur) return;
+    cur.x = origX + (b.x - a.x);
+    cur.y = origY + (b.y - a.y);
+    updatePetriNode(nodeId);
+  }
+  function up() {
+    document.removeEventListener('mousemove', mv);
+    document.removeEventListener('mouseup', up);
+    if (petriDragged) {
+      const cpos = petriNodePos(nodeId);
+      if (cpos) petriPosFor()[nodeId] = { x: Math.round(cpos.x), y: Math.round(cpos.y) };
+      savePetriPos();
+      petriPan = { x: 0, y: 0 };  // 再フィット=全体表示なのでパンもリセット
+      petriFitViewBox();  // ドラッグで広がったネットも全体がパネルに収まるよう再フィット
+    }
+  }
+  document.addEventListener('mousemove', mv);
+  document.addEventListener('mouseup', up);
+}
+// ドメインオブジェクトノード（膜・接地の点）のドラッグ: 要求プレースの相対オフセット
+// （dx,dy）だけを変更・保存する。プレース自体は動かさないので、プレースをドラッグしても
+// オフセットを保ったまま追従する。3px 未満はクリック扱い（選択）。
+function startMemObjDrag(e, pid, og) {
+  e.preventDefault();
+  const L = petriLayout; if (!L) return;
+  const targetId = L.memTargetMap ? L.memTargetMap[pid] : null;
+  const rTo = (targetId && petriNodeR[targetId]) || 13;
+  const startOff = memOffsetFor(pid, rTo);
+  const origDx = startOff.dx, origDy = startOff.dy;
+  const startX = e.clientX, startY = e.clientY;
+  const ctm = L.svg.getScreenCTM(); if (!ctm) return;
+  const pt = L.svg.createSVGPoint();
+  const toSvg = (cx, cy) => { pt.x = cx; pt.y = cy; return pt.matrixTransform(ctm.inverse()); };
+  petriDragged = false;
+  function mv(ev) {
+    if (!petriDragged && Math.hypot(ev.clientX - startX, ev.clientY - startY) < 3) return;
+    if (!petriDragged) { petriDragged = true; hideTip(); }
+    const a = toSvg(startX, startY), b = toSvg(ev.clientX, ev.clientY);
+    // 永続ストア（petriMemPos[netKey][pid]）にライブ書き込み。repositionMembrane は
+    // memOffsetFor → このストアを読むので、ドラッグ中の位置が即反映される。
+    petriMemPosFor()[pid] = { dx: origDx + (b.x - a.x), dy: origDy + (b.y - a.y) };
+    repositionMembrane();
+  }
+  function up() {
+    document.removeEventListener('mousemove', mv);
+    document.removeEventListener('mouseup', up);
+    if (petriDragged) {
+      const off = petriMemPosFor()[pid];
+      if (off) { off.dx = Math.round(off.dx); off.dy = Math.round(off.dy); }
+      savePetriMemPos();
+      petriFitViewBox();  // ドラッグで外れたオブジェクトも全体が収まるよう再フィット
+    }
+  }
+  document.addEventListener('mousemove', mv);
+  document.addEventListener('mouseup', up);
+}
+
+/* ── ② STN・ライブ（ペトリネット） ── */
+// カラー付きプレースの各トークンを「どのトランジションが発生源か」で円周上に配置する。
+// 各トークンは deposits による発生源トランジションの**正確な方向**（プレース中心からの
+// 角度）に置く。発火弧の矢印が実際に発行するトークンに指すようにする（表示整合）。
+// 発生源が現在の表示に無い（ドリルダウン時）トークンは均等配置にフォールバック。
+function tokenAngles(colors, trans, tPos, pp) {
+  // 各トークンの発生源トランジション（deposits）と、プレース中心からの正確な相対角度。
+  const info = colors.map(c => {
+    const t = Object.keys(trans).find(id => (trans[id].deposits || []).includes(c.token_key));
+    const p = t && tPos[t];
+    return { tk: c.token_key, ang: p ? Math.atan2(p.y - pp.y, p.x - pp.x) : null };
+  });
+  const ang = {};
+  // 発生源があるトークンはその正確な方向へ（ドラッグ位置にも追従）。
+  info.forEach(it => { if (it.ang != null) ang[it.tk] = it.ang; });
+  // 発生源が視界に無い（ドリルダウン時）トークンは、それだけで均等配置
+  const rest = info.filter(it => ang[it.tk] == null);
+  const m = rest.length;
+  rest.forEach((it, i) => { ang[it.tk] = -Math.PI / 2 + i * (2 * Math.PI / Math.max(1, m)); });
+  return ang;
+}
+
+/* ── 膜（IF・接地の点）とドメインオブジェクト ──
+   真界 = 記号界(STN) + 物理界(ドメイン)。STN は「何が起きるか（因果）」を持ち、
+   ドメインは「誰が・いつ（実体）」を持つ。2つは同じ真界の2つの射影で、
+   膜（接地の点）が橋となる。
+
+   膜の構造ルール: **pre に現れて post に現れないプレース** = 内部トランジションが
+   deposit せず、ドメインオブジェクト（本圃 等）が固有時間で要求トークンを発射する
+   入口。コホートネットでは要求が **P_heat_ready（熱消毒準備・T_heat の直前・カラー付き）**
+   に接続されるが、これは T_mulch/T_irrigation の post に現れるため構造ルールでは
+   検出できず、server が net.mulch_req.place で権威的に宣言する（membraneTargets が採用）。
+   固定 STN（P_input=認知入力）は構造ルールで検出される。 */
+const CADENCE_ICON = {
+  oneshot: '🏠', daily: '📅', weekly: '🗓️', monthly: '🗓️',
+  periodic: '⏱', interval: '⏱', adhoc: '⚡',
+};
+// 表示中のネット（ドリルダウン時は内部サブネット）の膜プレース id 集合。
+function membranePlaces(net) {
+  const S = new Set();
+  if (!net || !net.places || !net.transitions) return S;
+  const postSet = new Set();
+  Object.values(net.transitions).forEach(t => (t.post || []).forEach(p => postSet.add(p)));
+  Object.keys(net.places).forEach(pid => {
+    const preOf = Object.values(net.transitions).some(t => (t.pre || []).includes(pid));
+    if (preOf && !postSet.has(pid)) S.add(pid);
+  });
+  return S;
+}
+// 膜（接地）= ドメインオブジェクト → 要求プレース へのトークン発行弧の対応付け。
+function membraneTargets(net) {
+  const mems = membranePlaces(net);
+  const out = [];
+  if (!net || !net.transitions) return out;
+  // 権威的膜（server 宣言）: 要求プレースがトランジションの post に現れる場合
+  // （P_heat_ready=熱消毒準備・カラー付き。透明マルチ敷設/潅水調整がトークンを置き、
+  // さらに物理界のオブジェクトが mulch_req_token を置く）は、構造ルール（pre に現れて
+  // post に現れない）では検出できない。server が要求トークンを置くプレースを
+  // net.mulch_req.place / net.transplant_req.place に宣言するので、それを膜プレース
+  // として採用する。各権威的膜は「要求元（schedule_def の name）」で対応させる。
+  //   マルチ敷設(熱消毒)要求 → P_heat_ready（name=マルチ敷設・target_key=subject）
+  //   定植要求               → P_ready     （name=定植・target_key=subject）
+  const authMem = [];
+  if (net.mulch_req && net.mulch_req.place) authMem.push({ place: net.mulch_req.place, src: 'マルチ敷設' });
+  if (net.transplant_req && net.transplant_req.place) authMem.push({ place: net.transplant_req.place, src: '定植' });
+  // 防除要求 → P_rx_req（事業主体・spray_schedule）。マルチ/定植（schedule_def・
+  // target_key=subject）とは異なり、防除は spray_schedule（target_key=spray・複数行）で
+  // 駆動されるため、要求元 name 一致でなく**散布代表（def_id）一致**で対応。
+  // 65 本の散布予定は 1 本の膜弧（事業主体 → P_rx_req）に束ねる（代表=次回散布）。
+  if (net.rx_req && net.rx_req.place) authMem.push({ place: net.rx_req.place, src: '防除' });
+  authMem.forEach(a => { if (net.places[a.place]) mems.add(a.place); });
+  if (!mems.size) return out;
+  // 膜プレース → 消費トランジションの post（= 敷設の出力プレース）集合
+  const consPost = {};
+  mems.forEach(pid => {
+    const posts = new Set();
+    Object.values(net.transitions).forEach(t => {
+      if ((t.pre || []).includes(pid)) (t.post || []).forEach(p => posts.add(p));
+    });
+    consPost[pid] = posts;
+  });
+  instances().forEach(inst => {
+    const es = inst.expected_state;
+    // 権威的膜は expected_state 一致でなく、要求元（schedule_def の name・target_key=subject）
+    // で対応させる（DB の expected_state と接地先プレースが別: マルチ敷設→P_heat_ready、
+    // 定植→P_ready）。authMem は [P_heat_ready, P_ready] の順に追加されるので、マルチ敷設は
+    // 先に P_heat_ready へ、定植は P_ready へ割り当てられる（各インスタンスは1つの膜にのみ）。
+    // 膜弧の起点=役割（事業主・保持者解決済み）: 圃場は要求トークンの文脈に格降格
+    // （ts/真界_事業主体設計.md §2.6.1・§5.1）。
+    const isSubjectInst = inst.target_key === 'subject';
+    // 防除要求（P_rx_req）は spray_schedule（target_key=spray・育苗圃 65 件）で駆動。
+    // server が宣言した代表（rx.def_id=次回散布予定・sp-{id}）の散布予定**1 本だけ**を
+    // 膜弧にする（65 本の弧はノイズ）。事業主体 → P_rx_req の要求は 1 本。
+    const rx = (state.net && state.net.rx_req) || (net && net.rx_req) || null;
+    const isRxHit = !!(rx && inst.target_key === 'spray'
+                       && inst.def_id === rx.def_id);
+    for (const pid of mems) {
+      const authSrcs = authMem.filter(a => a.place === pid).map(a => a.src);
+      const isAuthPlace = authSrcs.length > 0;
+      const isAuthHit = (isSubjectInst && authSrcs.includes(inst.name))
+                        || (isRxHit && pid === rx.place);
+      // 権威的膜（P_heat_ready / P_ready）は**要求元（schedule_def の name・subject）でのみ**
+      // 対応させる。構造ルール（es===pid / consPost）は固定 STN の構造膜（P_input 等）に
+      // 限定し、コホートの内部計画（tp-plan-*・target_key=transplant・expected_state=
+      // P_transplant 等）が P_ready に誤接続されるのを防ぐ。
+      const hit = isAuthPlace ? isAuthHit
+                              : (es === pid || (consPost[pid] && consPost[pid].has(es)));
+      if (hit) {
+        // 膜弧の「誰が」= 役割（事業主）: 要求は役割から発せられ、その役割に現在誰が
+        // 紐づいているか（保持者）を解決して表示する（ts/真界_事業主体設計.md §2.6.1）。
+        // server が各 req に role / role_holder を宣言する。役割が未設定のときだけ
+        // 事業主体名にフォールバック。
+        const role = (net.mulch_req && net.mulch_req.role)
+                  || (net.transplant_req && net.transplant_req.role)
+                  || (rx && rx.role)
+                  || (net.mulch_req && net.mulch_req.subject_name) || '事業主体';
+        const roleHolder = (net.mulch_req && net.mulch_req.role_holder)
+                        || (net.transplant_req && net.transplant_req.role_holder)
+                        || (rx && rx.role_holder) || '';
+        const subjName = (net.mulch_req && net.mulch_req.subject_name)
+                      || (net.transplant_req && net.transplant_req.subject_name)
+                      || (rx && rx.subject_name) || '';
+        out.push({
+          placeId: pid,
+          inst,
+          icon: CADENCE_ICON[inst.cadence] || '📦',
+          name: role,
+          holder: roleHolder,
+          subject: subjName,
+          status: objStatus(inst),
+        });
+        break;
+      }
+    }
+  });
+  return out;
+}
+// cadence + 期待時刻 → 「固有時間」の表示ラベル（誰が・いつの「いつ」）。
+function cadenceLabel(cadence, expected_at) {
+  const t = expected_at ? fmtHM(expected_at) : '';
+  switch (cadence) {
+    case 'daily':     return `daily ${t ? t.split(' ')[1] || t : ''}`;
+    case 'weekly':    return `weekly ${t}`;
+    case 'monthly':   return `monthly ${t}`;
+    case 'interval':  return `interval ${t}`;
+    case 'adhoc':     return `adhoc ${t}`;
+    case 'oneshot':   return `oneshot ${t}`;
+    case 'periodic':  return `periodic ${t}`;
+    default:          return t || cadence || '—';
+  }
+}
+// ドメインオブジェクトの要求状態（膜への発射状態）。
+function objStatus(inst) {
+  if (inst.reached) return 'fired';
+  const s = inst.status;
+  if (s === 'overdue' || s === 'deviating') return 'due';
+  return 'waiting';
+}
+const OBJ_STATUS_TXT = { waiting: '待機', due: '発射', fired: '到達' };
+
+/* ── ドメイン層ストリップ: 記号化された物理オブジェクトの台帳（誰が・いつ） ── */
+function renderDomainStrip() {
+  const cards = $('#domainCards');
+  const hint = $('#domainStripHint');
+  if (!cards) return;
+  const net = state.net;
+  const mems = membranePlaces(net);
+  // 権威的膜（server 宣言）: 要求プレースが post に現れる場合（P_heat_ready=熱消毒準備・
+  // P_ready=定植前・いずれもカラー付き）は構造ルールでは膜として検出されないため、
+  // net.mulch_req.place / net.transplant_req.place を採用。
+  [net.mulch_req, net.transplant_req, net.rx_req].forEach(r => {
+    if (r && r.place && net.places[r.place]) mems.add(r.place);
+  });
+  const objs = membraneTargets(net);
+  if (!mems.size) {
+    cards.innerHTML = '<div class="domain-empty">このネットには膜（接地の点）がありません（内部トランジションが全て閉じている）</div>';
+    if (hint) hint.textContent = '';
+    return;
+  }
+  if (hint) hint.textContent = `膜 ${mems.size} 点`;
+  if (!objs.length) {
+    cards.innerHTML = '<div class="domain-empty">膜に接続するドメインオブジェクト（schedule_def）が未登録</div>';
+    return;
+  }
+  cards.innerHTML = objs.map(o => {
+    const i = o.inst;
+    const st = o.status;
+    const targetName = placeName(o.placeId);
+    // オブジェクト属性（§2 属性の二面性・状態×要求情報）: 本圃 ならベッドの
+    // 延べ長さ・マルチ種別。要求トークンに付与される属性（要求ベクトルの種・値）。
+    // 接地先プレース → 要求元データ: P_heat_ready=マルチ敷設(熱消毒)要求 / P_ready=定植要求。
+    const reqByPlace = {
+      P_heat_ready: (state.net && state.net.mulch_req) || null,
+      P_ready: (state.net && state.net.transplant_req) || null,
+      P_rx_req: (state.net && state.net.rx_req) || null,
+    };
+    const mr = reqByPlace[o.placeId] || null;
+    // 育苗圃（防除要求）はベッド属性でなく「次回散布予定・暦件数」を表示。
+    const attrLine = mr
+      ? (mr.total_count != null
+          ? `<span class="dc-attr">次回 ${esc((mr.expected_at || '').slice(5, 10))}・暦 ${mr.total_count} 件</span>`
+          : `<span class="dc-attr">延べ${mr.total_length_m != null ? (+mr.total_length_m).toLocaleString() : '—'}m` +
+            (mr.beds && mr.beds.length ? `・${esc([...new Set(mr.beds.map(b => b.mulch_type).filter(Boolean))].join('・') || '—')}` : '') +
+            (mr.beds && mr.beds.length ? `（${mr.beds.length}列）` : '') + `</span>`)
+      : '';
+    // 圃場（本圃/育苗圃）は要求トークンの文脈（ts/真界_事業主体設計.md §5.1）。
+    // 三果倉（事業主体）が起点・頂点（§3）。要求は役割（事業主）から発せられ、
+    // 保持者（松山浩士）を解決して表示（§2.6.1）。
+    const ctxField = (mr && mr.token && mr.token.field_name) || (mr && mr.target_value) || '';
+    const roleLine = `<span class="dc-time" style="opacity:.7">${esc(o.name)}${o.holder ? `（${esc(o.holder)}）` : ''}</span>`;
+    return `<div class="domain-card" data-mem="${esc(o.placeId)}" data-def="${esc(i.def_id)}">` +
+      `<span class="dc-icon">${o.icon}</span>` +
+      `<span class="dc-main">` +
+        `<span class="dc-name">${esc(o.subject)}</span>` +
+        roleLine +
+        (ctxField ? `<span class="dc-time" style="opacity:.7">文脈: ${esc(ctxField)}</span>` : '') +
+        `<span class="dc-time"><span class="dc-cad">${esc(i.cadence||'')}</span> ${esc(cadenceLabel(i.cadence, i.expected_at))}</span>` +
+        (attrLine ? `<span class="dc-time">${attrLine}</span>` : '') +
+        `<span class="dc-link">→ ${esc(targetName)}（要求トークン発行）</span>` +
+      `</span>` +
+      `<span class="dc-status ${st}">${OBJ_STATUS_TXT[st]}</span>` +
+    `</div>`;
+  }).join('');
+  // 相互ハイライト: カード hover → 対応する膜弧を光らせる（逆は膜弧側で処理）。
+  cards.querySelectorAll('.domain-card').forEach(card => {
+    const pid = card.dataset.mem;
+    card.addEventListener('mouseenter', () => highlightMembraneArc(pid, true));
+    card.addEventListener('mouseleave', () => highlightMembraneArc(pid, false));
+    card.addEventListener('click', () => {
+      const inst = instances().find(x => x.def_id === card.dataset.def);
+      if (inst) { state.selected = inst.def_id; renderPetri(); }
+    });
+  });
+}
+// 膜弧のハイライト（ドメインカード⇄膜弧の相互参照）。膜=接地の点=トークン発行弧。
+function highlightMembraneArc(pid, on) {
+  const arc = document.querySelector(`.pn-mem-arc[data-mem="${pid}"]`);
+  if (arc) arc.classList.toggle('hl', on);
+}
+// ドメインカードのハイライト（膜弧⇄カードの相互参照）。
+function highlightDomainCard(defId, on) {
+  const card = document.querySelector(`.domain-card[data-def="${defId}"]`);
+  if (card) card.classList.toggle('hl', on);
+}
+
+function renderPetri() {
+  const wrap = $('#petriWrap');
+  wrap.innerHTML = '';
+  // ネット（cohort＋ドリル）が変わったときのみ全体表示（フィット）に戻す。
+  // 同じネットのライブ再描画（ポーリング・発火・再生）ではズーム・パンを維持し、
+  // 拡大表示が自動更新で縮小されないようにする。
+  const netKey = petriNetKey();
+  if (netKey !== petriCurrentNetKey) {
+    petriZoom = 1; petriPan = { x: 0, y: 0 }; petriBaseVB = null;
+    updatePetriZoomLabel();  // ラベルも 100% に戻す（不整合を防ぐ）
+  }
+  petriCurrentNetKey = netKey;
+  const W = wrap.clientWidth || 600, H = wrap.clientHeight || 260;
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: 'xMidYMid meet', style: 'cursor:grab' }, wrap);
+  svg.addEventListener('mousedown', petriStartPan);  // 背景ドラッグでパン（左右・上下スライド）
+  const net = state.net;
+  if (!net || !net.places) {
+    const t = el('text', { x: W/2, y: H/2, 'text-anchor': 'middle', class: 'pn-label-dim' }, svg);
+    t.textContent = 'STN 構造を読み込み中…';
+    return;
+  }
+  // 階層（ドリルダウン）: コホートネットはサブネット（検鏡・熱消毒）をマクロに
+  // 折りたたんで表示。state.petriDrill がマクロ id ならその内部サブネットに展開
+  // （ドリルダウン）、さもなくば全内部ノードをマクロ（検鏡・熱消毒）に置換。
+  let places = net.places, trans = net.transitions, edges = net.edges || [], entry = net.entry;
+  let drill = null;
+  const hier = net.hierarchy;
+  // macros リスト（検鏡＋熱消毒）。単一マクロの旧形式も互換で1要素に正規化。
+  const macros = hier ? (hier.macros || [hier]) : [];
+  const drillMacro = hier && state.petriDrill ? (macros.find(m => m.macro_id === state.petriDrill) || null) : null;
+  if (drillMacro) {
+    drill = drillMacro;  // ドリルダウン中: 内部サブネットを表示
+    places = drillMacro.internal.places;
+    trans = drillMacro.internal.transitions;
+    edges = drillMacro.internal.edges;
+    entry = drillMacro.internal.entry;
+  } else if (hier && !state.petriDrill) {
+    drill = macros[0];  // 折りたたみ: 全サブネットをマクロに置換
+    const hideP = new Set(), hideT = new Set();
+    macros.forEach(m => { (m.internal_place_ids||[]).forEach(p => hideP.add(p)); (m.internal_transition_ids||[]).forEach(t => hideT.add(t)); });
+    // マクロの接続点（前提 macro_pre・出力 macro_post）は内部構造ではなく表示する。
+    macros.forEach(m => (m.macro_pre||[]).forEach(p => hideP.delete(p)));
+    macros.forEach(m => (m.macro_post||[]).forEach(p => hideP.delete(p)));
+    // 膜（接地の点）はマクロに折りたたんでも隠さない。膜=記号界が物理界(ドメイン)へ
+    // 開く点であり、内部構造ではない。pre に現れて post に現れないプレースを常時表示。
+    membranePlaces(net).forEach(p => hideP.delete(p));
+    places = {};
+    for (const pid in net.places) if (!hideP.has(pid)) places[pid] = net.places[pid];
+    trans = {};
+    for (const tid in net.transitions) if (!hideT.has(tid)) trans[tid] = net.transitions[tid];
+    macros.forEach(m => { trans[m.macro_id] = { name: m.macro_name, pre: m.macro_pre || [], post: m.macro_post, enabled_when: [], deposits: m.macro_deposits || [] }; });
+    edges = (hier.collapsed.edges || []).slice();
+    entry = hier.collapsed.entry;
+  }
+  // コホートネットは current_places（DB 実状態）でマーキング。固定 STN は humos。
+  // ドリルダウン中は**マクロの internal 値**を使う（固定 STN マクロは humos
+  // マーキング、コホートマクロは DB 実状態 — マクロごとにマーキングストアが
+  // 異なるため、ネット全体の current_places では固定 STN の発火判定が不正確）。
+  const drillInternal = drillMacro ? drillMacro.internal : null;
+  const marking = drillInternal
+    ? (drillInternal.current_places || {})
+    : (net.current_places || (state.humos && state.humos.marking) || {});
+  const enabled = drillInternal
+    ? (drillInternal.firing_enabled || {})
+    : (net.firing_enabled || {});
+
+  // レイアウト: トランジションを主系列に横並び、分岐を上下に
+  // 単純な階層配置: entry から BFS で列（x）を決定
+  const tIds = Object.keys(trans);
+  const col = {};
+  const adj = {};
+  edges.forEach(([a,b]) => { (adj[a] = adj[a]||[]).push(b); });
+  let depth = 0;
+  const q = [entry]; col[entry] = 0;
+  const seen = new Set([entry]);
+  while (q.length) {
+    const c = q.shift();
+    (adj[c]||[]).forEach(n => {
+      if (!seen.has(n)) { seen.add(n); col[n] = (col[c]||0)+1; q.push(n); }
+    });
+  }
+  tIds.forEach(t => { if (!(t in col)) col[t] = 0; });
+  const maxCol = Math.max(1, ...Object.values(col));
+
+  const padL = 40, padR = 40, padT = 46, padB = 40;
+  const colX = c => padL + (W - padL - padR) * (maxCol ? c/maxCol : 0);
+  // 各列のトランジションを縦に並べる
+  const byCol = {};
+  tIds.forEach(t => { (byCol[col[t]] = byCol[col[t]]||[]).push(t); });
+  const tPos = {};
+  for (const c in byCol) {
+    const arr = byCol[c];
+    arr.forEach((t, i) => {
+      const y = padT + (H - padT - padB) * (arr.length>1 ? i/(arr.length-1) : 0.5);
+      tPos[t] = { x: colX(+c), y };
+    });
+  }
+  // place 位置: pre/post のトランジションの中間
+  const pPos = {};
+  const placeOf = {};
+  Object.keys(places).forEach(p => {
+    const preT = tIds.filter(t => (trans[t].pre||[]).includes(p));
+    const postT = tIds.filter(t => (trans[t].post||[]).includes(p));
+    const xs = [...preT.map(t=>tPos[t]?.x), ...postT.map(t=>tPos[t]?.x)].filter(v=>v!=null);
+    const ys = [...preT.map(t=>tPos[t]?.y), ...postT.map(t=>tPos[t]?.y)].filter(v=>v!=null);
+    if (xs.length) {
+      pPos[p] = { x: xs.reduce((a,b)=>a+b,0)/xs.length, y: ys.reduce((a,b)=>a+b,0)/ys.length };
+    } else {
+      pPos[p] = { x: colX(0), y: H/2 };
+    }
+  });
+
+  // ── 折りたたみ（マクロ化）表示: 膜（接地）の要求プレースをマクロの左に配置 ──
+  // §4.1: ドメインオブジェクト（本舗）の要求トークンは必ず**プレース**（P_heat_ready=
+  // 熱消毒準備・T_heat の直前・カラー付き）に接続され、トランジションでもマクロでもない。
+  // 折りたたみではそのプレースを消費するトランジション（T_heat）がマクロ内部に隠れるため、
+  // 要求プレースはマクロの入口（macro_pre）として接続されるが、位置計算は「接続
+  // トランジションの平均」なのでマクロ中心に重なり、マクロ矩形（92×44）の裏に隠れて
+  // しまう。そこで折りたたみ表示では、膜プレース（構造ルール＝pre に現れ post に現れ
+  // ない外部入口 ＋ 権威的膜 net.mulch_req.place）を**消費マクロの左**にオフセットし、
+  // 独立した円として見えるようにする。弧（マクロ→プレース）と膜弧（本舗→プレース）で
+  // 「熱消毒の一つ手前のプレース（熱消毒準備）」への接続が明確になる。
+  // 保存済みドラッグ位置（後段）が優先されるため、ユーザーが動かした場合は追従しない。
+  if (hier && !state.petriDrill) {
+    const memP = membranePlaces(net);
+    // 権威的膜（server 宣言）: マルチ敷設(熱消毒)要求→P_heat_ready / 定植要求→P_ready /
+    // 防除要求→P_rx_req。消費マクロ（macro_pre にこのプレースを持つマクロ）があれば
+    // その左にオフセット。P_ready はマクロの post（pre ではない）なのでオフセット対象外
+    // （通常位置のまま）。P_rx_req は防除マクロの macro_pre として接続されるため、
+    // マクロ矩形の左にオフセットして独立した円として見える。
+    [net.mulch_req, net.transplant_req, net.rx_req].forEach(r => {
+      if (r && r.place && net.places[r.place]) memP.add(r.place);
+    });
+    memP.forEach(p => {
+      const pp = pPos[p]; if (!pp) return;
+      // 消費マクロ（このプレースを pre に持つマクロ）
+      const cm = macros.find(m => (m.macro_pre||[]).includes(p));
+      if (!cm) return;
+      const mp = tPos[cm.macro_id]; if (!mp) return;
+      pp.x = mp.x - 78;   // マクロ矩形（半幅46）の左端からさらに隙間を空けて
+      pp.y = mp.y;        // マクロと同一高さ（水平に並ぶ）
+    });
+  }
+
+  // 保存済みノード位置（ドラッグでカスタマイズした位置）を**描画前**に tPos/pPos に
+  // 適用する。これにより弧・ノード・**カラープレースのトークン配置**（tokenAngles は
+  // tPos 基準で発生源トランジションの方向を計算）がすべて最終位置で一致する。
+  const saved = petriPosFor();
+  Object.keys(saved).forEach(id => {
+    const base = tPos[id] || pPos[id];
+    if (base) { base.x = saved[id].x; base.y = saved[id].y; }
+  });
+
+  // ノード半径（弧の端点をノード端に当てる）。カラープレースは複数トークン分大きい。
+  petriNodeR = {};
+  Object.keys(places).forEach(p => {
+    const c = places[p].colors;
+    petriNodeR[p] = (c && c.length) ? 15 + c.length * 2.5 : 13;
+  });
+  tIds.forEach(t => { petriNodeR[t] = 32; });
+  if (drill && !state.petriDrill) macros.forEach(m => { petriNodeR[m.macro_id] = 46; });  // 折りたたみマクロは大きい
+
+  // 弧（pre→T, T→post）。純粋なペトリネット表示。
+  // data-from/to を付与し、ノードドラッグ時に接続弧だけ再計算する（updatePetriNode）。
+  tIds.forEach(t => {
+    const tp = tPos[t]; if (!tp) return;
+    (trans[t].pre||[]).forEach(p => {
+      const pp = pPos[p]; if (!pp) return;
+      el('path', { d: edgePath(pp, tp, null, petriNodeR[p], petriNodeR[t]), class: 'pn-edge', 'marker-end': 'url(#arrow)', 'data-from': p, 'data-to': t }, svg);
+    });
+    (trans[t].post||[]).forEach(p => {
+      const pp = pPos[p]; if (!pp) return;
+      el('path', { d: edgePath(tp, pp, null, petriNodeR[t], petriNodeR[p]), class: 'pn-edge', 'marker-end': 'url(#arrow)', 'data-from': t, 'data-to': p }, svg);
+    });
+  });
+
+  // ── 膜（接地）= 物理界のオブジェクト → 要求プレース へのトークン発行 ──
+  // 基本設計（ts/真界_オブジェクト接地設計.md §4.1）: ドメインオブジェクトは直接
+  // トランジションに要求を発生させず、**必ずプレースに接続**される。膜弧の終点は
+  // 常に要求プレース（P_heat_ready=熱消毒準備・カラー付き 等）であり、トランジションでも
+  // マクロでもない。
+  // 折りたたみ（マクロ化）でも要求プレースは接地の点として常時表示され、膜弧は
+  // そのプレースに接続したまま保持する（内部構造ではない）。
+  const memTargets = membraneTargets(net);
+  const memTargetMap = {};  // { [placeId]: 終点ノード id（= プレース id、常に） }
+  // 権威的膜プレース → 要求トークンキー（server が net.mulch_req.place /
+  // net.transplant_req.place で宣言）。カラー付きプレースは token_key が無いので、
+  // 接地先プレースから要求トークンを解決する。
+  const authTok = {};
+  if (net.mulch_req && net.mulch_req.place) authTok[net.mulch_req.place] = 'mulch_req_token';
+  if (net.transplant_req && net.transplant_req.place) authTok[net.transplant_req.place] = 'transplant_req_token';
+  memTargets.forEach(o => {
+    const pid = o.placeId;
+    const targetId = pid;  // 膜弧の終点は必ずプレース（要求プレース）
+    memTargetMap[pid] = targetId;
+    const cls = 'pn-mem-arc' + (o.status === 'due' ? ' due' : '') + (o.status === 'fired' ? ' firing' : '');
+    // 発行トークン（要求トークンが置かれたか）は弧の中央に置く。
+    // 単一トークンプレースは token_key。カラー付き（P_heat_ready=熱消毒準備 /
+    // P_ready=定植前）は権威的膜から要求トークンを解決（mulch_req_token /
+    // transplant_req_token）し、熱消毒の直前プレース / 定植前のゲートに接続。
+    const pl = places[pid] || {};
+    const tk = pl.token_key || authTok[pid] || null;
+    const hasTok = tk ? (marking[tk] != null) : false;
+    const arc = el('path', { d: 'M0 0', class: cls, 'marker-end': 'url(#arrowMem)', 'data-mem': pid, 'data-def': o.inst.def_id }, svg);
+    if (hasTok) el('circle', { r: 4.5, class: 'pn-mem-token', 'data-mem': pid }, svg);
+    const cad = el('text', { 'text-anchor': 'middle', class: 'pn-mem-cad', 'data-mem': pid }, svg);
+    cad.textContent = cadenceLabel(o.inst.cadence, o.inst.expected_at);
+    // 要求トークン値（本舗属性を付与した要求）: トークンが置かれたとき弧の下方に
+    // 表示。「誰の・どんな要求か」が自己完結して見える（§4.1 要求トークンに属性付与）。
+    // トークン値は {label, payload}（payload=認知が読む構造化要求）の場合あり → label を表示。
+    const _rawTok = hasTok ? (marking[tk] || '') : '';
+    const tokVal = (typeof _rawTok === 'object' && _rawTok !== null) ? (_rawTok.label || '') : _rawTok;
+    if (tokVal) {
+      const tv = el('text', { 'text-anchor': 'middle', class: 'pn-mem-tokval', 'data-mem': pid }, svg);
+      tv.textContent = tokVal;
+    }
+    // 物理界のオブジェクトノード（破線枠＋3段: 事業主体／役割／保持者）。
+    // 三果倉（事業主体）は HUMOS 骨格の頂点＝接地の根＝最重要概念なので**常時表示**
+    // （ts/真界_事業主体設計.md §3）。要求は役割（事業主）から発せられ、その役割に
+    // 現在誰が紐づいているか（保持者）を解決して表示する（§2.6.1）。
+    const og = el('g', { class: 'pn-mem-obj-node' + (o.status === 'due' ? ' due' : ''), 'data-mem': pid, 'data-def': o.inst.def_id }, svg);
+    el('rect', { x: -46, y: -22, width: 92, height: 44, rx: 7 }, og);
+    const ogTitle = el('title', {}, og);
+    ogTitle.textContent = [`${o.subject}（事業主体・頂点）`, `${o.name}（役割）`, `担い手: ${o.holder || '未定'}`, '物理界・トークン発行'].filter(Boolean).join('\n');
+    const oSubj = el('text', { x: 0, y: -9, 'text-anchor': 'middle', class: 'obj-subj' }, og);
+    oSubj.textContent = `${o.icon} ${o.subject}`;
+    const on = el('text', { x: 0, y: 4, 'text-anchor': 'middle', class: 'obj-role' }, og);
+    on.textContent = o.name;
+    const os = el('text', { x: 0, y: 16, 'text-anchor': 'middle', class: 'obj-sub' }, og);
+    os.textContent = o.holder || '物理界・トークン発行';
+    // 相互ハイライト: オブジェクト/弧 hover → ドメインカードを光らせる（逆は renderDomainStrip）。
+    [arc, og].forEach(elm => {
+      elm.addEventListener('mouseenter', () => { highlightDomainCard(o.inst.def_id, true); highlightMembraneArc(pid, true); });
+      elm.addEventListener('mouseleave', () => { highlightDomainCard(o.inst.def_id, false); highlightMembraneArc(pid, false); });
+      elm.addEventListener('click', () => { if (!petriDragged) { state.selected = o.inst.def_id; renderPetri(); } });
+    });
+    // ドメインオブジェクトノードのドラッグ: 要求プレースの相対オフセットを変更する。
+    // プレース自体は動かさず、オフセット（dx,dy）だけ保存するので、プレースをドラッグ
+    // してもオフセットを保ったまま追従する。3px 未満はクリック扱い（選択）。
+    og.addEventListener('mousedown', ev => startMemObjDrag(ev, pid, og));
+  });
+
+  // place（円）+ トークン。ドラッグで移動可能なので <g> を transform で配置（ラベルも一緒に動く）。
+  Object.keys(places).forEach(p => {
+    const pp = pPos[p]; if (!pp) return;
+    const pl = places[p];
+    const colors = pl.colors; // カラー付き（複数トークン）プレース
+    const pg = el('g', { class: 'pn-place-g', 'data-pid': p, transform: `translate(${pp.x},${pp.y})` }, svg);
+    // 膜（接地）プレース（P_heat_ready=熱消毒準備・カラー付き 等）は独立ノードにしない。
+    // 通常のプレースとして描画し、接地は「オブジェクト→このプレース」のトークン発行弧
+    // （memTargets 描画）で示す。
+    if (colors && colors.length) {
+      // カラー付きプレース: 1 プレースに複数トークンを保持（AND-JOIN）。
+      const lit = colors.filter(c => marking[c.token_key] != null);
+      const allLit = lit.length === colors.length;
+      const R = 15 + colors.length * 2.5;
+      el('circle', { cx: 0, cy: 0, r: R, class: 'pn-place multi' + (allLit ? ' has-token' : ''), 'data-pid': p }, pg);
+      const n = colors.length;
+      const tAng = tokenAngles(colors, trans, tPos, pp);  // 発生源トランジションの方向で配置
+      colors.forEach((c) => {
+        const ang = tAng[c.token_key];
+        const tx = Math.cos(ang) * R * 0.55, ty = Math.sin(ang) * R * 0.55;
+        const isLit = marking[c.token_key] != null;
+        el('circle', { cx: tx, cy: ty, r: 4, class: 'pn-tok' + (isLit ? '' : ' empty'), 'data-tok': c.token_key }, pg);
+        const lx = Math.cos(ang) * (R + 9), ly = Math.sin(ang) * (R + 9);
+        const anchor = Math.cos(ang) > 0.3 ? 'start' : (Math.cos(ang) < -0.3 ? 'end' : 'middle');
+        const t = el('text', { x: lx, y: ly + 3, 'text-anchor': anchor, class: 'pn-tok-lbl' }, pg);
+        t.textContent = c.label || c.token_key;
+      });
+      const lbl = el('text', { x: 0, y: R + 16, 'text-anchor': 'middle', class: 'pn-label-dim' }, pg);
+      lbl.textContent = (pl.name || p) + `（${lit.length}/${n}）`;
+    } else {
+      // 単一トークンプレース（従来どおり）
+      const tk = pl.token_key;
+      const hasTok = tk ? (marking[tk] != null) : false;
+      el('circle', { cx: 0, cy: 0, r: 13, class: 'pn-place' + (hasTok ? ' has-token' : ''), 'data-pid': p }, pg);
+      if (hasTok) el('circle', { cx: 0, cy: 0, r: 4.5, class: 'pn-token' }, pg);
+      const lbl = el('text', { x: 0, y: -18, 'text-anchor': 'middle', class: 'pn-label-dim' }, pg);
+      lbl.textContent = pl.name || p;
+    }
+    // 選択中のインスタンスの期待状態を強調
+    if (state.selected) {
+      const inst = instances().find(i => i.def_id === state.selected);
+      if (inst && inst.expected_state === p) {
+        const R = (colors && colors.length) ? 15 + colors.length * 2.5 : 13;
+        el('circle', { cx: 0, cy: 0, r: R + 4, fill: 'none', stroke: 'var(--accent)', 'stroke-width': 2, 'stroke-dasharray': '3 2' }, pg);
+      }
+    }
+    pg.addEventListener('mousedown', ev => startPetriDrag(ev, p));
+  });
+
+  // トランジション（矩形）。ドラッグで移動可能（<g> を transform で配置）。
+  tIds.forEach(t => {
+    const tp = tPos[t]; if (!tp) return;
+    // 折りたたみマクロノード（検鏡・熱消毒サブネットの要約）: クリックでドリルダウン。
+    const m = (drill && !state.petriDrill) ? (macros.find(x => x.macro_id === t) || null) : null;
+    if (m) {
+      const mw = 92, mh = 44;
+      const g = el('g', { class: 'pn-macro' + (m.macro_fired ? ' fired' : ''), 'data-tid': t, transform: `translate(${tp.x},${tp.y})` }, svg);
+      el('rect', { x: -mw/2, y: -mh/2, width: mw, height: mh, rx: 8 }, g);
+      const lbl = el('text', { x: 0, y: -3, 'text-anchor': 'middle', class: 'pn-macro-lbl' }, g);
+      lbl.textContent = m.macro_name;
+      const sub = el('text', { x: 0, y: 9, 'text-anchor': 'middle', class: 'pn-macro-sub' }, g);
+      sub.textContent = macroSubLabel(m);
+      const d = el('text', { x: 0, y: 20, 'text-anchor': 'middle', class: 'pn-macro-drill' }, g);
+      d.textContent = '▶ クリックで展開';
+      g.addEventListener('mousedown', ev => startPetriDrag(ev, t));
+      g.addEventListener('click', () => { if (!petriDragged) drillInto(t); });
+      g.addEventListener('mousemove', ev => { if (!petriDragged) showTip(ev, macroTip(m)); });
+      g.addEventListener('mouseleave', hideTip);
+      return;
+    }
+    const color = T_COLOR[t] || 'var(--accent)';
+    const isEn = !!enabled[t];
+    const w = 64, h = 26;
+    const g = el('g', { class: 'pn-trans' + (isEn?' enabled':''), style: `color:${color}`, 'data-tid': t, transform: `translate(${tp.x},${tp.y})` }, svg);
+    el('rect', { x: -w/2, y: -h/2, width: w, height: h, rx: 4,
+      stroke: color, fill: isEn ? 'var(--surface2)' : 'var(--surface)', opacity: isEn?1:0.55 }, g);
+    const lbl = el('text', { x: 0, y: 3.5, 'text-anchor': 'middle', class: 'pn-label', fill: color }, g);
+    lbl.textContent = (trans[t].name || t).slice(0, 8);
+    g.addEventListener('mousedown', ev => startPetriDrag(ev, t));
+    g.addEventListener('click', () => showTransDetail(t));
+    g.addEventListener('mousemove', ev => { if (!petriDragged) showTip(ev, transTip(t, isEn)); });
+    g.addEventListener('mouseleave', hideTip);
+  });
+
+  // 矢印マーカー
+  const defs = el('defs', {}, svg);
+  const mk = el('marker', { id: 'arrow', viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 6, markerHeight: 6, orient: 'auto-start-reverse' }, defs);
+  el('path', { d: 'M0 0 L10 5 L0 10 z', fill: 'var(--text-dim)' }, mk);
+  // 膜の発射矢印（ドメイン→STN）: 膜色
+  const mkMem = el('marker', { id: 'arrowMem', viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 6, markerHeight: 6, orient: 'auto-start-reverse' }, defs);
+  el('path', { d: 'M0 0 L10 5 L0 10 z', fill: 'var(--membrane)' }, mkMem);
+
+  // 現在描いたレイアウトをドラッグ処理に公開（ドラッグでノード・弧の DOM を更新するのに必要）。
+  petriLayout = { svg, tPos, pPos, memTargetMap };
+  repositionMembrane();  // オブジェクトノード・トークン発行弧を最終位置に配置
+  petriFitViewBox();  // 全ノードをパネルに収める（auto-fit）
+
+  // ヒント（STB ドメインの STN 統合: トップレベル=統合ネット名、収穫年はデータ属性）。
+  const drillName = drillMacro ? drillMacro.macro_name : (net.hierarchy ? net.hierarchy.macro_name : null);
+  const stnName = net.name || 'STB ドメインの STN';
+  let base;
+  if (state.petriDrill && drillMacro) {
+    base = `${stnName} › ${drillName}（内部サブネット・発火可能=発光）`;
+  } else if (state.cohortNet) {
+    base = `${stnName}: 検鏡・熱消毒・マルチ・防除（折りたたみ）＋定植AND-JOIN（発火可能=発光）`;
+  } else {
+    base = 'STN: P/T/トークン（発火可能=発光）';
+  }
+  $('#petriHint').textContent = state.selected
+    ? `フォーカス: ${instances().find(i=>i.def_id===state.selected)?.name || state.selected}`
+    : base;
+  // パンくず（ドリルダウン階層の表示）。
+  const crumb = $('#petriCrumb');
+  const drilled = !!(state.petriDrill && drillMacro);
+  state.petriDrilled = drilled;  // ← 戻す ボタンの表示切替に使う
+  if (crumb) {
+    if (drilled) {
+      // パンくずのトップは統合ネット名（STB ドメインの STN）。収穫年（第5期）は
+      // コホートのデータ属性で、ネット名ではない（ts/STBドメインSTN統合設計.md）。
+      const topName = stnName + (net.cohort_name ? `（${net.cohort_name}）` : '');
+      crumb.innerHTML = `<span class="petri-crumb"><span class="crumb-link" data-drill="0">${esc(topName)}</span><span class="crumb-sep">›</span><span class="crumb-cur">${esc(drillName)}</span></span>`;
+      const link = crumb.querySelector('[data-drill="0"]');
+      if (link) link.addEventListener('click', drillUp);
+    } else {
+      crumb.innerHTML = '';
+    }
+  }
+  // ドリルダウン中は「← サブネットを閉じる」ボタンを表示（戻り経路の明示）。
+  const backBtn = $('#btnPetriBack');
+  if (backBtn) backBtn.style.display = drilled ? '' : 'none';
+
+  // ドメイン層ストリップ（誰が・いつ）を描画し、膜⇄カードの相互ハイライトを結ぶ。
+  renderDomainStrip();
+}
+function drillInto(macroId) { state.petriDrill = macroId; renderPetri(); }
+// ドリルダウン階層を元に戻す（サブネット → コホート全体の折りたたみ表示）。
+function drillUp() { state.petriDrill = null; renderPetri(); }
+// 折りたたみマクロのサブラベル（完了状態）。検鏡=定植時期確定、熱消毒=熱消毒完了。
+function macroSubLabel(m) {
+  if (m.macro_id === 'T_heat_macro') return m.macro_fired ? '熱消毒 完了' : '内部構造を隠蔽';
+  if (m.macro_id === 'T_rx_macro') return m.macro_fired ? '防除 実行' : '内部構造を隠蔽';
+  return m.macro_fired ? '定植時期 確定' : '内部構造を隠蔽';
+}
+function macroTip(m) {
+  const fired = m.macro_fired;
+  const isHeat = m.macro_id === 'T_heat_macro';
+  const isRx = m.macro_id === 'T_rx_macro';
+  const status = isRx ? (fired ? '● 防除実行' : '○ 待機')
+    : isHeat ? (fired ? '● 熱消毒完了' : '○ 進行中') : (fired ? '● 定植時期確定' : '○ 進行中');
+  const inner = isRx ? '薬剤選定→在庫確認→散布（各ステップクリックで5段ナレッジ）'
+    : isHeat ? '透明マルチ敷設＋潅水調整 → 熱消毒（3週間以上・定植1か月前着手）'
+    : '検鏡1→…→最終（順送り＋分化ありスキップ＋最終強制発行）';
+  const out = isRx ? '散布（Slack送信・処方）'
+    : isHeat ? '定植前（熱消毒トークン）' : '定植前（定植時期トークン）';
+  return `<div class="tt-title">${esc(m.macro_name)} <span style="color:${fired?'var(--success)':'var(--text-dim)'}">${status}</span></div>` +
+    `<div class="tt-row"><span>内部</span><span>${inner}</span></div>` +
+    `<div class="tt-row"><span>出力</span><span>${out}</span></div>` +
+    `<div class="tt-row"><span>操作</span><span>クリックで内部サブネットにドリルダウン</span></div>`;
+}
+function resetPetriPos() {
+  const k = petriNetKey();
+  if (petriPos[k]) { delete petriPos[k]; savePetriPos(); }
+  renderPetri();
+}
+
+function edgePath(a, b, dir, ra, rb) {
+  // 円/矩形の端から端への軽いカーブ。ra/rb は起点/終点ノードの半径（未指定は既定 15/30）。
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const dist = Math.hypot(dx, dy) || 1;
+  const ux = dx/dist, uy = dy/dist;
+  const r1 = ra != null ? ra : 15, r2 = rb != null ? rb : 30;
+  const sx = a.x + ux*r1, sy = a.y + uy*r1;
+  const ex = b.x - ux*r2, ey = b.y - uy*r2;
+  const mx = (sx+ex)/2 + (-uy)*10, my = (sy+ey)/2 + (ux)*10;
+  return `M${sx} ${sy} Q${mx} ${my} ${ex} ${ey}`;
+}
+// 二次ベジェ曲線（edgePath の出力）の中央点（t=0.5）。膜弧のラベル・トークン配置に使う。
+function arcMid(d) {
+  const m = d.match(/M([\d.\-]+) ([\d.\-]+) Q([\d.\-]+) ([\d.\-]+) ([\d.\-]+) ([\d.\-]+)/);
+  if (!m) return { x: 0, y: 0 };
+  const [ , x0, y0, cx, cy, x1, y1 ] = m.map(Number);
+  return { x: 0.25*x0 + 0.5*cx + 0.25*x1, y: 0.25*y0 + 0.5*cy + 0.25*y1 };
+}
+// 膜（接地）のオブジェクトノード・トークン発行弧・発行トークンを最終位置に配置。
+function repositionMembrane() {
+  const L = petriLayout; if (!L || !L.memTargetMap) return;
+  const { svg, tPos, pPos, memTargetMap } = L;
+  Object.keys(memTargetMap).forEach(pid => {
+    const targetId = memTargetMap[pid];
+    const tp = (targetId && tPos[targetId]) || pPos[pid];
+    if (!tp) return;
+    const rTo = petriNodeR[targetId] || 13;
+    const off = memOffsetFor(pid, rTo);
+    petriMemOffsets[pid] = off;  // petriFitViewBox がフィット範囲に使うためキャッシュ
+    const objPos = { x: tp.x + off.dx, y: tp.y + off.dy };
+    const d = edgePath(objPos, tp, null, PETRI_MEM_OBJ_HH, rTo);
+    const arc = svg.querySelector(`.pn-mem-arc[data-mem="${pid}"]`);
+    if (arc) arc.setAttribute('d', d);
+    const mid = arcMid(d);
+    const tok = svg.querySelector(`.pn-mem-token[data-mem="${pid}"]`);
+    if (tok) { tok.setAttribute('cx', mid.x); tok.setAttribute('cy', mid.y); }
+    const cad = svg.querySelector(`.pn-mem-cad[data-mem="${pid}"]`);
+    if (cad) { cad.setAttribute('x', mid.x); cad.setAttribute('y', mid.y + 15); }
+    // 要求トークン値（本舗属性付与）は cad のさらに下方。
+    const tv = svg.querySelector(`.pn-mem-tokval[data-mem="${pid}"]`);
+    if (tv) { tv.setAttribute('x', mid.x); tv.setAttribute('y', mid.y + 27); }
+    const og = svg.querySelector(`.pn-mem-obj-node[data-mem="${pid}"]`);
+    if (og) og.setAttribute('transform', `translate(${objPos.x},${objPos.y})`);
+  });
+}
+
+// token_key → 表示ラベル（カラー付きプレースの colors.label を解決、無ければ token_key 自体）
+function tokenLabel(tk) {
+  if (state.net && state.net.places) {
+    for (const p in state.net.places) {
+      const c = (state.net.places[p].colors || []).find(x => x.token_key === tk);
+      if (c) return c.label || tk;
+    }
+  }
+  return tk;
+}
+function transTip(t, isEn) {
+  const tr = state.net.transitions[t];
+  const dep = (tr.deposits || []).map(tokenLabel).join(' ＋ ');
+  return `<div class="tt-title">${esc(tr.name||t)} ${isEn?'<span style="color:var(--success)">● 発火可能</span>':'<span style="color:var(--text-dim)">○ 待機</span>'}</div>` +
+    `<div class="tt-row"><span>pre</span><span>${(tr.pre||[]).map(placeName).join(', ')||'—'}</span></div>` +
+    `<div class="tt-row"><span>post</span><span>${(tr.post||[]).map(placeName).join(', ')||'—'}</span></div>` +
+    (dep ? `<div class="tt-row"><span>発行</span><span>${dep}</span></div>` : '') +
+    `<div class="tt-row"><span>発火条件</span><span>${(tr.enabled_when||[]).map(tokenLabel).join(' ＋ ')||'—'}</span></div>`;
+}
+
+/* ── T ノードの判断ナレッジ（5段モデル）モーダル（§12.7）──
+   トランジションクリックで「認知→評価→決定→投射＋作動」の5段モデルを表示。
+   各段の「ナレッジ」クリックでその段の実際の知識行（rbp_*）を詳細表示。
+   作動=T の正体（物理界的作動）。ナレッジはタスク（業務）単位で持つ。 */
+// 5段の役割説明（普遍構造の段 → この T で何を担うか）。
+const KB_STAGE_ROLE = {
+  perception: '要求ベクトルの軸（認知の緒言）',
+  evaluation: '要求評価BOX（1入口1出口）',
+  decision:   '仕様決定（候補選択・境界言語）',
+  projection: '投射（手順書テンプレート合成）',
+  actuation:  '作動（物理界的作動・T の正体）',
+};
+// 各段の知識行を可読なキー/値に整形（表ごとに主要フィールドを拾う）。
+function kbRowFields(row) {
+  const out = [];
+  const push = (k, v) => { if (v != null && v !== '') out.push([k, v]); };
+  push('軸', row.axis_name);
+  push('次元', row.dims);
+  push('BOX', row.box_name);
+  push('条件', row.condition);
+  push('ブリッジ', row.bridge_id);
+  push('仕様', row.cond_name);
+  push('種別', row.kind);
+  push('ソース', row.source);
+  push('決定規則', row.decision_rule);
+  push('ゲート', row.open_expr);
+  push('出力', row.output_name);
+  push('モード', row.mode);
+  push('テンプレート', row.template);
+  push('名称', row.name);
+  push('ハンドラ', row.handler);
+  push('説明', row.description);
+  push('備考', row.notes);
+  return out;
+}
+function showTransDetail(t) {
+  const tr = state.net.transitions[t] || {};
+  const taskId = tr.task_id;
+  const name = tr.name || t;
+  const back = $('#kbModalBack');
+  const body = $('#kbBody');
+  const title = $('#kbTitle');
+  title.textContent = `判断ナレッジ: ${name}`;
+  body.innerHTML = `<div class="kb-empty">読み込み中…</div>`;
+  // /knowledge 編集リンク（この T のタスク＋知識テーブルで deep-link）。
+  const editLink = $('#kbEditLink');
+  const qs = [taskId && 'task=' + encodeURIComponent(taskId), tr.knowledge_table && 'table=' + encodeURIComponent(tr.knowledge_table)]
+    .filter(Boolean).join('&');
+  editLink.href = qs ? `/knowledge?${qs}` : '/knowledge';
+  editLink.style.display = taskId ? '' : 'none';
+  back.classList.add('show');
+  if (!taskId) {
+    body.innerHTML = `<div class="kb-empty">このトランジションはタスク（業務）単位未割当です。<br>
+      ナレッジは /knowledge でタスク登録後、5段（認知→評価→決定→投射＋作動）を埋めていきます。</div>`;
+    return;
+  }
+  fetch(API.taskKnowledge(taskId)).then(r => r.json()).then(d => {
+    const g = d.grounding || {};
+    const ok = g.grounded_count === g.total;
+    title.innerHTML = `判断ナレッジ: ${esc(name)}
+      <span class="kb-ground ${ok?'ok':'no'}">接地 ${g.grounded_count||0}/${g.total||5} ${ok?'✓':'✎'}</span>`;
+    const sub = d.task_name ? `<div class="kb-sub">タスク: ${esc(d.task_name)}${d.task_description ? ' — ' + esc(d.task_description) : ''}</div>` : '';
+    const stages = (d.stages || []).map((s, i) => {
+      const badge = s.present ? '<span class="kb-stage-badge ok">接地</span>' : '<span class="kb-stage-badge no">写生</span>';
+      const rows = s.rows || [];
+      const detail = rows.length
+        ? rows.map((r, ri) => {
+            const fields = kbRowFields(r);
+            const body = fields.map(([k, v]) => {
+              const isPre = (k === 'テンプレート');
+              const val = isPre ? `<pre>${esc(String(v))}</pre>` : esc(String(v));
+              return `<div class="kb-row"><span class="kb-k">${esc(k)}</span><span class="kb-v">${val}</span></div>`;
+            }).join('');
+            return `<div class="kb-row" style="border:1px solid var(--border);border-radius:6px;padding:8px;background:var(--surface)">
+              ${r.table ? `<span class="kb-tbl">${esc(r.table)}</span>` : ''}${body}</div>`;
+          }).join('')
+        : `<div class="kb-empty">この段のナレッジはまだ登録されていません（写生）。</div>`;
+      return `<div class="kb-stage" data-stage="${s.key}">
+        <div class="kb-stage-head">
+          <span class="kb-stage-num">${i+1}</span>
+          <span class="kb-stage-name">${esc(s.name)}<span class="role">${esc(KB_STAGE_ROLE[s.key]||'')}</span></span>
+          ${badge}
+          <span class="kb-stage-act">ナレッジ ▸</span>
+        </div>
+        <div class="kb-stage-detail">${detail}</div>
+      </div>`;
+    }).join('<div class="kb-stage-arrow">↓</div>');
+    body.innerHTML = sub + `<div class="kb-stages">${stages}</div>
+      <div class="kb-essence">普遍構造: T ＝ { 認知, 評価, 決定, 投射 } ＋ <b>作動</b>（作動＝T の正体・物理界的作動）。
+      各段の緒言（資材・手順・データ）を DB に登録し、RBP 行列は境界言語で自動導出（§12.7）。</div>`;
+    // 各段の「ナレッジ」クリックで詳細の展開/折りたたみ。
+    body.querySelectorAll('.kb-stage-head').forEach(h => {
+      h.addEventListener('click', () => h.parentElement.classList.toggle('open'));
+    });
+  }).catch(e => {
+    body.innerHTML = `<div class="kb-empty">ナレッジの取得に失敗しました: ${esc(e.message)}</div>`;
+  });
+}
+function closeKbModal() { $('#kbModalBack').classList.remove('show'); }
+
+/* ── 時系列再生（§5.5）: 発火ログのタイムスタンプで状態の動きを再生 ──
+   再生カーソル時刻 C を 1x/10x/100x で進め、
+   ペトリネットが C までに発火したトランジションを発光させる。
+   再生は 5s ポーリング（loadAll）と独立: state 変更せず DOM を直接更新する。 */
+function firingEvents() {
+  const fl = (state.timeline && state.timeline.firing_log) || [];
+  return fl.map(e => ({ tid: e.tid, ms: epochToMs(e.ts) }))
+           .filter(e => e.ms != null)
+           .sort((a, b) => a.ms - b.ms);
+}
+function replayBounds() {
+  // 再生窓 = 発火活動の範囲（最初〜最後の発火＋パディング）。
+  const ev = firingEvents();
+  const now = parseTs(state.status && state.status.now) || new Date();
+  const nowMs = now.getTime();
+  if (!ev.length) return { t0: nowMs - 3600e3, t1: nowMs };
+  const first = ev[0].ms, last = ev[ev.length - 1].ms;
+  const span = Math.max(last - first, 60e3);
+  return { t0: first - span * 0.1, t1: last + span * 0.1 };
+}
+function replayStep(ev, cursorMs) {
+  let n = 0; for (const e of ev) if (e.ms <= cursorMs) n++;
+  return n;
+}
+function replayUpdate() {
+  const r = state.replay;
+  if (!r) return;
+  const ev = firingEvents();
+  const cursorMs = r.cursorMs;
+
+  // 発火済みトランジションを発光（C までに発火した tid）
+  const fired = new Set();
+  for (const e of ev) if (e.ms <= cursorMs) fired.add(e.tid);
+  const psvg = $('#petriWrap').querySelector('svg');
+  if (psvg) {
+    psvg.querySelectorAll('.pn-trans').forEach(g => {
+      const t = g.dataset.tid;
+      g.classList.toggle('fired', fired.has(t));
+    });
+    // 発火済みトランジションの post プレースも発光
+    const firedPlaces = new Set();
+    if (state.net && state.net.transitions) {
+      fired.forEach(t => { ((state.net.transitions[t]||{}).post||[]).forEach(p => firedPlaces.add(p)); });
+    }
+    psvg.querySelectorAll('.pn-place').forEach(c => {
+      const p = c.dataset.pid;
+      c.classList.toggle('fired', firedPlaces.has(p));
+    });
+  }
+
+  // 再生時間表示
+  const dt = new Date(cursorMs);
+  $('#rpTime').textContent = fmtClock(dt);
+  $('#rpStep').textContent = ev.length ? `発火 ${replayStep(ev, cursorMs)}/${ev.length}` : '';
+}
+function replayStart() {
+  if (state.replay && state.replay.rafId) return;
+  const b = replayBounds();
+  state.replay = { playing: true, speed: state.replaySpeed, cursorMs: b.t0, t0: b.t0, t1: b.t1, lastWall: null, rafId: null };
+  $('#btnReplay').textContent = '⏸ 停止';
+  $('#btnReplay').classList.add('playing');
+  replayTick();
+}
+function replayStop() {
+  const r = state.replay;
+  if (r && r.rafId) cancelAnimationFrame(r.rafId);
+  if (r) { r.playing = false; r.rafId = null; }
+  $('#btnReplay').textContent = '▶ 再生';
+  $('#btnReplay').classList.remove('playing');
+}
+function replayTick() {
+  const r = state.replay;
+  if (!r || !r.playing) return;
+  const wall = performance.now();
+  if (r.lastWall == null) r.lastWall = wall;
+  const dtMs = (wall - r.lastWall) * r.speed;
+  r.lastWall = wall;
+  r.cursorMs += dtMs;
+  if (r.cursorMs >= r.t1) { r.cursorMs = r.t1; replayUpdate(); replayStop(); return; }
+  replayUpdate();
+  r.rafId = requestAnimationFrame(replayTick);
+}
+function replayToggle() {
+  if (state.replay && state.replay.playing) replayStop();
+  else replayStart();
+}
+function replaySetSpeed(s) {
+  state.replaySpeed = s;
+  if (state.replay) state.replay.speed = s;
+  $$('#speedSeg button').forEach(b => b.classList.toggle('active', +b.dataset.speed === s));
+}
+
+/* ── 統合描画 ── */
+// サーバー（net_id）に応じてタイトル・ナビを切り替える。
+// STB と DC が同一の operations.html を共用するため、net_id で判別する。
+const SERVER_NAV = {
+  stb: {
+    sub: 'STB: 病害虫防除',
+    links: [
+      ['/', '🏠 ポータル'],
+      ['/index.html#schedule', '防除暦'],
+      ['/knowledge', '知識'],
+      ['/designer', 'Designer'],
+      ['/chat', 'AI'],
+    ],
+  },
+  dc: {
+    sub: 'DC: 発電機油交換',
+    links: [
+      ['/', 'DC ダッシュボード'],
+      ['/calendar', 'オイル交換暦'],
+      ['/viz', '境界言語図表'],
+    ],
+  },
+};
+function renderTopNav() {
+  const netId = (state.status && state.status.net_id) || 'stb';
+  const cfg = SERVER_NAV[netId] || SERVER_NAV.stb;
+  const sub = $('#serverSub'); if (sub) sub.textContent = cfg.sub;
+  const nav = $('#topNav'); if (!nav) return;
+  nav.innerHTML = cfg.links.map(([href, label]) =>
+    `<a href="${href}">${label}</a>`).join('') +
+    `<a href="/operations">運航</a>` +
+    `<a href="/stn" class="active">STN</a>`;
+}
+
+function render() {
+  renderTopNav();
+  renderPetri();
+  // 再生中は 5s ポーリングの全面再描画で再生 DOM が消えるため再適用
+  if (state.replay && state.replay.playing) replayUpdate();
+}
+
+/* ── tooltip ── */
+function showTip(ev, html) {
+  const tt = $('#tooltip');
+  tt.innerHTML = html; tt.style.display = 'block';
+  const pad = 14;
+  let x = ev.clientX + pad, y = ev.clientY + pad;
+  const r = tt.getBoundingClientRect();
+  if (x + r.width > innerWidth) x = ev.clientX - r.width - pad;
+  if (y + r.height > innerHeight) y = ev.clientY - r.height - pad;
+  tt.style.left = x + 'px'; tt.style.top = y + 'px';
+}
+function hideTip() { $('#tooltip').style.display = 'none'; }
+
+/* ── イベント配線 ── */
+function wire() {
+  $('#btnPetriBack').addEventListener('click', drillUp);
+  // 「全体」= コホート全体を見る。ドリルダウン中なら検鏡サブネットを閉じて
+  // 折りたたみ表示（全体）に戻す（フォーカスも解除）。
+  $('#btnPetriReset').addEventListener('click', () => { state.selected = null; state.petriDrill = null; renderPetri(); });
+  $('#btnPetriPosReset').addEventListener('click', resetPetriPos);
+  // ズーム（全体表示=100%）。ボタン＋ペトリ領域上のホイール。
+  $('#btnPetriZoomIn').addEventListener('click', () => petriZoomBy(1.25));
+  $('#btnPetriZoomOut').addEventListener('click', () => petriZoomBy(0.8));
+  $('#btnPetriZoomReset').addEventListener('click', petriZoomReset);
+  const petriWrap = document.getElementById('petriWrap');
+  if (petriWrap) petriWrap.addEventListener('wheel', (e) => {
+    // ペトリ領域上でのみズーム（他の領域のスクロールには干渉しない）。
+    e.preventDefault(); petriZoomBy(e.deltaY < 0 ? 1.1 : 1/1.1);
+  }, { passive: false });
+  $('#cohortNetSel').addEventListener('change', e => {
+    // 数値=コホート id / 空=固定 STN
+    state.cohortNet = e.target.value ? Number(e.target.value) : null;
+    state.petriDrill = null;
+    loadNet();
+  });
+  $('#btnReplay').addEventListener('click', replayToggle);
+  $$('#speedSeg button').forEach(b => b.addEventListener('click', () => replaySetSpeed(+b.dataset.speed)));
+  // 判断ナレッジ（5段）モーダルの閉じる。
+  $('#kbClose').addEventListener('click', closeKbModal);
+  $('#kbCloseBtn').addEventListener('click', closeKbModal);
+  $('#kbModalBack').addEventListener('click', e => { if (e.target.id === 'kbModalBack') closeKbModal(); });
+  // Escape で開いている最前面のモーダルを閉じる。
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    if ($('#kbModalBack').classList.contains('show')) closeKbModal();
+  });
+  let rt;
+  window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { renderPetri(); }, 150); });
+}
+
+/* ── クロック ── */
+function tickClock() {
+  const now = parseTs(state.status && state.status.now) || new Date();
+  $('#clock').textContent = fmtClock(now);
+}
+
+/* ── 初期化 ── */
+async function init() {
+  petriPos = loadPetriPos();
+  petriMemPos = loadPetriMemPos();
+  wire();
+  await Promise.all([loadNet(), loadAll(), loadCohorts()]);
+  tickClock();
+  setInterval(tickClock, 1000);
+  // 5s ポーリング（設計 §6.1）
+  setInterval(loadAll, 5000);
+  // net 構造は 30s で再取得（変更が稀）
+  setInterval(loadNet, 30000);
+}
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,1359 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>業務運航管理センター — STB 病害虫防除</title>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #242836;
+  --border: #2e3348;
+  --text: #e2e4ed;
+  --text-dim: #8b8fa3;
+  --accent: #6c8cff;
+  --accent-glow: rgba(108, 140, 255, 0.25);
+  --danger: #ff5c6c;
+  --success: #4ecb71;
+  --warn: #ffb84c;
+  --cog: #6c8cff;
+  --eval: #4ecb71;
+  --decide: #ffb84c;
+  --proj: #c084fc;
+  --exec: #f472b6;
+  --membrane: #22d3ee;   /* 膜（IF・接地の点）: 物理界が記号界へトークンを発射する点 */
+}
+
+body {
+  font-family: 'Segoe UI', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+}
+
+/* ── Top bar ── */
+.topbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 10px 18px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.topbar .title { font-size: 15px; font-weight: 600; letter-spacing: .5px; }
+.topbar .title .sub { color: var(--text-dim); font-weight: 400; font-size: 12px; margin-left: 8px; }
+.topbar .nav { display: flex; gap: 6px; margin-left: 6px; }
+.topbar .nav a {
+  color: var(--text-dim); text-decoration: none; font-size: 12px;
+  padding: 4px 9px; border-radius: 5px; border: 1px solid transparent;
+}
+.topbar .nav a:hover { color: var(--text); border-color: var(--border); background: var(--surface2); }
+.topbar .nav a.active { color: var(--accent); border-color: var(--accent); }
+.topbar .spacer { flex: 1; }
+.summary-chips { display: flex; gap: 8px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 11px; border-radius: 20px; font-size: 12px; font-weight: 600;
+  background: var(--surface2); border: 1px solid var(--border);
+}
+.chip .dot { width: 9px; height: 9px; border-radius: 50%; }
+.chip.ok .dot { background: var(--success); }
+.chip.dev .dot { background: var(--warn); }
+.chip.over .dot { background: var(--danger); }
+.chip.ok { color: var(--success); }
+.chip.dev { color: var(--warn); }
+.chip.over { color: var(--danger); }
+.topbar .clock { font-variant-numeric: tabular-nums; color: var(--text-dim); font-size: 12px; }
+
+/* ── Layout: 縦スタック（パネルはドラッグで入れ替え・高さ可変） ── */
+.layout {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  min-height: 0;
+  overflow: hidden;
+}
+.panel {
+  position: relative;    /* 幅/高さリサイズハンドルをパネル基準に配置 */
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  flex: 1 1 0;          /* 既定: 残り空間を等分 */
+  flex-basis: 0;
+}
+.panel.dragging { opacity: .45; }
+.panel.drag-over { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-glow); }
+/* スリムパネル: 内容が head のみで固定高さ（STN・ライブは独立ページ /stn へ移し削除済み） */
+.panel-slim { flex: 0 0 auto; }
+/* 幅リサイズ用ハンドル（右端） */
+.panel-resizer {
+  position: absolute; top: 0; right: 0; width: 7px; height: 100%;
+  cursor: col-resize; z-index: 6;
+}
+.panel-resizer:hover, .panel-resizer:active { background: var(--accent-glow); }
+.panel-head {
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--surface2), var(--surface));
+  user-select: none;
+}
+.panel-head .grip { color: var(--text-dim); font-size: 13px; letter-spacing: -1px; cursor: grab; }
+.panel-head .grip:hover { color: var(--text); }
+.panel-head .grip:active { cursor: grabbing; }
+/* 高さリサイズ用ハンドル（下辺） */
+.panel-hresizer {
+  position: absolute; left: 0; bottom: 0; width: 100%; height: 7px;
+  cursor: row-resize; z-index: 6;
+}
+.panel-hresizer:hover, .panel-hresizer:active { background: var(--accent-glow); }
+.panel-head .num {
+  width: 20px; height: 20px; border-radius: 5px;
+  background: var(--accent); color: #fff; font-size: 11px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.panel-head h2 { font-size: 13px; font-weight: 600; }
+.panel-head .hint { color: var(--text-dim); font-size: 11px; }
+.panel-head .spacer { flex: 1; }
+.panel-head select {
+  padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface2); color: var(--text); font-size: 11px; max-width: 150px;
+}
+.panel-body { flex: 1 1 auto; min-height: 0; position: relative; overflow: hidden; }
+
+/* ── Toolbar buttons ── */
+.btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface2); color: var(--text); font-size: 12px; cursor: pointer;
+  transition: all .15s;
+}
+.btn:hover { border-color: var(--accent); background: var(--accent-glow); }
+.btn.active { border-color: var(--accent); color: var(--accent); }
+.btn-sm { padding: 3px 8px; font-size: 11px; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.seg button {
+  padding: 4px 10px; background: var(--surface2); color: var(--text-dim);
+  border: none; cursor: pointer; font-size: 11px;
+}
+.seg button.active { background: var(--accent); color: #fff; }
+.seg button + button { border-left: 1px solid var(--border); }
+
+/* ── 時系列再生（§5.5） ── */
+.replay-ctl { display: inline-flex; align-items: center; gap: 6px; }
+.replay-ctl .rp-time { font-variant-numeric: tabular-nums; color: var(--accent); font-size: 11px; min-width: 96px; text-align: right; }
+.replay-ctl .rp-step { color: var(--text-dim); font-size: 10px; }
+.btn.playing { border-color: var(--accent); color: var(--accent); background: var(--accent-glow); }
+
+/* ── Route diagram (①) ── */
+#routeWrap { width: 100%; height: 100%; overflow-y: auto; overflow-x: hidden; }
+#routeWrap svg { display: block; width: 100%; }
+.rd-line { cursor: pointer; }
+.rd-line:hover { filter: brightness(1.25); }
+.rd-label { fill: var(--text); font-size: 11px; }
+.rd-label-dim { fill: var(--text-dim); font-size: 10px; }
+.rd-axis { stroke: var(--border); stroke-width: 1; }
+.rd-grid { stroke: var(--border); stroke-width: 1; opacity: .35; }
+.rd-now { stroke: var(--text); stroke-width: 1; opacity: .8; }
+.rd-replay { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 2 2; }
+.rd-deadline { stroke: var(--danger); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.rd-planned { stroke: var(--text-dim); stroke-width: 1.2; stroke-dasharray: 5 4; fill: none; opacity: .8; }
+.rd-actual { stroke-width: 2.5; fill: none; }
+.rd-devband { fill: var(--danger); opacity: .10; }
+.rd-marker { stroke: var(--bg); stroke-width: 1.5; }
+.rd-station { fill: var(--surface2); stroke: var(--border); }
+.rd-station.reached { fill: var(--success); stroke: var(--success); }
+.rd-station.current { fill: var(--accent); stroke: var(--accent); }
+.rd-slack { font-size: 9px; font-weight: 600; paint-order: stroke; stroke: var(--bg); stroke-width: 3px; }
+
+/* ── Anomaly panel (②) ── */
+#anomalyBody { overflow-y: auto; padding: 12px; }
+.anom-card {
+  border: 1px solid var(--border); border-left: 3px solid var(--warn);
+  border-radius: 7px; padding: 11px 13px; margin-bottom: 10px;
+  background: var(--surface2);
+}
+.anom-card.overdue { border-left-color: var(--danger); }
+.anom-card .a-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.anom-card .a-title { font-weight: 600; font-size: 13px; }
+.anom-card .a-badge { font-size: 10px; padding: 2px 7px; border-radius: 10px; }
+.anom-card .a-badge.new { background: var(--danger); color: #fff; }
+.anom-card .a-time { margin-left: auto; color: var(--text-dim); font-size: 11px; }
+.anom-card .a-layer { margin: 4px 0; font-size: 12px; line-height: 1.5; }
+.anom-card .a-layer b { color: var(--accent); font-weight: 600; margin-right: 6px; }
+.anom-card .a-actions { margin-top: 8px; display: flex; gap: 6px; }
+.ai-src {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 600; color: var(--accent);
+  margin-bottom: 10px;
+}
+.ai-src-tag {
+  font-size: 10px; font-weight: 500; color: var(--text-dim);
+  background: var(--surface2); border: 1px solid var(--border);
+  padding: 1px 7px; border-radius: 10px;
+}
+.empty-note { color: var(--text-dim); font-size: 12px; padding: 20px; text-align: center; }
+.ai-pending {
+  border: 1px dashed var(--border); border-radius: 7px; padding: 14px;
+  color: var(--text-dim); font-size: 12px; margin-top: 4px;
+}
+
+/* ── Feed (③) ── */
+#feedBody { overflow-y: auto; padding: 6px 10px; font-variant-numeric: tabular-nums; }
+.feed-row {
+  display: flex; align-items: center; gap: 9px;
+  padding: 5px 8px; border-radius: 5px; cursor: pointer; font-size: 12px;
+}
+.feed-row:hover { background: var(--surface2); }
+.feed-row .f-icon { width: 14px; text-align: center; flex: 0 0 auto; }
+.feed-row .f-time { color: var(--text-dim); flex: 0 0 auto; font-size: 11px; }
+.feed-row .f-body { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.feed-row.ok .f-icon { color: var(--success); }
+.feed-row.dev .f-icon { color: var(--warn); }
+.feed-row.over .f-icon { color: var(--danger); }
+
+/* ── Tooltip ── */
+#tooltip {
+  position: fixed; z-index: 100; pointer-events: none; display: none;
+  background: #000; color: #fff; border: 1px solid var(--border);
+  border-radius: 6px; padding: 8px 11px; font-size: 12px; line-height: 1.55;
+  max-width: 280px; box-shadow: 0 6px 20px rgba(0,0,0,.5);
+}
+#tooltip .tt-title { font-weight: 600; margin-bottom: 4px; }
+#tooltip .tt-row { display: flex; justify-content: space-between; gap: 16px; }
+#tooltip .tt-row span:first-child { color: var(--text-dim); }
+
+/* ── Modal (registration) ── */
+.modal-back {
+  position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 200;
+  display: none; align-items: center; justify-content: center;
+}
+.modal-back.show { display: flex; }
+.modal {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  width: 520px; max-width: 92vw; max-height: 88vh; overflow-y: auto;
+  box-shadow: 0 12px 40px rgba(0,0,0,.6);
+}
+.modal-head { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; }
+.modal-head h3 { font-size: 14px; }
+.modal-head .x { margin-left: auto; cursor: pointer; color: var(--text-dim); font-size: 18px; }
+.modal-body { padding: 16px 18px; }
+.fg { margin-bottom: 12px; }
+.fg label { display: block; font-size: 11px; color: var(--text-dim); margin-bottom: 4px; }
+.fg input, .fg select {
+  width: 100%; padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface2); color: var(--text); font-size: 12px;
+}
+.fg-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.modal-foot { padding: 12px 18px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; }
+
+/* ── Defs table ── */
+.defs-wrap { overflow-y: auto; }
+table.defs { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.defs th, table.defs td { padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+table.defs th { color: var(--text-dim); font-weight: 600; font-size: 11px; position: sticky; top: 0; background: var(--surface); }
+table.defs tr:hover td { background: var(--surface2); }
+.tag { font-size: 10px; padding: 1px 6px; border-radius: 8px; background: var(--surface2); border: 1px solid var(--border); color: var(--text-dim); }
+.tag.grp { color: var(--proj); border-color: var(--proj); }
+</style>
+</head>
+<body>
+
+<!-- ── Top bar ── -->
+<header class="topbar">
+  <div class="title">業務運航管理センター <span class="sub" id="serverSub">STB: 病害虫防除</span></div>
+  <nav class="nav" id="topNav"></nav>
+  <div class="spacer"></div>
+  <div class="summary-chips" id="summaryChips">
+    <span class="chip ok"><span class="dot"></span>正常 <b id="cOk">0</b></span>
+    <span class="chip dev"><span class="dot"></span>逸脱 <b id="cDev">0</b></span>
+    <span class="chip over"><span class="dot"></span>遅延 <b id="cOver">0</b></span>
+  </div>
+  <div class="clock" id="clock">--:--:--</div>
+  <button class="btn btn-sm" id="btnLayoutReset" title="パネルの配置・サイズを既定に戻す">↺ 配置リセット</button>
+</header>
+
+<!-- ── Layout: 縦スタック（各パネルはドラッグで入れ替え・右端で幅可変・headドラッグで高さ可変） ── -->
+<main class="layout" id="layout">
+
+  <!-- ① Route diagram -->
+  <section class="panel" id="panel-route">
+    <div class="panel-head">
+      <span class="grip" title="ドラッグで入れ替え">⠿</span>
+      <span class="num">①</span>
+      <h2>運行図表（線路図）</h2>
+      <span class="hint">縦=状態・横=時間／1 線=1 業務インスタンス</span>
+      <div class="spacer"></div>
+      <div class="seg" id="rangeSeg">
+        <button data-range="1d">1日</button>
+        <button data-range="1w" class="active">1週</button>
+        <button data-range="1m">1月</button>
+        <button data-range="1y">1年</button>
+      </div>
+      <div class="replay-ctl" title="発火ログのタイムスタンプで状態の動きを再生（§5.5）">
+        <span class="rp-time" id="rpTime">--:--:--</span>
+        <span class="rp-step" id="rpStep"></span>
+        <div class="seg" id="speedSeg">
+          <button data-speed="1">1x</button>
+          <button data-speed="10" class="active">10x</button>
+          <button data-speed="100">100x</button>
+        </div>
+        <button class="btn btn-sm" id="btnReplay">▶ 再生</button>
+      </div>
+      <button class="btn btn-sm" id="btnDefs">＋ 業務登録</button>
+    </div>
+    <div class="panel-body"><div id="routeWrap"></div></div>
+    <div class="panel-resizer" title="ドラッグで幅変更"></div>
+    <div class="panel-hresizer" title="ドラッグで高さ変更"></div>
+  </section>
+
+  <!-- ② Anomaly -->
+  <section class="panel" id="panel-anomaly">
+    <div class="panel-head">
+      <span class="grip" title="ドラッグで入れ替え">⠿</span>
+      <span class="num">②</span>
+      <h2>異常解釈（AI 解読層）</h2>
+      <span class="hint">記述・因果・予測・パターン・提案</span>
+      <div class="spacer"></div>
+      <button class="btn btn-sm" id="btnAi">AI 解読</button>
+    </div>
+    <div class="panel-body" id="anomalyBody"></div>
+    <div class="panel-resizer" title="ドラッグで幅変更"></div>
+    <div class="panel-hresizer" title="ドラッグで高さ変更"></div>
+  </section>
+
+  <!-- ③ Feed -->
+  <section class="panel" id="panel-feed">
+    <div class="panel-head">
+      <span class="grip" title="ドラッグで入れ替え">⠿</span>
+      <span class="num">③</span>
+      <h2>アラートフィード</h2>
+      <span class="hint">時系列・ストリーミング（5s 更新）</span>
+      <div class="spacer"></div>
+      <div class="seg" id="feedFilter">
+        <button data-f="all" class="active">全て</button>
+        <button data-f="alert">異常のみ</button>
+        <button data-f="sos">作動のみ</button>
+      </div>
+    </div>
+    <div class="panel-body" id="feedBody"></div>
+    <div class="panel-resizer" title="ドラッグで幅変更"></div>
+    <div class="panel-hresizer" title="ドラッグで高さ変更"></div>
+  </section>
+
+</main>
+
+<!-- ── Tooltip ── -->
+<div id="tooltip"></div>
+
+<!-- ── Registration modal ── -->
+<div class="modal-back" id="modalBack">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>業務登録（schedule_def）</h3>
+      <span class="x" id="modalClose">✕</span>
+    </div>
+    <div class="modal-body">
+      <div class="fg-row">
+        <div class="fg"><label>業務名 (name)</label><input id="f_name" placeholder="例: 圃場巡回点検"></div>
+        <div class="fg"><label>cadence</label>
+          <select id="f_cadence">
+            <option value="daily">daily 日次</option>
+            <option value="weekly">weekly 週次</option>
+            <option value="monthly">monthly 月次</option>
+            <option value="periodic">periodic 定期</option>
+            <option value="adhoc">adhoc 随時</option>
+            <option value="oneshot">oneshot 臨時/マイルストーン</option>
+          </select>
+        </div>
+      </div>
+      <div class="fg-row">
+        <div class="fg"><label>対象キー (target_key)</label>
+          <select id="f_target_key"><option>subject</option><option>field</option><option>project</option><option>generator</option><option>flight</option></select>
+        </div>
+        <div class="fg"><label>対象値 (target_value)</label><input id="f_target_value" placeholder="例: A-1 / edi-001"></div>
+      </div>
+      <div class="fg-row">
+        <div class="fg"><label>プロジェクト名 (group_name、任意)</label><input id="f_group_name" placeholder="例: SaaS EDI 導入"></div>
+        <div class="fg"><label>seq（プロジェクト内順序）</label><input id="f_seq" type="number" value="1" min="1"></div>
+      </div>
+      <div class="fg-row">
+        <div class="fg"><label>期待状態 (expected_state)</label><input id="f_expected" placeholder="例: P_check"></div>
+        <div class="fg"><label>期限 (deadline_spec)</label><input id="f_deadline" placeholder="daily: 08:50 / oneshot: 2026-09-15T18:00"></div>
+      </div>
+      <div id="f_err" style="color:var(--danger);font-size:12px;min-height:16px"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" id="modalCancel">キャンセル</button>
+      <button class="btn btn-sm" style="background:var(--accent);color:#fff;border-color:var(--accent)" id="modalSave">登録</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ══════════════════════════════════════════════════════════════
+   業務運航管理センター — 管制塔 UI
+   ① 運行図表（線路図）  ② 異常解釈  ③ フィード
+   （ペトリネット・ライブ=独立ページ /stn、トップナビ「STN」から）
+   決定論的に描画。firing_log 空・actual_state null でも崩れない。
+   ══════════════════════════════════════════════════════════════ */
+
+const API = {
+  status:   '/api/operations/status',
+  alerts:   '/api/operations/alerts',
+  timeline: '/api/operations/timeline',
+  defs:     '/api/operations/defs',
+  net:      '/api/net',
+};
+
+const STATUS = {
+  on_track:  { icon: '●', cls: 'ok',   color: 'var(--success)', label: '正常' },
+  deviating: { icon: '▲', cls: 'dev',  color: 'var(--warn)',    label: '逸脱' },
+  overdue:   { icon: '■', cls: 'over', color: 'var(--danger)',  label: '遅延' },
+  undefined: { icon: '○', cls: 'dev',  color: 'var(--text-dim)',label: '未定義' },
+};
+
+// インスタンス別ラインカラー（最大8色循環）
+const LINE_COLORS = ['#6c8cff','#4ecb71','#ffb84c','#c084fc','#f472b6','#22d3ee','#facc15','#fb7185'];
+
+// トランジション → 役割カラー（cog/eval/decide/proj/exec）
+const T_COLOR = {
+  T_state: 'var(--cog)', T_perception: 'var(--cog)',
+  T_evaluation: 'var(--eval)', T_decision: 'var(--decide)',
+  T_projection: 'var(--proj)', T_rx_exec: 'var(--exec)',
+  T_inventory: 'var(--eval)', T_inventory_exec: 'var(--exec)',
+};
+
+const state = {
+  status: null,        // /api/operations/status
+  alerts: null,        // /api/operations/alerts
+  timeline: null,      // /api/operations/timeline
+  net: null,           // /api/net（固定 STN）— 運行図表の実際線・フィードの発火ログ名表示に使用
+  range: '1w',         // 1d | 1w | 1m
+  feedFilter: 'all',
+  lineColor: {},       // def_id → color
+  aiInterpret: null,   // AI 解読の interpretations（②）
+  aiSource: null,      // 'ai' | 'deterministic' | 'cache'
+  aiSig: null,         // 前回の逸脱シグネチャ（変化検知で自動再解読）
+  aiLoading: false,
+  replay: null,        // 時系列再生 {playing, speed, cursorMs, t0, t1, lastWall, rafId}
+  replaySpeed: 10,     // 選択中の再生速度（再生開始前に設定しても保持）
+};
+
+/* ── utilities ── */
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const SVGNS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs, parent) {
+  const e = document.createElementNS(SVGNS, tag);
+  if (attrs) for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function parseTs(s) {
+  if (!s) return null;
+  const t = new Date(String(s).replace(' ', 'T'));
+  return isNaN(t) ? null : t;
+}
+function fmtClock(d) {
+  if (!d) return '--:--:--';
+  const p = n => String(n).padStart(2, '0');
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+function fmtHM(ts) {
+  const d = parseTs(ts); if (!d) return '--';
+  const p = n => String(n).padStart(2, '0');
+  return `${p(d.getMonth()+1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function fmtDay(ts) {
+  const d = parseTs(ts); if (!d) return '--';
+  const p = n => String(n).padStart(2, '0');
+  return `${p(d.getMonth()+1)}/${p(d.getDate())}`;
+}
+function fmtDur(sec) {
+  if (sec == null) return '—';
+  const neg = sec < 0; sec = Math.abs(sec);
+  const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60);
+  let s = d > 0 ? `${d}日` : (h > 0 ? `${h}時間` : `${m}分`);
+  if (d > 0 && h > 0) s += `${h}h`;
+  return (neg ? '−' : '') + s;
+}
+function fmtUnixSec(ts) {
+  if (!ts) return '--';
+  const d = new Date(ts * 1000);
+  const p = n => String(n).padStart(2, '0');
+  return `${p(d.getMonth()+1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+// firing_log / sos_log の ts は epoch 秒（humos._iso_to_epoch）。ms に変換。
+function epochToMs(ts) {
+  if (!ts) return null;
+  const ms = (typeof ts === 'number' && ts < 1e12) ? ts * 1000 : ts;
+  return ms;
+}
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+async function getJSON(url) {
+  const r = await fetch(url, { cache: 'no-store' });
+  if (!r.ok) throw new Error(`${r.status} ${url}`);
+  return r.json();
+}
+async function postJSON(url, body) {
+  const r = await fetch(url, {
+    method: 'POST', cache: 'no-store',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return { ok: r.ok, status: r.status, data: await r.json().catch(() => ({})) };
+}
+
+/* ── data loading ── */
+async function loadAll() {
+  const jobs = [
+    getJSON(API.status).then(d => state.status = d).catch(() => {}),
+    getJSON(API.alerts).then(d => state.alerts = d).catch(() => {}),
+    getJSON(API.timeline).then(d => state.timeline = d).catch(() => {}),
+  ];
+  await Promise.all(jobs);
+  render();
+  // 設計 §3.4: 逸脱状態が変化した時だけ AI 解読を自動実行（コスト抑制）。
+  // 手動実行済みの結果（aiSig 一致）は上書きしない。
+  const sig = alertsSig();
+  if (sig !== '[]' && sig !== state.aiSig && !state.aiLoading) {
+    runAiInterpret();
+  }
+}
+async function loadNet() {
+  // 固定 STN のみ取得。ペトリネットのライブ表示は独立ページ /stn に移したため、
+  // ここでは運行図表の実際線（placeReachTimes）とフィードの発火ログ名表示
+  // （renderFeed）が使う state.net の取得だけを行う。
+  try { state.net = await getJSON(API.net); } catch (e) {}
+}
+
+/* ── instance helpers ── */
+function instances() { return (state.status && state.status.instances) || []; }
+// 合成プレース（net に存在しない・ブリッジが導出するもの）の名前解決。
+const SYNTH_PLACE = { P_transplant: '定植' };
+function placeName(id) {
+  if (SYNTH_PLACE[id]) return SYNTH_PLACE[id];
+  if (!state.net || !state.net.places) return id;
+  const p = state.net.places[id];
+  return p ? (p.name || id) : id;
+}
+function lineColorFor(defId) {
+  if (!state.lineColor[defId]) {
+    const idx = Object.keys(state.lineColor).length;
+    state.lineColor[defId] = LINE_COLORS[idx % LINE_COLORS.length];
+  }
+  return state.lineColor[defId];
+}
+// token_key → place_id の逆引き（発火ログの generated は token_key キー）
+function placeByTokenKey() {
+  const m = {};
+  if (state.net && state.net.places) {
+    Object.keys(state.net.places).forEach(p => {
+      const tk = state.net.places[p].token_key;
+      if (tk) m[tk] = p;
+    });
+  }
+  return m;
+}
+// 発火ログから、place が最後に到達した時刻（実際線の折れ点）。
+// ts は epoch 秒。generated の token_key を place に解決して到達時刻を記録。
+function placeReachTimes() {
+  const map = {};
+  const tk2p = placeByTokenKey();
+  const fl = (state.timeline && state.timeline.firing_log) || [];
+  for (const e of fl) {
+    const ms = epochToMs(e.ts); if (!ms) continue;
+    const gen = e.generated || {};
+    Object.keys(gen).forEach(tk => {
+      const p = tk2p[tk]; if (!p) return;
+      if (!map[p] || ms > map[p]) map[p] = ms;
+    });
+  }
+  return map;
+}
+
+// スラック（残り余裕 / 超過）の表示ラベル。
+// 設計 §3.6: スラック消滅（余裕を使い切った瞬間）= 赤に反転（クリティカル化）。
+//  - reached（到達）: 期限前に完了 → 緑「余裕 X」
+//  - deviating（逸脱・猶予内）: 期限超過前 → 黄「残り X」（潜在異常）
+//  - overdue（遅延）: 硬期限超過 → 赤「超過 X」
+function slackLabel(i) {
+  if (i.slack_seconds == null) return { text: '', color: 'var(--text-dim)' };
+  const s = i.slack_seconds;
+  if (i.reached) {
+    return { text: s >= 0 ? `余裕 ${fmtDur(s)}` : `前倒し ${fmtDur(-s)}`, color: 'var(--success)' };
+  }
+  if (s >= 0) {
+    return { text: `残り ${fmtDur(s)}`, color: i.status === 'deviating' ? 'var(--warn)' : 'var(--text-dim)' };
+  }
+  return { text: `超過 ${fmtDur(-s)}`, color: 'var(--danger)' };
+}
+
+/* ── ① 運行図表（線路図） ── */
+function renderRoute() {
+  const wrap = $('#routeWrap');
+  wrap.innerHTML = '';
+  const W = wrap.clientWidth || 900;
+  const inst = instances();
+  // 固定行高で描画（散布暦の多件を縦スクロールで表示）。
+  const rowH = 34, padT = 18, padB = 30;
+  const H = inst.length ? (padT + padB + rowH * inst.length) : (wrap.clientHeight || 360);
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: 'xMidYMid meet' }, wrap);
+
+  if (!inst.length) {
+    const t = el('text', { x: W/2, y: H/2, 'text-anchor': 'middle', class: 'rd-label-dim' }, svg);
+    t.textContent = '業務定義がありません。「＋ 業務登録」から追加してください';
+    return;
+  }
+
+  // 時間範囲
+  const now = parseTs(state.status && state.status.now) || new Date();
+  const span = { '1d': 86400e3, '1w': 7*86400e3, '1m': 30*86400e3, '1y': 365*86400e3 }[state.range];
+  let t0 = now.getTime() - span * 0.15;
+  let t1 = now.getTime() + span * 0.85;
+  // 各インスタンスの期限・期待時刻を範囲に含める
+  for (const i of inst) {
+    for (const k of ['deadline', 'expected_at']) {
+      const d = parseTs(i[k]); if (!d) continue;
+      const ms = d.getTime();
+      if (ms < t0) t0 = ms - span*0.05;
+      if (ms > t1) t1 = ms + span*0.05;
+    }
+  }
+  const padL = 150, padR = 24;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const x = ms => padL + (plotW * (ms - t0)) / (t1 - t0);
+  const yRow = idx => padT + rowH * idx + rowH/2;
+
+  // 横軸グリッド（実スパンに応じて刻み: 4h/日/週/月/年）
+  const dayMs = 86400e3, weekMs = 7*dayMs, monthMs = 30*dayMs, yearMs = 365*dayMs;
+  const total = t1 - t0;
+  let step;
+  if (total <= 2*dayMs) step = dayMs/4;
+  else if (total <= 14*dayMs) step = dayMs;
+  else if (total <= 45*dayMs) step = weekMs;
+  else if (total <= 400*dayMs) step = monthMs;
+  else step = yearMs;
+  let g = Math.ceil(t0/step)*step;
+  for (; g <= t1; g += step) {
+    const gx = x(g);
+    el('line', { x1: gx, y1: padT, x2: gx, y2: padT+plotH, class: 'rd-grid' }, svg);
+    const lbl = el('text', { x: gx, y: H-10, 'text-anchor': 'middle', class: 'rd-label-dim' }, svg);
+    const gd = parseTs(g);
+    lbl.textContent = step >= monthMs
+      ? (gd ? `${gd.getFullYear()}/${String(gd.getMonth()+1).padStart(2,'0')}` : fmtDay(g))
+      : fmtDay(g);
+  }
+
+  // 現在線
+  const nx = x(now.getTime());
+  el('line', { x1: nx, y1: padT, x2: nx, y2: padT+plotH, class: 'rd-now' }, svg);
+  const nlbl = el('text', { x: nx, y: padT-4, 'text-anchor': 'middle', class: 'rd-label' }, svg);
+  nlbl.textContent = '現在';
+
+  const reach = placeReachTimes();
+
+  // 各行（インスタンス）
+  inst.forEach((i, idx) => {
+    const y = yRow(idx);
+    const st = STATUS[i.status] || STATUS.undefined;
+    const color = lineColorFor(i.def_id);
+    const grp = i.group_name;
+
+    // 行ラベル（左）
+    const name = el('text', { x: 12, y: y-2, class: 'rd-label' }, svg);
+    name.textContent = (grp ? '▸ ' : '') + (i.name || i.def_id);
+    const sub = el('text', { x: 12, y: y+12, class: 'rd-label-dim' }, svg);
+    sub.textContent = `${i.target_value||''} → ${placeName(i.expected_state)}`;
+
+    // 期限線（赤）＋スラック（残り余裕 / 超過）ラベル
+    const dl = parseTs(i.deadline);
+    if (dl) {
+      const dx = x(dl.getTime());
+      if (dx > padL && dx < W-padR) {
+        el('line', { x1: dx, y1: y-rowH*0.35, x2: dx, y2: y+rowH*0.35, class: 'rd-deadline' }, svg);
+        const sl = slackLabel(i);
+        const slx = Math.min(Math.max(dx, padL+2), W-padR-2);
+        const slt = el('text', { x: slx, y: y-rowH*0.35-3, 'text-anchor': 'middle',
+          class: 'rd-slack', fill: sl.color }, svg);
+        slt.textContent = sl.text;
+      }
+    }
+
+    // 予定線（破線）: 開始(期待時刻) → 期限
+    const exp = parseTs(i.expected_at) || parseTs(i.deadline);
+    if (exp && dl) {
+      const x0 = Math.max(padL, x(exp.getTime()));
+      const x1 = Math.min(W-padR, x(dl.getTime()));
+      if (x1 > x0) el('line', { x1: x0, y1: y, x2: x1, y2: y, class: 'rd-planned' }, svg);
+    }
+
+    // 実際線（実線）: 発火ログの到達時刻（ms）を折れ線で
+    const pts = [];
+    if (i.reached) {
+      const rtMs = reach[i.expected_state] || now.getTime();
+      pts.push([x(now.getTime()), y], [x(rtMs), y]);
+    }
+    if (pts.length >= 2) {
+      const d = pts.map((p,k) => (k?'L':'M') + p[0] + ' ' + p[1]).join(' ');
+      el('path', { d, class: 'rd-actual', stroke: color }, svg);
+    }
+
+    // 逸脱バンド（実際が予定より右にズレている区間）
+    if (i.status === 'deviating' || i.status === 'overdue') {
+      const bx0 = Math.max(padL, x(exp ? exp.getTime() : now.getTime()));
+      const bx1 = Math.min(W-padR, x(Math.min(now.getTime(), dl ? dl.getTime() : now.getTime())));
+      if (bx1 > bx0) el('rect', { x: bx0, y: y-rowH*0.32, width: bx1-bx0, height: rowH*0.64, class: 'rd-devband' }, svg);
+    }
+
+    // 現在位置マーカー（線先端）
+    const mx = x(now.getTime());
+    el('circle', { cx: mx, cy: y, r: 5.5, fill: st.color, class: 'rd-marker' }, svg);
+    // 状態アイコン（ヘイズル対応: 形も併記）
+    const mi = el('text', { x: mx+9, y: y+4, class: 'rd-label', fill: st.color }, svg);
+    mi.textContent = st.icon;
+
+    // 行クリック → ペトリで見る（独立ページ /stn を新タブで開く）
+    const hit = el('rect', { x: 0, y: y-rowH/2, width: W, height: rowH, fill: 'transparent', class: 'rd-line' }, svg);
+    hit.addEventListener('click', () => window.open('/stn', '_blank'));
+    hit.addEventListener('mousemove', ev => showTip(ev, instTip(i)));
+    hit.addEventListener('mouseleave', hideTip);
+  });
+
+  // 縦軸タイトル
+  const yt = el('text', { x: 12, y: 14, class: 'rd-label-dim' }, svg);
+  yt.textContent = '状態（期待）';
+}
+
+function instTip(i) {
+  const st = STATUS[i.status] || STATUS.undefined;
+  const rows = [
+    ['状態', `${st.icon} ${st.label}`],
+    ['期待', placeName(i.expected_state)],
+    ['実際', i.actual_state ? placeName(i.actual_state) : '—（未到達）'],
+    ['期待時刻', fmtHM(i.expected_at)],
+    ['期限', fmtHM(i.deadline)],
+    ['スラック', fmtDur(i.slack_seconds)],
+  ];
+  return `<div class="tt-title">${esc(i.group_name ? i.group_name+' · ' : '')}${esc(i.name||i.def_id)}</div>` +
+    rows.map(r => `<div class="tt-row"><span>${r[0]}</span><span>${esc(r[1])}</span></div>`).join('');
+}
+
+/* ── ② 異常解釈（AI 解読層） ──
+   決定論的部分は /api/operations/alerts から（Expected/Actual 比較）。
+   AI 生成部分（記述・因果・予測・パターン・提案）は /api/operations/ai-interpret の
+   JSON を 5 層にマッピングして描画する。AI 未実行時は決定論カード＋解読プロンプト。 */
+function alertsSig() {
+  const alerts = (state.alerts && state.alerts.alerts) || [];
+  return JSON.stringify(alerts.map(a => [a.def_id, a.status]).sort());
+}
+function renderAnomaly() {
+  const box = $('#anomalyBody');
+  const alerts = (state.alerts && state.alerts.alerts) || [];
+  if (!alerts.length) {
+    box.innerHTML = `<div class="empty-note">▲ 現在、逸脱・遅延のインスタンスはありません。<br>全業務が期待状態の軌道上です。</div>`;
+    return;
+  }
+  // AI 解読が利用可能（かつ現在の逸脱集合と一致）なら 5 層カードを表示
+  if (state.aiInterpret && state.aiInterpret.length && state.aiSig === alertsSig()) {
+    box.innerHTML =
+      `<div class="ai-src">◆ AI 解読 <span class="ai-src-tag">${esc(aiSourceLabel())}</span>` +
+      (state.aiLoading ? '' : ` <button class="btn btn-sm" id="btnAiRefresh" style="margin-left:8px">再解読</button>`) +
+      `</div>` +
+      state.aiInterpret.map(aiCard).join('');
+    const rb = $('#btnAiRefresh');
+    if (rb) rb.addEventListener('click', () => runAiInterpret(true));
+    return;
+  }
+  // 未解読: 決定論カード ＋ AI 解読プロンプト
+  const rank = { overdue: 0, deviating: 1, on_track: 2, undefined: 3 };
+  alerts.sort((a,b) => (rank[a.status]-rank[b.status]) || (a.slack_seconds-b.slack_seconds));
+  box.innerHTML = alerts.map(a => {
+    const st = STATUS[a.status] || STATUS.undefined;
+    return `<div class="anom-card ${a.status==='overdue'?'overdue':''}">
+      <div class="a-head">
+        <span style="color:${st.color};font-size:15px">${st.icon}</span>
+        <span class="a-title">${esc(a.group_name ? a.group_name+' · ' : '')}${esc(a.name||a.def_id)}</span>
+        <span class="a-badge new">${st.label}</span>
+        <span class="a-time">${fmtHM(a.deadline)}</span>
+      </div>
+      ${deterministicLayers(a)}
+    </div>`;
+  }).join('') +
+  `<div class="ai-pending">◆ 上記は<b>決定論的</b>な Expected/Actual 比較（OS: humos_os.plan）。<br>
+     「AI 解読」で「なぜ・先に何が起きるか・横断パターン・次の一手」を自然言語で繋ぎます。</div>`;
+}
+function aiSourceLabel() {
+  return { ai: '生成AI', deterministic: '決定論（AI未設定）', cache: 'キャッシュ' }[state.aiSource] || state.aiSource || '';
+}
+function aiCard(it) {
+  const conf = it.confidence != null ? Math.round(it.confidence * 100) : null;
+  return `<div class="anom-card">
+    <div class="a-head">
+      <span class="a-title">${esc(it.title || 'AI 解釈')}</span>
+      ${conf != null ? `<span class="a-time">信頼 ${conf}%</span>` : ''}
+    </div>
+    <div class="a-layer"><b>① 記述</b>${esc(it.description || '')}</div>
+    <div class="a-layer"><b>② 因果</b>${esc(it.cause || '')}</div>
+    <div class="a-layer"><b>③ 予測</b>${esc(it.prediction || '')}</div>
+    <div class="a-layer"><b>④ パターン</b>${esc(it.pattern || '')}</div>
+    <div class="a-layer"><b>⑤ 行動</b>${esc(it.action || '')}</div>
+  </div>`;
+}
+
+// 決定論的に導出できる 5 層（AI 未実装でも意味のある表示）
+function deterministicLayers(a) {
+  const st = STATUS[a.status] || STATUS.undefined;
+  const desc = a.status === 'overdue'
+    ? `期限 ${fmtHM(a.deadline)} を超過。期待状態「${placeName(a.expected_state)}」に未到達。`
+    : a.status === 'deviating'
+      ? `期待状態「${placeName(a.expected_state)}」に未到達。期限 ${fmtHM(a.deadline)} まで ${fmtDur(a.slack_seconds)}。`
+      : `期待状態「${placeName(a.expected_state)}」。`;
+  const cause = a.actual_state
+    ? `現在「${placeName(a.actual_state)}」に滞留 → 期待状態への遷移が未発火。`
+    : `発火ログに到達記録なし（firing_log 空）→ 起点トランジションが未発火か、マーキング未配置。`;
+  const pred = a.status === 'overdue'
+    ? `超過 ${fmtDur(a.overdue_seconds)}。放置すると期限超過が拡大。`
+    : `スラック ${fmtDur(a.slack_seconds)}。この速度では期限到達の余裕は ${a.slack_seconds>0?'あり':'なし'}。`;
+  return `<div class="a-layer"><b>① 記述</b>${esc(desc)}</div>
+          <div class="a-layer"><b>② 因果</b>${esc(cause)}</div>
+          <div class="a-layer"><b>③ 予測</b>${esc(pred)}</div>
+          <div class="a-layer"><b>④⑤</b><span style="color:var(--text-dim)">パターン・行動提案は AI 解読層で補完（横断分析）</span></div>`;
+}
+
+async function runAiInterpret(force) {
+  const btn = $('#btnAi');
+  if (state.aiLoading) return;
+  const alerts = (state.alerts && state.alerts.alerts) || [];
+  if (!alerts.length) return;
+  // 頻度制限（5分 TTL）は server 側で。force 時は再解読を促すため無視できないが、
+  // server の TTL により同一異常はキャッシュ返却される（コスト抑制）。
+  state.aiLoading = true;
+  btn.textContent = '解読中…'; btn.disabled = true;
+  try {
+    const r = await postJSON('/api/operations/ai-interpret', {
+      alerts,
+      context: {
+        firing_log: ((state.timeline && state.timeline.firing_log) || []).slice(-10),
+        sos_log: ((state.timeline && state.timeline.sos_log) || []).slice(-10),
+      },
+    });
+    if (r.ok && r.data && r.data.interpretations) {
+      state.aiInterpret = r.data.interpretations;
+      state.aiSource = r.data.source || 'ai';
+      state.aiSig = alertsSig();
+      renderAnomaly();
+    } else {
+      $('#anomalyBody').insertAdjacentHTML('beforeend',
+        `<div class="ai-pending" style="border-color:var(--warn)">AI 解読に失敗しました（HTTP ${r.status}）。<br>${esc((r.data && r.data.error) || '')}</div>`);
+    }
+  } catch (e) {
+    $('#anomalyBody').insertAdjacentHTML('beforeend', `<div class="ai-pending" style="border-color:var(--danger)">AI 呼び出しエラー: ${esc(e.message)}</div>`);
+  } finally {
+    state.aiLoading = false;
+    btn.textContent = 'AI 解読'; btn.disabled = false;
+  }
+}
+
+/* ── ③ アラートフィード ── */
+function renderFeed() {
+  const box = $('#feedBody');
+  const rows = [];
+  // 逸脱・遅延（alerts）
+  const alerts = (state.alerts && state.alerts.alerts) || [];
+  alerts.forEach(a => {
+    const st = STATUS[a.status] || STATUS.undefined;
+    rows.push({ t: parseTs(a.deadline) || new Date(), cls: st.cls, icon: st.icon,
+      body: `${a.name||a.def_id}: 期待=${placeName(a.expected_state)} 実際=${a.actual_state?placeName(a.actual_state):'未到達'}（期限 ${fmtHM(a.deadline)}）`,
+      defId: a.def_id });
+  });
+  // SOS 作動記録
+  const sos = ((state.timeline && state.timeline.sos_log) || []).slice(-12).reverse();
+  sos.forEach(s => {
+    const ok = s.result && s.result.success;
+    rows.push({ t: new Date((s.ts||0)*1000), cls: ok?'ok':'over', icon: ok?'●':'■',
+      body: `${s.action||'作動'} ${ok?'完了':'失敗'}`, defId: null });
+  });
+  // 発火記録
+  const fl = ((state.timeline && state.timeline.firing_log) || []).slice(-12).reverse();
+  fl.forEach(f => {
+    const tr = state.net && state.net.transitions && state.net.transitions[f.tid];
+    rows.push({ t: new Date(epochToMs(f.ts) || 0), cls: 'ok', icon: '●',
+      body: `発火: ${tr ? tr.name : (f.tid||'')}`, defId: null });
+  });
+
+  rows.sort((a,b) => b.t - a.t);
+  const filtered = rows.filter(r =>
+    state.feedFilter === 'all' ? true :
+    state.feedFilter === 'alert' ? (r.cls === 'dev' || r.cls === 'over') :
+    state.feedFilter === 'sos' ? (r.body.startsWith('slack') || r.body.includes('作動')) : true);
+
+  box.innerHTML = filtered.length ? filtered.map(r =>
+    `<div class="feed-row ${r.cls}" data-def="${esc(r.defId||'')}">
+       <span class="f-icon">${r.icon}</span>
+       <span class="f-time">${fmtClock(r.t)}</span>
+       <span class="f-body">${esc(r.body)}</span>
+     </div>`).join('')
+    : `<div class="empty-note">表示するイベントがありません</div>`;
+
+  $$('#feedBody .feed-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const d = row.dataset.def;
+      if (d) window.open('/stn', '_blank');  // ペトリで見る（独立ページ /stn を新タブで開く）
+    });
+  });
+}
+
+/* ── ①② 時系列再生（§5.5） ──
+   発火ログのタイムスタンプで「状態がどう動いたか」を再生する。
+   再生カーソル時刻 C を 1x/10x/100x で進め、
+     ① 運行図表の実際線が C までに到達した状態まで伸びる
+     ② ペトリネットが C までに発火したトランジションを発光させる
+   遅延がいつから始まったか（実際線が予定線から外れた瞬間）が一目で分かる。
+   再生は 5s ポーリング（loadAll）と独立: state 変更せず DOM を直接更新する。 */
+function firingEvents() {
+  const fl = (state.timeline && state.timeline.firing_log) || [];
+  return fl.map(e => ({ tid: e.tid, ms: epochToMs(e.ts) }))
+           .filter(e => e.ms != null)
+           .sort((a, b) => a.ms - b.ms);
+}
+function replayBounds() {
+  // 再生窓 = 発火活動の範囲（最初〜最後の発火＋パディング）。
+  // 「現在」まで進めると古い発火では長い無活動の尾になるため、活動窓で止める。
+  const ev = firingEvents();
+  const now = parseTs(state.status && state.status.now) || new Date();
+  const nowMs = now.getTime();
+  if (!ev.length) return { t0: nowMs - 3600e3, t1: nowMs };
+  const first = ev[0].ms, last = ev[ev.length - 1].ms;
+  const span = Math.max(last - first, 60e3);
+  return { t0: first - span * 0.1, t1: last + span * 0.1 };
+}
+function replayStep(ev, cursorMs) {
+  let n = 0; for (const e of ev) if (e.ms <= cursorMs) n++;
+  return n;
+}
+function replayCursorX() {
+  // ① の時間軸（renderRoute と同一の t0/t1）でカーソル時刻 → x 座標
+  const wrap = $('#routeWrap');
+  const W = wrap.clientWidth || 900;
+  const now = parseTs(state.status && state.status.now) || new Date();
+  const span = { '1d': 86400e3, '1w': 7*86400e3, '1m': 30*86400e3 }[state.range];
+  let t0 = now.getTime() - span * 0.15;
+  let t1 = now.getTime() + span * 0.85;
+  for (const i of instances()) {
+    for (const k of ['deadline', 'expected_at']) {
+      const d = parseTs(i[k]); if (!d) continue;
+      const ms = d.getTime();
+      if (ms < t0) t0 = ms - span*0.05;
+      if (ms > t1) t1 = ms + span*0.05;
+    }
+  }
+  const padL = 150, padR = 24;
+  const plotW = W - padL - padR;
+  return { x: ms => padL + (plotW * (ms - t0)) / (t1 - t0), t0, t1, W };
+}
+function replayUpdate() {
+  const r = state.replay;
+  if (!r) return;
+  const ev = firingEvents();
+  const cursorMs = r.cursorMs;
+
+  // ① 実際線（C までに到達した状態だけ）＋再生カーソル線
+  const wrap = $('#routeWrap');
+  const svg = wrap.querySelector('svg');
+  if (svg) {
+    const old = svg.querySelector('.rd-replay'); if (old) old.remove();
+    const oldAct = svg.querySelectorAll('.rd-actual'); oldAct.forEach(n => n.remove());
+    const now = parseTs(state.status && state.status.now) || new Date();
+    const nowMs = now.getTime();
+    const cx = replayCursorX();
+    const xMs = Math.min(Math.max(cursorMs, cx.t0), cx.t1);
+    el('line', { x1: cx.x(xMs), y1: 18, x2: cx.x(xMs), y2: (svg.viewBox.baseVal.height||360)-30, class: 'rd-replay' }, svg);
+    const rl = el('text', { x: cx.x(xMs), y: 14, 'text-anchor': 'middle', class: 'rd-label', fill: 'var(--accent)' }, svg);
+    rl.textContent = '再生';
+
+    // 実際線: 各インスタンスの期待状態到達時刻が C 以前なら now→到達 まで描画
+    const reach = placeReachTimes();
+    instances().forEach(i => {
+      if (!i.reached) return;
+      const rt = reach[i.expected_state];
+      if (rt == null || rt > cursorMs) return;
+      const rowY = rowYFor(i);
+      if (rowY == null) return;
+      const d = `M ${cx.x(nowMs)} ${rowY} L ${cx.x(rt)} ${rowY}`;
+      el('path', { d, class: 'rd-actual', stroke: lineColorFor(i.def_id) }, svg);
+    });
+  }
+
+  // 再生時間表示
+  const dt = new Date(cursorMs);
+  $('#rpTime').textContent = fmtClock(dt);
+  $('#rpStep').textContent = ev.length ? `発火 ${replayStep(ev, cursorMs)}/${ev.length}` : '';
+}
+// ① の行 y 座標を再現（renderRoute と同一計算）
+function rowYFor(i) {
+  const wrap = $('#routeWrap');
+  const H = wrap.clientHeight || 360;
+  const inst = instances();
+  const idx = inst.findIndex(x => x.def_id === i.def_id);
+  if (idx < 0) return null;
+  const padT = 18, padB = 30;
+  const plotH = H - padT - padB;
+  const rowH = plotH / inst.length;
+  return padT + rowH * idx + rowH/2;
+}
+function replayStart() {
+  if (state.replay && state.replay.rafId) return;
+  const b = replayBounds();
+  state.replay = { playing: true, speed: state.replaySpeed, cursorMs: b.t0, t0: b.t0, t1: b.t1, lastWall: null, rafId: null };
+  $('#btnReplay').textContent = '⏸ 停止';
+  $('#btnReplay').classList.add('playing');
+  replayTick();
+}
+function replayStop() {
+  const r = state.replay;
+  if (r && r.rafId) cancelAnimationFrame(r.rafId);
+  if (r) { r.playing = false; r.rafId = null; }
+  $('#btnReplay').textContent = '▶ 再生';
+  $('#btnReplay').classList.remove('playing');
+}
+function replayTick() {
+  const r = state.replay;
+  if (!r || !r.playing) return;
+  const wall = performance.now();
+  if (r.lastWall == null) r.lastWall = wall;
+  const dtMs = (wall - r.lastWall) * r.speed;
+  r.lastWall = wall;
+  r.cursorMs += dtMs;
+  if (r.cursorMs >= r.t1) { r.cursorMs = r.t1; replayUpdate(); replayStop(); return; }
+  replayUpdate();
+  r.rafId = requestAnimationFrame(replayTick);
+}
+function replayToggle() {
+  if (state.replay && state.replay.playing) replayStop();
+  else replayStart();
+}
+function replaySetSpeed(s) {
+  state.replaySpeed = s;
+  if (state.replay) state.replay.speed = s;
+  $$('#speedSeg button').forEach(b => b.classList.toggle('active', +b.dataset.speed === s));
+}
+
+/* ── 統合描画 ── */
+// サーバー（net_id）に応じてタイトル・ナビを切り替える。
+// STB と DC が同一の operations.html を共用するため、net_id で判別する。
+const SERVER_NAV = {
+  stb: {
+    sub: 'STB: 病害虫防除',
+    links: [
+      ['/', '🏠 ポータル'],
+      ['/index.html#schedule', '防除暦'],
+      ['/knowledge', '知識'],
+      ['/designer', 'Designer'],
+      ['/chat', 'AI'],
+    ],
+  },
+  dc: {
+    sub: 'DC: 発電機油交換',
+    links: [
+      ['/', 'DC ダッシュボード'],
+      ['/calendar', 'オイル交換暦'],
+      ['/viz', '境界言語図表'],
+    ],
+  },
+};
+function renderTopNav() {
+  const netId = (state.status && state.status.net_id) || 'stb';
+  const cfg = SERVER_NAV[netId] || SERVER_NAV.stb;
+  const sub = $('#serverSub'); if (sub) sub.textContent = cfg.sub;
+  const nav = $('#topNav'); if (!nav) return;
+  nav.innerHTML = cfg.links.map(([href, label]) =>
+    `<a href="${href}">${label}</a>`).join('') +
+    `<a href="/operations" class="active">運航</a>` +
+    (netId === 'stb' ? `<a href="/stn">STN</a>` : '');
+}
+
+function render() {
+  const s = (state.status && state.status.summary) || {};
+  $('#cOk').textContent = s.on_track != null ? s.on_track : 0;
+  $('#cDev').textContent = s.deviating != null ? s.deviating : 0;
+  $('#cOver').textContent = s.overdue != null ? s.overdue : 0;
+  renderTopNav();
+  renderRoute();
+  renderAnomaly();
+  renderFeed();
+  // 再生中は 5s ポーリングの全面再描画で再生 DOM が消えるため再適用
+  if (state.replay && state.replay.playing) replayUpdate();
+}
+
+/* ── tooltip ── */
+function showTip(ev, html) {
+  const tt = $('#tooltip');
+  tt.innerHTML = html; tt.style.display = 'block';
+  const pad = 14;
+  let x = ev.clientX + pad, y = ev.clientY + pad;
+  const r = tt.getBoundingClientRect();
+  if (x + r.width > innerWidth) x = ev.clientX - r.width - pad;
+  if (y + r.height > innerHeight) y = ev.clientY - r.height - pad;
+  tt.style.left = x + 'px'; tt.style.top = y + 'px';
+}
+function hideTip() { $('#tooltip').style.display = 'none'; }
+
+/* ── 業務登録モーダル ── */
+function openModal() { $('#modalBack').classList.add('show'); $('#f_err').textContent = ''; }
+function closeModal() { $('#modalBack').classList.remove('show'); }
+async function saveDef() {
+  const err = $('#f_err');
+  const name = $('#f_name').value.trim();
+  const deadline = $('#f_deadline').value.trim();
+  if (!name) { err.textContent = '業務名を入力してください'; return; }
+  if (!deadline) { err.textContent = '期限を入力してください（daily: 08:50 / oneshot: 2026-09-15T18:00）'; return; }
+  const cadence = $('#f_cadence').value;
+  // deadline_spec の形を cadence に合わせて組む
+  let deadline_spec;
+  if (cadence === 'daily' || cadence === 'weekly' || cadence === 'monthly') {
+    deadline_spec = { time: deadline };
+  } else {
+    deadline_spec = { at: deadline };
+  }
+  const body = {
+    name, cadence,
+    target_key: $('#f_target_key').value,
+    target_value: $('#f_target_value').value.trim() || null,
+    group_name: $('#f_group_name').value.trim() || null,
+    seq: parseInt($('#f_seq').value, 10) || 1,
+    expected_state: $('#f_expected').value.trim() || null,
+    deadline_spec,
+  };
+  const r = await postJSON(API.defs, body);
+  if (r.ok) {
+    closeModal();
+    $('#f_name').value = ''; $('#f_deadline').value = ''; $('#f_expected').value = '';
+    await loadAll();
+  } else {
+    err.textContent = `登録失敗: ${r.data.error || ('HTTP '+r.status)}`;
+  }
+}
+
+/* ── パネル配置（ドラッグ入れ替え＋幅/高さ可変、localStorage 永続化） ── */
+const PANEL_IDS = ['panel-route','panel-anomaly','panel-feed'];
+const LAYOUT_KEY = 'stb_ops_layout_v1';
+let layoutState = null;
+function loadLayout() {
+  try {
+    const s = JSON.parse(localStorage.getItem(LAYOUT_KEY));
+    if (s && Array.isArray(s.order)) {
+      // 移行: 旧パネル②（panel-petri=ペトリネット本体→panel-stn-link=リンクパネル）は
+      // 独立ページ /stn へ移したため削除。保存済み order から除去し、クリーンな order を
+      // 自己修復して書き戻す（旧 id が localStorage に永久に残らないように）。
+      const cleaned = s.order.filter(id => id !== 'panel-petri' && id !== 'panel-stn-link');
+      if (cleaned.length !== s.order.length) {
+        s.order = cleaned;
+        try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(s)); } catch(e) {}
+      }
+      return s;
+    }
+  } catch(e) {}
+  return { order: PANEL_IDS.slice(), width: {}, height: {} };
+}
+function saveLayout() {
+  try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(layoutState)); } catch(e) {}
+}
+function applyLayout() {
+  const L = layoutState;
+  const layout = $('#layout');
+  // 順序: order にないパネルは末尾へ
+  const ordered = L.order.concat(PANEL_IDS.filter(id => !L.order.includes(id)));
+  ordered.forEach(id => { const el = document.getElementById(id); if (el) layout.appendChild(el); });
+  // 幅・高さ
+  PANEL_IDS.forEach(id => {
+    const el = document.getElementById(id); if (!el) return;
+    const w = L.width[id], h = L.height[id];
+    // 幅=横軸（cross-axis）: width 指定でOK。高さ=縦軸（main-axis）: flex-basis で固定
+    if (w) el.style.width = w + 'px'; else el.style.width = '';
+    if (h) { el.style.flexGrow = '0'; el.style.flexBasis = h + 'px'; }
+    else   { el.style.flexGrow = ''; el.style.flexBasis = ''; }
+  });
+}
+function resetLayout() {
+  layoutState = { order: PANEL_IDS.slice(), width: {}, height: {} };
+  saveLayout(); applyLayout();
+  requestAnimationFrame(() => { renderRoute(); });
+}
+function wireLayout() {
+  layoutState = loadLayout();
+  applyLayout();
+  const layout = $('#layout');
+  let dragEl = null;
+
+  // ① 入れ替え: grip をドラッグ
+  PANEL_IDS.forEach(id => {
+    const el = document.getElementById(id); if (!el) return;
+    const grip = el.querySelector('.grip');
+    grip.addEventListener('mousedown', e => {
+      e.preventDefault();
+      dragEl = el; el.classList.add('dragging');
+      document.addEventListener('mousemove', onDragMove);
+      document.addEventListener('mouseup', onDragUp);
+    });
+  });
+  function onDragMove(e) {
+    if (!dragEl) return;
+    const panels = PANEL_IDS.map(id => document.getElementById(id)).filter(Boolean);
+    const over = panels.find(p => {
+      if (p === dragEl) return false;
+      const r = p.getBoundingClientRect();
+      return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+    });
+    panels.forEach(p => p.classList.remove('drag-over'));
+    if (!over) return;
+    over.classList.add('drag-over');
+    const rect = over.getBoundingClientRect();
+    const before = (e.clientY - rect.top) < rect.height / 2;
+    if (before) layout.insertBefore(dragEl, over);
+    else layout.insertBefore(dragEl, over.nextSibling);
+  }
+  function onDragUp() {
+    if (dragEl) {
+      dragEl.classList.remove('dragging');
+      // 移動したパネルのサイズを固定して永続化。
+      // 未固定パネルは flex:1 1 0（basis 0）なので末尾に動くと高さが 0 になるため、
+      // 移動時点の幅・高さをピン留めして applyLayout で復元する。
+      const r = dragEl.getBoundingClientRect();
+      layoutState.width[dragEl.id] = Math.round(r.width);
+      layoutState.height[dragEl.id] = Math.round(r.height);
+    }
+    document.querySelectorAll('.panel.drag-over').forEach(p => p.classList.remove('drag-over'));
+    document.removeEventListener('mousemove', onDragMove);
+    document.removeEventListener('mouseup', onDragUp);
+    dragEl = null;
+    layoutState.order = Array.from(layout.querySelectorAll('.panel')).map(p => p.id);
+    saveLayout();
+    applyLayout();
+    requestAnimationFrame(() => { renderRoute(); });
+  }
+
+  // ② 幅リサイズ: 右端ハンドル
+  PANEL_IDS.forEach(id => {
+    const el = document.getElementById(id); if (!el) return;
+    const rz = el.querySelector('.panel-resizer');
+    if (!rz) return;  // 幅ハンドルを持たないパネル（スリム等）はスキップ
+    rz.addEventListener('mousedown', e => {
+      e.preventDefault();
+      const startX = e.clientX, startW = el.getBoundingClientRect().width;
+      function mv(ev) {
+        const w = Math.max(280, startW + (ev.clientX - startX));
+        el.style.width = w + 'px';
+      }
+      function up() {
+        document.removeEventListener('mousemove', mv);
+        document.removeEventListener('mouseup', up);
+        layoutState.width[id] = Math.round(el.getBoundingClientRect().width);
+        saveLayout();
+      }
+      document.addEventListener('mousemove', mv);
+      document.addEventListener('mouseup', up);
+    });
+  });
+
+  // ③ 高さリサイズ: 下辺ハンドル
+  PANEL_IDS.forEach(id => {
+    const el = document.getElementById(id); if (!el) return;
+    const rz = el.querySelector('.panel-hresizer');
+    rz.addEventListener('mousedown', e => {
+      e.preventDefault();
+      const startY = e.clientY, startH = el.getBoundingClientRect().height;
+      // 下端はレイアウトの底まで（layout は overflow:hidden なので越えるとパネルが切れる）
+      const maxH = $('#layout').getBoundingClientRect().bottom - el.getBoundingClientRect().top;
+      function mv(ev) {
+        const h = Math.min(maxH, Math.max(120, startH + (ev.clientY - startY)));
+        el.style.flexGrow = '0'; el.style.flexBasis = h + 'px';
+      }
+      function up() {
+        document.removeEventListener('mousemove', mv);
+        document.removeEventListener('mouseup', up);
+        layoutState.height[id] = Math.round(el.getBoundingClientRect().height);
+        saveLayout();
+        // 全パネルを再描画（SVG は clientWidth/Height で描くため、
+        // 高さ変更後の route/cpm/petri だけでなく feed・anomaly のスクロール領域も反映）
+        requestAnimationFrame(() => render());
+      }
+      document.addEventListener('mousemove', mv);
+      document.addEventListener('mouseup', up);
+    });
+  });
+
+  $('#btnLayoutReset').addEventListener('click', resetLayout);
+}
+
+/* ── イベント配線 ── */
+function wire() {
+  $$('#rangeSeg button').forEach(b => b.addEventListener('click', () => {
+    $$('#rangeSeg button').forEach(x => x.classList.remove('active'));
+    b.classList.add('active'); state.range = b.dataset.range; renderRoute();
+  }));
+  $$('#feedFilter button').forEach(b => b.addEventListener('click', () => {
+    $$('#feedFilter button').forEach(x => x.classList.remove('active'));
+    b.classList.add('active'); state.feedFilter = b.dataset.f; renderFeed();
+  }));
+  // 時系列再生（① 運行図表の実際線再生）。ペトリネットの発火再生は独立ページ /stn 側。
+  $('#btnReplay').addEventListener('click', replayToggle);
+  $$('#speedSeg button').forEach(b => b.addEventListener('click', () => replaySetSpeed(+b.dataset.speed)));
+  $('#btnAi').addEventListener('click', runAiInterpret);
+  $('#btnDefs').addEventListener('click', openModal);
+  $('#modalClose').addEventListener('click', closeModal);
+  $('#modalCancel').addEventListener('click', closeModal);
+  $('#modalSave').addEventListener('click', saveDef);
+  $('#modalBack').addEventListener('click', e => { if (e.target.id === 'modalBack') closeModal(); });
+  // Escape で業務登録モーダルを閉じる。
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    closeModal();
+  });
+  let rt;
+  window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { renderRoute(); }, 150); });
+}
+
+/* ── クロック ── */
+function tickClock() {
+  const now = parseTs(state.status && state.status.now) || new Date();
+  $('#clock').textContent = fmtClock(now);
+}
+
+/* ── 初期化 ── */
+async function init() {
+  wire();
+  wireLayout();
+  await Promise.all([loadNet(), loadAll()]);
+  tickClock();
+  setInterval(tickClock, 1000);
+  // 5s ポーリング（設計 §6.1）
+  setInterval(loadAll, 5000);
+  // net 構造は 30s で再取得（変更が稀）
+  setInterval(loadNet, 30000);
+}
+init();
+</script>
+</body>
+</html>
+

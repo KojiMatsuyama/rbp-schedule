@@ -53,7 +53,18 @@
       "Bash(curl -s http://localhost:9999/)",
       "Bash(curl -s http://localhost:9999/api/chat/message -H 'Content-Type: application/json' -d '{\"message\": \"2025年2月21日に散布する薬剤を選定して\"}')",
       "Bash(python3 -m json.tool)",
-      "Bash(pkill -f \"python3 server.py\")"
+      "Bash(pkill -f \"python3 server.py\")",
+      "Bash(python3 -m py_compile scripts/rx_prescribe.py)",
+      "Bash(python3 /tmp/claude-1013/-home-ko-matsuyama-app-STB/72d969a7-498f-4ae2-b127-1e1302c567a0/scratchpad/test_rx_pipeline.py)",
+      "Bash(python3 -m py_compile server.py)",
+      "Bash(python3 -m py_compile agentic_chat/__init__.py agentic_chat/graph.py agentic_chat/nodes.py)",
+      "Bash(command -v node)",
+      "Bash(node --check /tmp/claude-1013/-home-ko-matsuyama-app-STB/72d969a7-498f-4ae2-b127-1e1302c567a0/scratchpad/index_inline.js)",
+      "Bash(python3 -m py_compile server.py scripts/rx_prescribe.py agentic_chat/__init__.py agentic_chat/graph.py agentic_chat/nodes.py agentic_chat/state.py agentic_chat/tokens.py)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:9999/api/net)",
+      "Bash(python3 test_jobnet_view.py)",
+      "Bash(python3 shot_extkey.py)",
+      "Bash(python3 shot_closeup.py)"
     ],
     "additionalDirectories": [
       "/home/ko_matsuyama/app/STB",

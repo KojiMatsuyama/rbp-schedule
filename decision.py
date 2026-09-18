@@ -71,14 +71,124 @@ def find_haskell_bin() -> Optional[str]:
     return max(hits, key=os.path.getmtime) if hits else None
 
 
-def call_rbp_engine(vector: list[int], eval_box_id: Optional[str] = None) -> dict:
+def _call_rbp_engine_db(conn, vector: list[int]) -> dict:
+    """DB駆動 RBP エンジン（scripts/rbp_engine.py）で処方計算を行う。
+
+    真界ループの判断核が rbp_* 知識DB（ブリッジ・スコア・BOX・認知軸）を直接
+    駆動する接合点。判断ルールを DB から読みながら、実行時（Haskell /
+    api.prescribe）と**同型の意味流**で処方導出する（クローズドループで全層一致
+    を検証済み）。戻り値は api.prescribe と同型（_engine_to_runtime で整形）。
     """
-    RBPエンジン（Haskell実装）を呼び出して処方計算を行う。
+    import sys
+    scripts_dir = os.path.join(APP_ROOT, "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    try:
+        from rbp_engine import RBPEngine
+        # task_id='rx-select' で薬剤選定の RBP プログラムにスコープする。
+        # STB-PEST ドメインは複数タスク（rx-select + mulch）のブリッジを保持するため、
+        # ドメイン全体読み込み（task_id=None）は S1（level単調増加）に違反する。
+        engine = RBPEngine(conn, "STB-PEST", "rx-select")
+        pesticides = engine.load_pesticides()
+        result = engine.judge(vector, pesticides, ctx={})
+        return _engine_to_runtime(result, engine)
+    finally:
+        if scripts_dir in sys.path:
+            sys.path.remove(scripts_dir)
+
+
+def _engine_to_runtime(result: dict, engine) -> dict:
+    """rbp_engine.judge の出力を runtime（_enrich_prescription）が期待する
+    契約形状に整形する（形状アダプタ）。
+
+    rbp_engine.judge は {evalBox, status, best, alternatives, lineTraces,
+    excludedIndividual, excludedSets} を返す。runtime は best に system /
+    breakdown / isCombo、除外キーに pesticidePid / pesticideName / bridgeId /
+    pesticidePids / pesticideNames / gateId を期待する（_enrich_prescription /
+    render_projection の契約）。
+    """
+    # 薬剤メタ（system 等）を pid で引けるマップ
+    meta = {p["pid"]: p for p in engine.load_pesticides()}
+
+    def _with_system(pests):
+        out = []
+        for p in pests or []:
+            pid = p.get("id", "")
+            m = meta.get(pid, {})
+            out.append({
+                "id": pid,
+                "name": p.get("name", pid),
+                "system": m.get("system", ""),
+            })
+        return out
+
+    out = {
+        "engine": "db",
+        "status": result.get("status", "UNKNOWN"),
+        "evalBox": result.get("evalBox", {}),
+        "lineTraces": result.get("lineTraces", []),
+    }
+
+    best = result.get("best")
+    if best:
+        out["best"] = {
+            "pesticides": _with_system(best.get("pesticides", [])),
+            "matchCount": best.get("matchCount", 0),
+            "coverageRatio": best.get("coverageRatio", 0.0),
+            "mirrorId": best.get("mirrorId", 0.0),
+            "totalScore": best.get("totalScore", 0.0),
+            "breakdown": best.get("breakdown"),
+            "isCombo": len(best.get("pesticides", [])) > 1,
+        }
+    else:
+        out["best"] = None
+
+    out["alternatives"] = [
+        {
+            "pesticides": _with_system(a.get("pesticides", [])),
+            "matchCount": a.get("matchCount", 0),
+            "coverageRatio": a.get("coverageRatio", 0.0),
+            "mirrorId": a.get("mirrorId", 0.0),
+            "totalScore": a.get("totalScore", 0.0),
+            "breakdown": a.get("breakdown"),
+            "isCombo": len(a.get("pesticides", [])) > 1,
+        }
+        for a in result.get("alternatives", [])
+    ]
+
+    # 除外個体: {pid, name, bridge_id} → {pesticidePid, pesticideName, bridgeId, reason}
+    out["excludedIndividual"] = [
+        {
+            "pesticidePid": e.get("pid", ""),
+            "pesticideName": e.get("name", ""),
+            "bridgeId": e.get("bridge_id", ""),
+            "reason": e.get("bridge_id", ""),
+        }
+        for e in result.get("excludedIndividual", [])
+    ]
+    # 除外セット: {pids, names, gate_id} → {pesticidePids, pesticideNames, gateId, reasons}
+    out["excludedSets"] = [
+        {
+            "pesticidePids": e.get("pids", []),
+            "pesticideNames": e.get("names", []),
+            "gateId": e.get("gate_id", ""),
+            "reasons": [e.get("gate_id", "")],
+        }
+        for e in result.get("excludedSets", [])
+    ]
+    return out
+
+
+def call_rbp_engine(vector: list[int], eval_box_id: Optional[str] = None,
+                    conn=None) -> dict:
+    """
+    RBPエンジンを呼び出して処方計算を行う。
 
     フロー:
-      1. Haskellバイナリ (rbp-algebra) を試す（レギュラー）
-      2. 失敗/未ビルド時は Python実装 (rbp-algebra-python/api.py) にフォールバック
-      3. どちらもダメならエラー
+      1. conn あり（真界ループ）: DB駆動 rbp_engine（rbp_* 知識DB）を駆動
+      2. Haskellバイナリ (rbp-algebra) を試す（レギュラー・非真界経路）
+      3. 失敗/未ビルド時は Python実装 (rbp-algebra-python/api.py) にフォールバック
+      4. どちらもダメならエラー
 
     Returns:
         {
@@ -102,6 +212,13 @@ def call_rbp_engine(vector: list[int], eval_box_id: Optional[str] = None) -> dic
             "bridgeTrace": [...],
         }
     """
+    # --- DB駆動 RBP エンジン（真界ループ・rbp_* 知識DB） ---
+    if conn is not None:
+        try:
+            return _call_rbp_engine_db(conn, vector)
+        except Exception as e:
+            logger.warning(f"DB RBP engine failed, falling back: {e}")
+
     # --- Haskell binary (regular engine) ---
     hs_bin = find_haskell_bin()
 
@@ -462,20 +579,23 @@ def _infer_exclusions(result: dict, vector: list[int]) -> tuple[list[dict], list
 # 決定（仕様決定）の入口
 # =====================================================================
 
-def decide(vector: list[int], eval_box_id: Optional[str] = None) -> dict:
+def decide(vector: list[int], eval_box_id: Optional[str] = None,
+           conn=None) -> dict:
     """
     仕様決定の入口 — 評価BOX（または直接ベクトル）を使って RBP 行列演算を行い、
     ミラーIDでスコアリングし、6段階ブリッジ(L1-L6)を通過した最適な薬剤セット
     （仕様）を選定する。
 
     フロー:
-      1. RBPエンジン呼び出し（Haskell → Pythonフォールバック）
+      1. RBPエンジン呼び出し（conn ありは DB駆動 rbp_engine、なければ
+         Haskell → Pythonフォールバック）
       2. 結果を解析: best, alternatives, bridgeTrace, exclusions
       3. 状態に応じた適切な出力を構築
 
     Args:
         vector: 認知(perception) が作った10次元・2値ベクトル
         eval_box_id: 要求評価(evaluation) が分類した評価BOXのID（None 可）
+        conn: SQLite 接続。ありなら DB駆動 rbp_engine（rbp_* 知識DB）で処方計算
 
     Returns:
         {
@@ -507,8 +627,8 @@ def decide(vector: list[int], eval_box_id: Optional[str] = None) -> dict:
             "status": "NO_TARGET_IDENTIFIED",
         }
 
-    # RBPエンジン呼び出し
-    raw_result = call_rbp_engine(vector, eval_box_id=eval_box_id)
+    # RBPエンジン呼び出し（conn ありは DB駆動 rbp_engine）
+    raw_result = call_rbp_engine(vector, eval_box_id=eval_box_id, conn=conn)
 
     if "error" in raw_result:
         return {

@@ -1,33 +1,39 @@
-"""Agentic chat — LangGraph-powered conversational backend for STB.
+"""Agentic chat — 状態遷移ネット駆動の対話バックエンド for STB.
 
-Framework: 状態 → 認知 → 評価 → 決定 → 投射/在庫(並列)
+Framework: 状態 → 認知 → 要求評価 → 薬剤選定 → 投射1 / 投射2(在庫用)→在庫
 
-Petri Net parallel-transition graph:
+スケジューラは 状態遷移ネット本体（jobnet.run_net が NET["edges"] を走査）。
+LangGraph は廃止された。
 
-  1. state_node        — Token aggregation (schedule/crop/environment/growth_stage)
-  2. perception_node   — User input → 10-dim disease/pest vector
-  3. evaluation_node   — Vector → EvalBox matching (requirement evaluation)
-  4. decision_node     — EvalBox + RBP matrix calc → pesticide selection
-  5. projection_node   — Drug names → message template
-  6. inventory_node    — Stock check for prescribed drugs (parallel)
-  7. inventory_exec    — Send to Slack (inventory result)
+Petri Net parallel-transition graph (token-driven transitions):
 
-After decision_node, the prescription token is released into state,
-triggering TWO independent transitions (projection and inventory)
-that converge at END.
+  1. state_node         — Token aggregation (field_type/pest_matrix)
+  2. perception_node    — User input → 10-dim disease/pest vector
+  3. evaluation_node    — 要求評価: Vector → EvalBox matching, plus 投射2(選定用)
+                          issuing selection_token into the selection place
+  4. decision_node      — 薬剤選定: reads selection place, RBP matrix calc → prescription
+  5. projection_node    — 投射1: Drug names → diagnostic report message
+  6. rx_exec_node       — 作動: Slack送信(処方). Records send completion in HUMOS
+                          (write_sos) and, on success, places inventory_token into
+                          the inventory place (place_token) — 石3 在庫リフレックス
+  7. inventory_node     — 在庫チェック: reads inventory place, stock check
+  8. inventory_exec_node— Send to Slack (inventory result)
+
+After decision_node, the prescription is released, firing TWO branches:
+投射1 (report) and 作動:Slack送信処方 (rx_exec_node). rx_exec_node sends the
+prescription to Slack; on completion HUMOS records it (write_sos), judges the
+state, and places inventory_token into the inventory place (place_token) so the
+在庫チェック transition fires once that place holds a token (間接的開き・§4.3).
 """
 
 import logging
 import os
 from typing import Optional
 
-from .graph import build_graph
+import jobnet
 from .nodes import _strip_reasoning, classify_intent
 
 logger = logging.getLogger(__name__)
-
-# Compile once at import time (singleton)
-_app = build_graph()
 
 
 def run(
@@ -41,14 +47,12 @@ def run(
     Args:
         message: User input text.
         conversation_id: Legacy conv ID (kept for API compat).
-        thread_id: LangGraph thread for conversation history.
+        thread_id: Legacy (was LangGraph thread; kept for API compat, unused).
 
     Returns:
         The projected message text (final answer).
     """
     from .state import ChatState
-
-    tid = thread_id or conversation_id or "default"
 
     # ================================================================
     # 第一段階の意図分類（認知ノードより前）
@@ -66,9 +70,11 @@ def run(
         "intent": None,
         "identified_diseases": [],
         "vector": [0] * 10,
+        "eval_token": None,
         "eval_box_id": None,
         "eval_box_name": None,
         "eval_status": None,
+        "selection_token": None,
         "prescription": [],
         "mirror_id": None,
         "effectiveness": None,
@@ -76,6 +82,7 @@ def run(
         "excluded_drugs": [],
         "excluded_combos": [],
         "projected_message": None,
+        "inventory_token": None,
         "inventory_check": None,
         "inventory_message": None,
         "executed_projection": False,
@@ -84,10 +91,10 @@ def run(
         "error": None,
     }
 
-    config = {"configurable": {"thread_id": tid}}
-
-    # Execute the full Petri Net pipeline (parallel transitions)
-    result = _app.invoke(state, config=config)
+    # Execute the full Petri Net pipeline — スケジューラは 状態遷移ネット本体
+    # （jobnet.run_net が NET["edges"] を走査し各トランジションを発火）
+    # LangGraph は廃止された。
+    result = jobnet.run_net(state)
 
     # 意図ルーティング:
     #   intent="chat"（病害虫が認知されない = 雑談・無関係入力）

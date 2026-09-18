@@ -86,17 +86,44 @@ def _load_eval_boxes() -> list[dict]:
 # 要求評価: 評価BOXマッチング
 # =====================================================================
 
-def find_eval_box(vector: list[int]) -> dict:
+def _load_eval_boxes_db(conn) -> list[dict]:
+    """
+    DB の rbp_eval_box（判断知識の唯一の正）から評価BOXを読み込む。
+
+    members（JSON）が 10 次元ベクトル。真界ループが DB 駆動になる接合点。
+
+    Returns:
+        [{"id": "EB-01", "vector": [1,0,...], "name": "炭疽病"}, ...]
+    """
+    boxes = []
+    for r in conn.execute(
+        "SELECT box_id, box_name, members FROM rbp_eval_box"
+    ).fetchall():
+        try:
+            vec = json.loads(r["members"]) if r["members"] else None
+        except (ValueError, TypeError):
+            vec = None
+        if vec is None:
+            continue
+        boxes.append({"id": r["box_id"], "vector": vec, "name": r["box_name"]})
+    return boxes
+
+
+def find_eval_box(vector: list[int], conn=None) -> dict:
     """
     10次元ベクトルを全評価BOXと正確一致させる。
+
+    conn がある場合は DB の rbp_eval_box（判断知識の唯一の正）から読み、
+    なければ data/eval_boxes.json（cron 等の非真界経路のフォールバック）。
 
     Returns:
         {"status": "MATCH", "eval_box_id": "EB-01", "eval_box_name": "炭疽病"}
         {"status": "UNDEFINED"}
         {"status": "ERROR", "error": "複数の評価BOXが一致"}
     """
+    boxes = _load_eval_boxes_db(conn) if conn is not None else _load_eval_boxes()
     matches = []
-    for box in _load_eval_boxes():
+    for box in boxes:
         if box["vector"] == vector:
             matches.append(box)
 
@@ -115,7 +142,7 @@ def find_eval_box(vector: list[int]) -> dict:
         return {"status": "UNDEFINED"}
 
 
-def evaluate(vector: list[int]) -> dict:
+def evaluate(vector: list[int], conn=None) -> dict:
     """
     要求評価の入口 — 認知したベクトルを評価BOXに分類する。
 
@@ -149,8 +176,8 @@ def evaluate(vector: list[int]) -> dict:
             "intent": "chat",
         }
 
-    # 評価BOXと正確一致マッチング
-    match = find_eval_box(vector)
+    # 評価BOXと正確一致マッチング（conn ありは DB の rbp_eval_box）
+    match = find_eval_box(vector, conn=conn)
 
     if match["status"] == "MATCH":
         return {

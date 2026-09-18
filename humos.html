@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HUMOS OS コンソール — 真界管理画面</title>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #242836;
+  --border: #2e3348;
+  --text: #e2e4ed;
+  --text-dim: #8b8fa3;
+  --accent: #6c8cff;
+  --accent-glow: rgba(108, 140, 255, 0.25);
+  --danger: #ff5c6c;
+  --success: #4ecb71;
+  --warn: #ffb84c;
+  --cog: #6c8cff;
+  --eval: #4ecb71;
+  --decide: #ffb84c;
+  --proj: #c084fc;
+  --exec: #f472b6;
+  --membrane: #22d3ee;
+  --immutable: #6c8cff;   /* 不変（OSエンジン） */
+  --variable: #4ecb71;    /* 可変（ドメインナレッジ） */
+}
+body {
+  font-family: 'Segoe UI', -apple-system, sans-serif;
+  background: var(--bg); color: var(--text);
+  height: 100vh; overflow: hidden;
+  display: flex; flex-direction: column; font-size: 13px;
+}
+.topbar {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 18px;
+  padding: 10px 18px; background: var(--surface); border-bottom: 1px solid var(--border);
+}
+.topbar .title { font-size: 15px; font-weight: 600; letter-spacing: .5px; }
+.topbar .title .sub { color: var(--text-dim); font-weight: 400; font-size: 12px; margin-left: 8px; }
+.topbar .nav { display: flex; gap: 6px; margin-left: 6px; }
+.topbar .nav a { color: var(--text-dim); text-decoration: none; font-size: 12px; padding: 4px 9px; border-radius: 5px; border: 1px solid transparent; }
+.topbar .nav a:hover { color: var(--text); border-color: var(--border); background: var(--surface2); }
+.topbar .nav a.active { color: var(--accent); border-color: var(--accent); }
+.topbar .spacer { flex: 1; }
+.chips { display: flex; gap: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 20px; font-size: 12px; font-weight: 600; background: var(--surface2); border: 1px solid var(--border); }
+.chip .dot { width: 9px; height: 9px; border-radius: 50%; }
+.chip.ok .dot { background: var(--success); }
+.chip.bad .dot { background: var(--danger); }
+.chip.ok { color: var(--success); }
+.chip.bad { color: var(--danger); }
+.topbar .clock { font-variant-numeric: tabular-nums; color: var(--text-dim); font-size: 12px; }
+.layout { flex: 1 1 auto; display: flex; flex-direction: column; gap: 8px; padding: 8px; min-height: 0; overflow-y: auto; }
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.panel-head { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--border); background: linear-gradient(180deg, var(--surface2), var(--surface)); user-select: none; }
+.panel-head .num { width: 22px; height: 22px; border-radius: 5px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.panel-head h2 { font-size: 13px; font-weight: 600; }
+.panel-head .hint { color: var(--text-dim); font-size: 11px; }
+.panel-head .spacer { flex: 1; }
+.panel-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 12px 14px; }
+.layer-tag { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; letter-spacing: .3px; }
+.layer-tag.immutable { color: var(--immutable); background: rgba(108,140,255,.12); border: 1px solid var(--immutable); }
+.layer-tag.variable { color: var(--variable); background: rgba(78,203,113,.12); border: 1px solid var(--variable); }
+.empty-note { color: var(--text-dim); font-size: 12px; padding: 16px; text-align: center; }
+/* ① 本質：閉ループ */
+.loop { display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
+.loop .world { border: 2px solid var(--border); border-radius: 10px; padding: 12px 18px; text-align: center; min-width: 150px; }
+.loop .world.symbolic { border-color: var(--accent); }
+.loop .world.physical { border-color: var(--membrane); }
+.loop .world .w-title { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+.loop .world .w-sub { color: var(--text-dim); font-size: 11px; }
+.loop .arrow { font-size: 22px; color: var(--text-dim); text-align: center; }
+.loop .arrow .a-lbl { display: block; font-size: 10px; color: var(--text-dim); }
+.evidence { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.evidence .ev { border: 1px solid var(--border); border-radius: 7px; padding: 10px 12px; background: var(--surface2); }
+.evidence .ev .ev-h { font-size: 11px; font-weight: 600; color: var(--text-dim); margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+.evidence .ev .ev-b { font-size: 12px; line-height: 1.5; word-break: break-word; }
+.badge { font-size: 10px; padding: 1px 7px; border-radius: 10px; font-weight: 600; }
+.badge.ok { background: rgba(78,203,113,.15); color: var(--success); }
+.badge.bad { background: rgba(255,92,108,.15); color: var(--danger); }
+/* ② 核心：4元素 */
+.elements { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.element { flex: 1 1 150px; min-width: 150px; border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 7px; padding: 10px 12px; background: var(--surface2); }
+.element .el-name { font-weight: 700; font-size: 13px; margin-bottom: 2px; }
+.element .el-en { color: var(--text-dim); font-size: 10px; margin-bottom: 8px; }
+.element .el-stat { font-size: 11px; color: var(--text-dim); line-height: 1.5; }
+.element .el-stat b { color: var(--text); }
+.trust-arrow { text-align: center; color: var(--text-dim); font-size: 11px; margin: 6px 0 12px; }
+.trust-arrow b { color: var(--accent); }
+/* 接地タスク表 */
+table.ground { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.ground th, table.ground td { padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+table.ground th { color: var(--text-dim); font-weight: 600; font-size: 11px; }
+table.ground tr:hover td { background: var(--surface2); }
+.stage-dots { display: inline-flex; gap: 3px; }
+.stage-dots .sd { width: 10px; height: 10px; border-radius: 3px; background: var(--surface); border: 1px solid var(--border); }
+.stage-dots .sd.on { background: var(--success); border-color: var(--success); }
+/* ③ 機構 */
+.mech-tabs { display: flex; gap: 4px; margin-bottom: 10px; flex-wrap: wrap; }
+.mech-tabs button { padding: 5px 12px; background: var(--surface2); color: var(--text-dim); border: 1px solid var(--border); cursor: pointer; font-size: 12px; border-radius: 6px 6px 0 0; }
+.mech-tabs button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.mech-pane { display: none; }
+.mech-pane.active { display: block; }
+.log-list { font-variant-numeric: tabular-nums; font-size: 11px; }
+.log-row { display: flex; gap: 8px; padding: 4px 6px; border-bottom: 1px solid var(--border); }
+.log-row:hover { background: var(--surface2); }
+.log-row .l-time { color: var(--text-dim); flex: 0 0 78px; }
+.log-row .l-kind { flex: 0 0 92px; font-weight: 600; }
+.log-row .l-body { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kind-transition { color: var(--cog); }
+.kind-perception { color: var(--cog); }
+.kind-evaluation { color: var(--eval); }
+.kind-decision { color: var(--decide); }
+.kind-projection { color: var(--proj); }
+.kind-sos { color: var(--exec); }
+.kind-external_event { color: var(--membrane); }
+.kind-physical_operator { color: var(--membrane); }
+/* 接地ツリー */
+.tree { font-size: 12px; line-height: 1.7; }
+.tree .t-domain { font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+.tree .t-entity { margin: 4px 0 2px 8px; font-weight: 600; }
+.tree .t-entity .t-count { color: var(--text-dim); font-weight: 400; font-size: 11px; }
+.tree .t-obj { margin-left: 22px; color: var(--text); }
+.tree .t-obj .gnd { font-size: 10px; margin-left: 6px; }
+.tree .t-comp { margin-left: 40px; color: var(--text-dim); font-size: 11px; }
+/* ④ OSである所以 */
+.os-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.os-box { border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; background: var(--surface2); }
+.os-box.immutable { border-color: var(--immutable); }
+.os-box.variable { border-color: var(--variable); }
+.os-box .ob-h { font-size: 12px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.os-box .kv { display: flex; justify-content: space-between; padding: 4px 0; font-size: 12px; border-bottom: 1px solid var(--border); }
+.os-box .kv:last-child { border-bottom: none; }
+.os-box .kv .k { color: var(--text-dim); }
+.os-box .kv .v { font-weight: 600; font-variant-numeric: tabular-nums; }
+.mod-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.mod-chips .mc { font-size: 11px; padding: 3px 9px; border-radius: 6px; background: var(--surface); border: 1px solid var(--immutable); color: var(--immutable); font-family: monospace; }
+/* 一画面（フォーカス）モード：1パネルを全画面表示 */
+body.focus-mode .layout { overflow: hidden; }
+body.focus-mode .panel { display: none; }
+body.focus-mode .panel.focus-active { display: flex; flex: 1 1 auto; min-height: 0; }
+.panel-head .focus-btn {
+  margin-left: 10px; padding: 3px 10px; font-size: 11px; cursor: pointer;
+  background: var(--surface2); color: var(--text-dim); border: 1px solid var(--border); border-radius: 5px;
+  font-family: inherit; white-space: nowrap;
+}
+.panel-head .focus-btn:hover { color: var(--text); border-color: var(--accent); background: var(--accent-glow); }
+</style>
+</head>
+<body>
+<!-- ── Top bar ── -->
+<header class="topbar">
+  <div class="title">HUMOS OS コンソール <span class="sub" id="serverSub">真界（TrueNet）管理画面</span></div>
+  <nav class="nav">
+    <a href="/operations">運航管理</a>
+    <a href="/stn">STN</a>
+    <a href="/designer">デザイナー</a>
+    <a href="/" >🏠 ポータル</a>
+  </nav>
+  <div class="spacer"></div>
+  <div class="chips">
+    <span class="chip ok" id="chipReplay"><span class="dot"></span>整合 replay_ok <b id="replayBadge">…</b></span>
+    <span class="chip ok" id="chipDomain"><span class="dot"></span><span id="domainBadge">domain: …</span></span>
+  </div>
+  <div class="clock" id="clock">--:--:--</div>
+</header>
+
+<!-- ── Layout: 本質4層（縦スタック） ── -->
+<main class="layout">
+
+  <!-- ① 本質 — 相互開き（閉じた系） -->
+  <section class="panel" id="panel-essence">
+    <div class="panel-head">
+      <span class="num">①</span>
+      <h2>本質 — 相互開き（閉じた系）</h2>
+      <span class="hint">記号界 ⇄ 物理界 が相互に開かれた状態系</span>
+      <span class="spacer"></span>
+      <span class="layer-tag immutable">OS 不変</span>
+      <button class="focus-btn" onclick="focusPanel('essence')">⤢ 一画面</button>
+    </div>
+    <div class="panel-body">
+      <div class="loop">
+        <div class="world symbolic">
+          <div class="w-title">記号界</div>
+          <div class="w-sub">HUMOS（SSS + STN）+ IF + SOS</div>
+        </div>
+        <div class="arrow">⇄<span class="a-lbl">相互開き</span></div>
+        <div class="world physical">
+          <div class="w-title">物理界</div>
+          <div class="w-sub">圃場・薬剤・作動（接地）</div>
+        </div>
+      </div>
+      <div class="evidence">
+        <div class="ev">
+          <div class="ev-h">作動（記号界→物理界）<span class="badge" id="evSosBadge">…</span></div>
+          <div class="ev-b" id="evSos">…</div>
+        </div>
+        <div class="ev">
+          <div class="ev-h">認知（物理界→記号界）</div>
+          <div class="ev-b" id="evPerception">…</div>
+        </div>
+        <div class="ev">
+          <div class="ev-h">整合（replay_ok）</div>
+          <div class="ev-b" id="evReplay">…</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ② 核心 — トラスト形成（4元素） -->
+  <section class="panel" id="panel-core">
+    <div class="panel-head">
+      <span class="num">②</span>
+      <h2>核心 — トラスト形成（4元素）</h2>
+      <span class="hint">確率（記号界）→ 決定（物理界の実情）の原子化</span>
+      <span class="spacer"></span>
+      <span class="layer-tag immutable">OS 不変</span>
+      <button class="focus-btn" onclick="focusPanel('core')">⤢ 一画面</button>
+    </div>
+    <div class="panel-body">
+      <div class="elements" id="elements"></div>
+      <div class="trust-arrow">確率（記号界） ──<b>トラスト形成</b>──▶ 決定（物理界の実情）＝ 意思決定の機械化</div>
+      <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px;">タスク接地（5段：認知/評価/決定/投射/作動）— RBP 行列は境界言語で自動導出</div>
+      <table class="ground" id="groundTable">
+        <thead><tr><th>タスク</th><th>接地</th><th>認知</th><th>評価</th><th>決定</th><th>投射</th><th>作動</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ③ 機構 — SSS / STN / RBP / SOS / 接地 -->
+  <section class="panel" id="panel-mechanism">
+    <div class="panel-head">
+      <span class="num">③</span>
+      <h2>機構 — SSS / STN / RBP / SOS / 接地</h2>
+      <span class="hint">本質と核心を実現する具体機構</span>
+      <span class="spacer"></span>
+      <span class="layer-tag immutable">OS 不変</span>
+      <button class="focus-btn" onclick="focusPanel('mechanism')">⤢ 一画面</button>
+    </div>
+    <div class="panel-body">
+      <div class="mech-tabs" id="mechTabs">
+        <button data-mech="sss" class="active">SSS</button>
+        <button data-mech="stn">STN</button>
+        <button data-mech="rbp">RBP</button>
+        <button data-mech="sos">SOS</button>
+        <button data-mech="ground">接地</button>
+      </div>
+      <div class="mech-pane active" id="mech-sss">
+        <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px;">書き込みログ（空間状態の生データ・SSS の認知対象）</div>
+        <div class="log-list" id="sssLog"></div>
+      </div>
+      <div class="mech-pane" id="mech-stn">
+        <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px;">状態遷移ネット（P+T・不変構造）</div>
+        <div id="stnBody"></div>
+      </div>
+      <div class="mech-pane" id="mech-rbp">
+        <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px;">境界言語（タスク接地・自動導出）</div>
+        <div id="rbpBody"></div>
+      </div>
+      <div class="mech-pane" id="mech-sos">
+        <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px;">作動の運動器（記号界で実働できるシステムの操作）</div>
+        <div class="log-list" id="sosLog"></div>
+      </div>
+      <div class="mech-pane" id="mech-ground">
+        <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px;">物理界の実在（domain → entity → object → component）</div>
+        <div class="tree" id="groundTree"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ④ OSである所以 — 汎用化 -->
+  <section class="panel" id="panel-os">
+    <div class="panel-head">
+      <span class="num">④</span>
+      <h2>OSである所以 — 汎用化</h2>
+      <span class="hint">エンジン不変・ナレッジは可変データ → 意思決定の機械化</span>
+      <span class="spacer"></span>
+      <button class="focus-btn" onclick="focusPanel('os')">⤢ 一画面</button>
+    </div>
+    <div class="panel-body">
+      <div class="os-grid">
+        <div class="os-box immutable">
+          <div class="ob-h"><span class="layer-tag immutable">不変（OS エンジン）</span></div>
+          <div class="kv"><span class="k">OS</span><span class="v" id="osName">…</span></div>
+          <div class="kv"><span class="k">バージョン</span><span class="v" id="osVersion">…</span></div>
+          <div class="kv"><span class="k">モジュール</span><span class="v"></span></div>
+          <div class="mod-chips" id="osModules"></div>
+          <div class="kv" style="margin-top:8px;"><span class="k">STN 構造（P / T）</span><span class="v" id="osNet">…</span></div>
+        </div>
+        <div class="os-box variable">
+          <div class="ob-h"><span class="layer-tag variable">可変（ドメイン ナレッジ）</span></div>
+          <div class="kv"><span class="k">ドメイン</span><span class="v" id="osDomain">…</span></div>
+          <div class="kv"><span class="k">net_id</span><span class="v" id="osNetId">…</span></div>
+          <div class="kv"><span class="k">entity（オブジェクト）</span><span class="v" id="osEntities">…</span></div>
+          <div class="kv"><span class="k">構成品（component）</span><span class="v" id="osComponents">…</span></div>
+          <div class="kv"><span class="k">RBP タスク（接地済み）</span><span class="v" id="osRbp">…</span></div>
+          <div class="kv"><span class="k">schedule def</span><span class="v" id="osSched">…</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+<script>
+// ── HUMOS OS コンソール（ドメイン非依存） ──
+// 各ドメインサーバーが同一 UI を配信し、そのサーバーの humos_os DB を読む。
+// 真界_HUMOS管理画面設計.md §3（本質4層）。
+
+const STAGE_KEYS = ['perception', 'evaluation', 'decision', 'projection', 'actuation'];
+const STAGE_NAMES = { perception: '認知', evaluation: '評価', decision: '決定', projection: '投射', actuation: '作動' };
+const ELEMENTS = [
+  { key: 'perception', name: '認知', en: 'perception', color: 'var(--cog)' },
+  { key: 'evaluation', name: '評価', en: 'evaluation', color: 'var(--eval)' },
+  { key: 'decision', name: '決定', en: 'decision', color: 'var(--decide)' },
+  { key: 'projection', name: '投射', en: 'projection', color: 'var(--proj)' },
+];
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+function fmtTs(ts) {
+  if (ts == null) return '--:--:--';
+  const d = new Date(ts * 1000);
+  return d.toTimeString().slice(0, 8);
+}
+function shortPayload(p) {
+  if (p == null) return '';
+  if (typeof p === 'string') return p;
+  try { return JSON.stringify(p); } catch (e) { return String(p); }
+}
+async function getJSON(url) {
+  const r = await fetch(url, { cache: 'no-store' });
+  if (!r.ok) throw new Error(url + ' -> ' + r.status);
+  return r.json();
+}
+
+let NET = null;
+
+// ── ① 本質：閉ループの証拠 ──
+function renderEssence(humos, status) {
+  const sos = (humos.sos_log || []).slice(-1)[0];
+  const evSos = document.getElementById('evSos');
+  const evSosBadge = document.getElementById('evSosBadge');
+  if (sos) {
+    evSos.textContent = `${sos.action} @ ${fmtTs(sos.ts)}`;
+    evSosBadge.textContent = 'あり'; evSosBadge.className = 'badge ok';
+  } else {
+    evSos.textContent = '（まだ作動なし）';
+    evSosBadge.textContent = 'なし'; evSosBadge.className = 'badge bad';
+  }
+  // 認知：writing_log の perception / external_event
+  const perc = (humos.writing_log || []).filter(e => e.operator_kind === 'perception' || e.operator_kind === 'external_event').slice(-1)[0];
+  const evPer = document.getElementById('evPerception');
+  evPer.textContent = perc ? `${perc.operator_kind}: ${perc.action || ''} @ ${fmtTs(perc.ts)}` : '（まだ認知なし）';
+  // 整合
+  const evRep = document.getElementById('evReplay');
+  evRep.innerHTML = `マーキング ≡ M0 リプレイ：<b style="color:${humos.replay_ok ? 'var(--success)' : 'var(--danger)'}">${humos.replay_ok ? '一致（健全）' : '不一致（要確認）'}</b>` +
+    (status && status.actual_state ? `<br>現在状態: <b>${esc(status.actual_state)}</b>` : '');
+  // topbar バッジ
+  const chipReplay = document.getElementById('chipReplay');
+  document.getElementById('replayBadge').textContent = humos.replay_ok ? 'OK' : 'NG';
+  chipReplay.className = 'chip ' + (humos.replay_ok ? 'ok' : 'bad');
+}
+
+// ── ② 核心：4元素 + 接地タスク ──
+function renderCore(humos, tasks) {
+  const box = document.getElementById('elements');
+  box.innerHTML = ELEMENTS.map(el => {
+    // 発火ログから元素に該当する直近発火（tid が元素名を含む or writing_log の operator_kind）
+    const w = (humos.writing_log || []).filter(e => e.operator_kind === el.key).slice(-1)[0];
+    const stat = w ? `直近: ${w.action || el.key} @ ${fmtTs(w.ts)}` : '（発火ログなし）';
+    return `<div class="element" style="border-left-color:${el.color}">
+      <div class="el-name" style="color:${el.color}">${el.name}</div>
+      <div class="el-en">${el.en}</div>
+      <div class="el-stat">${stat}</div>
+    </div>`;
+  }).join('');
+  // 接地タスク表
+  const tbody = document.querySelector('#groundTable tbody');
+  const list = (tasks && tasks.tasks) || [];
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-note">タスク未登録</td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map(t => {
+    const g = t.grounding || {};
+    const stages = {};
+    (g.stages || []).forEach(s => { stages[s.key] = s.present; });
+    const dots = STAGE_KEYS.map(k => `<span class="sd ${stages[k] ? 'on' : ''}" title="${STAGE_NAMES[k]}: ${stages[k] ? 'あり' : 'なし'}"></span>`).join('');
+    const cells = STAGE_KEYS.map(k => `<td>${stages[k] ? '✓' : '—'}</td>`).join('');
+    return `<tr>
+      <td>${esc(t.name)} <span style="color:var(--text-dim);font-size:10px;">${esc(t.task_id)}</span></td>
+      <td><span class="stage-dots">${dots}</span> <span style="font-size:11px;color:var(--text-dim);">${g.grounded_count ?? 0}/${g.total ?? 5}</span></td>
+      ${cells}
+    </tr>`;
+  }).join('');
+}
+
+// ── ③ 機構 ──
+function renderSss(humos) {
+  const log = (humos.writing_log || []).slice().reverse().slice(0, 40);
+  const el = document.getElementById('sssLog');
+  if (!log.length) { el.innerHTML = '<div class="empty-note">書き込みログなし</div>'; return; }
+  el.innerHTML = log.map(e => `<div class="log-row">
+    <span class="l-time">${fmtTs(e.ts)}</span>
+    <span class="l-kind kind-${esc(e.operator_kind)}">${esc(e.operator_kind)}</span>
+    <span class="l-body" title="${esc(shortPayload(e.payload))}">${esc(e.action || '')} ${esc(shortPayload(e.payload)).slice(0, 80)}</span>
+  </div>`).join('');
+}
+function renderStn() {
+  const el = document.getElementById('stnBody');
+  if (!NET) { el.innerHTML = '<div class="empty-note">STN 読込中…</div>'; return; }
+  const places = Object.entries(NET.places || {});
+  const trans = Object.entries(NET.transitions || {});
+  const enabled = NET.firing_enabled || {};
+  el.innerHTML = `
+    <div style="display:flex;gap:24px;flex-wrap:wrap;">
+      <div>
+        <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px;">プレース（P）${places.length} 個</div>
+        ${places.map(([id, p]) => `<div class="log-row" style="border:none;padding:2px 0;"><span class="l-kind" style="flex:0 0 150px;">${esc(id)}</span><span class="l-body">${esc(p.name || '')} <span style="color:var(--text-dim);">[${esc(p.kind || '')}]</span></span></div>`).join('')}
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px;">トランジション（T）${trans.length} 個</div>
+        ${trans.map(([id, t]) => `<div class="log-row" style="border:none;padding:2px 0;"><span class="l-kind" style="flex:0 0 150px;">${esc(id)}</span><span class="l-body">${esc(t.name || '')} ${enabled[id] ? '<span class="badge ok">発火可能</span>' : ''}</span></div>`).join('')}
+      </div>
+    </div>`;
+}
+function renderRbp(tasks) {
+  const el = document.getElementById('rbpBody');
+  const list = (tasks && tasks.tasks) || [];
+  if (!list.length) { el.innerHTML = '<div class="empty-note">タスク未登録</div>'; return; }
+  el.innerHTML = list.map(t => {
+    const g = t.grounding || {};
+    return `<div class="log-row" style="border:none;padding:4px 0;">
+      <span class="l-kind" style="flex:0 0 150px;color:var(--text);">${esc(t.name)}</span>
+      <span class="l-body">${g.grounded_count ?? 0}/${g.total ?? 5} 段接地 ${g.grounded ? '<span class="badge ok">接地済み</span>' : '<span class="badge bad">未接地</span>'}</span>
+    </div>`;
+  }).join('');
+}
+function renderSos(humos) {
+  const log = (humos.sos_log || []).slice().reverse().slice(0, 40);
+  const el = document.getElementById('sosLog');
+  if (!log.length) { el.innerHTML = '<div class="empty-note">作動ログなし</div>'; return; }
+  el.innerHTML = log.map(e => `<div class="log-row">
+    <span class="l-time">${fmtTs(e.ts)}</span>
+    <span class="l-kind kind-sos">sos</span>
+    <span class="l-body" title="${esc(shortPayload(e.result))}">${esc(e.action || '')} ${esc(shortPayload(e.result)).slice(0, 80)}</span>
+  </div>`).join('');
+}
+function renderGround(entity) {
+  const el = document.getElementById('groundTree');
+  if (!entity || !entity.entities) { el.innerHTML = '<div class="empty-note">entity 読込中…</div>'; return; }
+  // 4-level ID: subject_id ⊃ domain_id ⊃ entity_id ⊃ object_id（ts/真界_事業主体設計.md §4）。
+  let html = `<div class="t-domain">subject: ${esc(entity.subject_id || '—')} / domain: ${esc(entity.domain_id)}</div>`;
+  (entity.entities || []).forEach(ent => {
+    const objs = ent.objects || [];
+    html += `<div class="t-entity">├─ entity: ${esc(ent.entity_id)} <span class="t-count">（${objs.length} オブジェクト）</span></div>`;
+    objs.forEach(o => {
+      const gnd = o.grounded ? '<span class="gnd badge ok">接地済み</span>' : '<span class="gnd badge bad">未接地</span>';
+      html += `<div class="t-obj">│&nbsp;&nbsp;├─ ${esc(o.name)} <span style="color:var(--text-dim);font-size:10px;">[${esc(o.object_id)}]</span>${gnd}</div>`;
+      (o.components || []).forEach(c => {
+        html += `<div class="t-comp">│&nbsp;&nbsp;│&nbsp;&nbsp;└─ ${esc(c.comp_type)} <span style="color:var(--text-dim);">${esc(shortPayload(c.attrs)).slice(0, 50)}</span></div>`;
+      });
+    });
+  });
+  el.innerHTML = html;
+}
+
+// ── ④ OSである所以 ──
+function renderOs(meta) {
+  if (!meta) return;
+  document.getElementById('osName').textContent = meta.os.name;
+  document.getElementById('osVersion').textContent = meta.os.version;
+  document.getElementById('osModules').innerHTML = (meta.os.modules || []).map(m => `<span class="mc">${esc(m)}</span>`).join('');
+  document.getElementById('osNet').textContent = `${meta.counts.places} / ${meta.counts.transitions}`;
+  document.getElementById('osDomain').textContent = meta.domain.domain_id;
+  document.getElementById('osNetId').textContent = meta.domain.net_id;
+  document.getElementById('osEntities').textContent = meta.counts.entities;
+  document.getElementById('osComponents').textContent = meta.counts.components;
+  document.getElementById('osRbp').textContent = `${meta.counts.rbp_tasks_grounded} / ${meta.counts.rbp_tasks}`;
+  document.getElementById('osSched').textContent = meta.counts.schedule_defs;
+  // 4-level: subject_id（事業主体）が最上位。net_id = subject_id。
+  document.getElementById('domainBadge').textContent = `subject: ${meta.domain.subject_id || '—'} / domain: ${meta.domain.domain_id}`;
+  document.getElementById('serverSub').textContent = `${meta.domain.subject_id || '—'} / ${meta.domain.domain_id}（net_id=${meta.domain.net_id}）`;
+}
+
+// ── 一画面（フォーカス）モード ──
+const FOCUS_PANELS = ['essence', 'core', 'mechanism', 'os'];
+function focusPanel(key) {
+  if (!FOCUS_PANELS.includes(key)) return;
+  document.body.classList.add('focus-mode');
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('focus-active'));
+  const panel = document.getElementById('panel-' + key);
+  if (panel) panel.classList.add('focus-active');
+  if (history.replaceState) history.replaceState(null, '', '#panel-' + key);
+}
+function exitFocusPanel() {
+  document.body.classList.remove('focus-mode');
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('focus-active'));
+  if (history.replaceState) history.replaceState(null, '', location.pathname);
+}
+function applyHashFocus() {
+  const key = (location.hash || '').replace('#panel-', '');
+  if (FOCUS_PANELS.includes(key)) focusPanel(key);
+}
+
+// ── タブ切替 ──
+function bindMechTabs() {
+  document.querySelectorAll('#mechTabs button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#mechTabs button').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.mech-pane').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('mech-' + btn.dataset.mech).classList.add('active');
+    });
+  });
+}
+
+// ── 更新ループ ──
+async function loadAll() {
+  try {
+    const [humos, status, tasks, entity, meta] = await Promise.all([
+      getJSON('/api/humos'),
+      getJSON('/api/operations/status').catch(() => null),
+      getJSON('/api/rbp/tasks').catch(() => null),
+      getJSON('/api/entity').catch(() => null),
+      getJSON('/api/humos/meta').catch(() => null),
+    ]);
+    renderEssence(humos, status);
+    renderCore(humos, tasks);
+    renderSss(humos);
+    renderSos(humos);
+    renderGround(entity);
+    renderRbp(tasks);
+    renderOs(meta);
+  } catch (e) {
+    console.error('loadAll', e);
+  }
+}
+async function loadNet() {
+  try { NET = await getJSON('/api/net'); renderStn(); } catch (e) { console.error('loadNet', e); }
+}
+function tickClock() {
+  document.getElementById('clock').textContent = new Date().toTimeString().slice(0, 8);
+}
+
+async function init() {
+  bindMechTabs();
+  tickClock(); setInterval(tickClock, 1000);
+  // Esc で一画面モードを解除
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && document.body.classList.contains('focus-mode')) exitFocusPanel();
+  });
+  window.addEventListener('hashchange', applyHashFocus);
+  applyHashFocus();
+  await loadNet();
+  await loadAll();
+  setInterval(loadAll, 5000);
+  setInterval(loadNet, 30000);
+}
+init();
+</script>
+</body>
+</html>

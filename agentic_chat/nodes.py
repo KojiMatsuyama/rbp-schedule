@@ -8,11 +8,14 @@ agentic_chat/nodes.py — 状態→認知→評価→決定→投射/在庫(並�
 ノード一覧:
   state_node           — ① 状態: トークン集約・発火判定（Petri netモデル）
   perception_node      — ② 認知: ユーザー入力 → 病害虫ベクトル(10次元)
-  evaluation_node      — ③ 評価: ベクトル → 評価BOXマッチング
-  decision_node        — ④ 決定: 評価BOX + RBP行列演算 → 薬剤選定
-  projection_node      — ⑤ 投射: 薬剤名・スコア・trace → メッセージテンプレート
-  inventory_node       — ⑥ 在庫チェック（決定後に並列独立で発火）
-  inventory_exec_node  — ⑦ 在庫実行: 在庫チェック結果の Slack送信
+  evaluation_node      — ③ 要求評価: ベクトル → 評価BOXマッチング
+                          ＋ 投射2(選定用): 薬剤選定プレースへ selection_token 発行
+  decision_node        — ④ 薬剤選定: 選定プレースから読み、RBP行列演算 → 処方
+  projection_node      — ⑤ 投射1: 薬剤名・スコア・trace → メッセージテンプレート
+  rx_exec_node         — ⑥ 作動: Slack送信(処方)。送信完了を HUMOS の状態にし、
+                          状態判断で在庫プレースに処方トークンを置く（石3・在庫リフレックス）
+  inventory_node       — ⑦ 在庫チェック: 在庫プレースから読み、在庫DB照会
+  inventory_exec_node  — ⑧ 在庫実行: 在庫チェック結果の Slack送信
 
 RBPエンジン:
   - Haskellバイナリ (rbp-algebra) を優先（レギュラー）
@@ -20,6 +23,7 @@ RBPエンジン:
   - 6段階ブリッジ(L1-L6)の通過履歴・スコア内訳を完全に再現
 """
 
+import json
 import logging
 import math
 import os
@@ -42,6 +46,12 @@ import evaluation  # noqa: E402
 import decision  # noqa: E402
 import state  # noqa: E402
 
+# 投射（トップレベル）— 投射2（作動つき投射）のレンダラを使うため。
+# agentic_chat/ の親ディレクトリ（APP_ROOT）を path に加えて解決する。
+if APP_ROOT not in sys.path:
+    sys.path.insert(0, APP_ROOT)
+import projection  # noqa: E402
+
 _strip_reasoning = perception._strip_reasoning  # noqa: F841  (legacy re-export)
 classify_intent = perception.classify_intent  # noqa: F841  (legacy re-export)
 
@@ -61,9 +71,11 @@ classify_intent = perception.classify_intent  # noqa: F841  (legacy re-export)
 
 def _send_to_slack(message: str) -> dict:
     """
-    Slack にメッセージを送信する（作動レイヤ）。
+    メッセージを実働に届ける（作動レイヤ）。
 
-    実装は SOSライブラリの実働チャンネル sos.slack に委譲する。
+    実装は IF（膜）ファサード sos.membrane.deliver に委譲する（IF 設計 §8）。
+    現行はチャネルが Slack の1つなので SlackAdapter 経由（挙動不変）。
+    write_sos（作動ログ）は sos.slack 内で呼ばれる（本経路では二重記録しない）。
 
     Returns:
         {"success": True} または {"success": False, "error": "..."}
@@ -75,13 +87,13 @@ def _send_to_slack(message: str) -> dict:
     import sos
 
     try:
-        result = sos.slack.send_message(message)
+        result = sos.membrane.deliver(message)
         return result if isinstance(result, dict) else {"success": False, "error": "不正な返り値"}
     except ImportError:
         logger.error("sos モジュールが見つかりません")
         return {"success": False, "error": "sos not found"}
     except Exception as e:
-        logger.error(f"Slack送信エラー: {e}")
+        logger.error(f"作動送信エラー: {e}")
         return {"success": False, "error": str(e)[:200]}
 
 
@@ -122,19 +134,42 @@ def perception_node(state: dict) -> dict:
 
 def evaluation_node(state: dict) -> dict:
     """
-    ② 評価ノード — 認知した病害虫ベクトルを評価BOXにマッチさせる。
+    ③ 要求評価ノード ＋ 投射2（選定用）— ベクトル→評価BOX分類と、薬剤選定プレース
+    への selection_token 発行を行う。
 
-    要求評価はトップレベル evaluation.py に分離された。
-    本ノードは薄アダプタ: state からベクトルを取り、evaluate に委譲する。
+    1. 要求評価（トップレベル evaluation.py）: 認知した病害虫ベクトルを
+       評価BOXにマッチさせる。ベクトルは「評価トランジションの入力プレース」
+       eval_token から復元する（認知の出力 vector をフォールバックに持つ）。
+    2. 投射2（選定用）: 作動として、薬剤選定（決定）トランジションの入力
+       プレースへ発行する selection_token（ベクトル＋評価BOXのJSON）を生成し、
+       決定トランジションを発火させる。
 
     Returns:
         {
             "eval_box_id": "EB-01",        # マッチした評価BOXのID
             "eval_box_name": "炭疽病",      # 人間 readable な名前
             "eval_status": "matched" | "undefined" | "none" | "error",
+            "selection_token": '{"vector":[...], "eval_box_id":"EB-01"}',
         }
     """
-    return evaluation.evaluate(state["vector"])
+    # 評価トランジションの入力プレース（eval_token）からベクトルを復元する。
+    # eval_token は本ノードが前回投入したものであり、認知の vector と等価。
+    # 空の場合は認知の vector をフォールバック（直結発火との互換維持）。
+    vec = state["vector"]
+    if state.get("eval_token"):
+        try:
+            vec = json.loads(state["eval_token"])
+        except (ValueError, TypeError):
+            vec = state["vector"]
+
+    # 融合: conn（state["_conn"]、共有 OS が注入）があれば DB駆動 rbp_engine。
+    result = evaluation.evaluate(vec, conn=state.get("_conn"))
+    eval_box_id = result.get("eval_box_id")
+
+    # 投射2（選定用）— 薬剤選定プレースへ selection_token を発行する（作動）。
+    out = dict(result)
+    out["selection_token"] = projection.render_selection_token(vec, eval_box_id)
+    return out
 
 
 # =====================================================================
@@ -143,13 +178,14 @@ def evaluation_node(state: dict) -> dict:
 
 def decision_node(state: dict) -> dict:
     """
-    ③ 決定ノード（厳密には仕様決定）— 評価BOX（または直接ベクトル）を使って、
-    RBP行列演算を行い、ミラーIDでスコアリングして
-    最適な薬剤セット（仕様）を選定する。
+    ④ 薬剤選定（決定）ノード — 選定プレース（selection_token）からベクトル・
+    評価BOXを復元し、RBP行列演算でミラーIDスコアリングし、最適な薬剤セット
+    （仕様）を選定する。
 
     仕様決定・RBPエンジン呼び出し（Haskell → Pythonフォールバック）は
     トップレベル decision.py に分離された。
-    本ノードは薄アダプタ: state からベクトル・評価BOXを取り、decide に委譲する。
+    本ノードは薄アダプタ: 入力プレース（selection_token）からベクトル・評価BOXを
+    復元し、decide に委譲する。
 
     Returns:
         {
@@ -163,7 +199,22 @@ def decision_node(state: dict) -> dict:
             "status": "SUCCESS",
         }
     """
-    return decision.decide(state["vector"], eval_box_id=state.get("eval_box_id"))
+    # 薬剤選定（決定）トランジションの入力プレース（selection_token）から
+    # ベクトル・評価BOXを復元して発火する。投射2（選定用）が投入したもので、
+    # 認知の vector / 要求評価の eval_box_id と等価。空の場合はそれらを
+    # フォールバック（直結発火との互換維持）。
+    vector = state["vector"]
+    eval_box_id = state.get("eval_box_id")
+    if state.get("selection_token"):
+        try:
+            tok = json.loads(state["selection_token"])
+            vector = tok.get("vector", state["vector"])
+            if tok.get("eval_box_id") is not None:
+                eval_box_id = tok["eval_box_id"]
+        except (ValueError, TypeError):
+            pass
+    # 融合: conn（state["_conn"]、共有 OS が注入）があれば DB駆動 rbp_engine。
+    return decision.decide(vector, eval_box_id=eval_box_id, conn=state.get("_conn"))
 
 
 # =====================================================================
@@ -172,37 +223,82 @@ def decision_node(state: dict) -> dict:
 
 def projection_node(state: dict) -> dict:
     """
-    ④ 投射ノード — 独立投射モジュール(projection.render_projection)の
-    LangGraphアダプタ。
+    ⑤ 投射1ノード — 処方結果を人間が読む診断レポートに写像する。
 
+    独立投射モジュール(projection.render_projection)のLangGraphアダプタ。
     投射ロジック本体は agentic_chat をまたいで scripts/rx_prescribe.py と
     共用するためトップレベル projection.py に分離された。
     ここはグラフのノード契約（ChatState → state更新dict）を満たすための
     薄いラッパのみ。
 
+    注意: 投射1はレポート作成に専念し、作動（トークン発行）は持たない。
+    処方トークンの在庫プレースへの発行は作動（rx_exec_node・Slack送信処方）が
+    送信完了後に HUMOS 経由で行う（石3・在庫リフレックス）。
+
     Returns:
         {"projected_message": "今回の防除の薬剤は..."}
     """
-    # projection は APP_ROOT 由来。agentic_chat/ の親ディレクトリを path に加える
-    _app_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    if _app_root not in sys.path:
-        sys.path.insert(0, _app_root)
-    import projection
-
     return {"projected_message": projection.render_projection(state)}
 
 
 # =====================================================================
-# NODE ⑥: inventory_node — 在庫チェック（並列独立トランジション）
+# NODE ⑥: rx_exec_node — 作動：Slack送信（処方）＋在庫リフレックス（石3）
+# =====================================================================
+
+def rx_exec_node(state: dict) -> dict:
+    """
+    ⑥ 作動：Slack送信（処方）— 処方メッセージを Slack に送信し、送信完了を
+    HUMOS の状態にする（石3・在庫リフレックス）。
+
+    「作動完了が状態である」（ts/TS設計.md §4.3）の 3 段:
+      1. 記録   — sos.slack.send_message が humos.write_sos("slack_send", result)
+      2. 状態判断 — 送信成功か・処方が空でないか
+      3. 次トークンを置く — humos.place_token("inventory_token", 処方JSON, "T_rx_exec")
+
+    ネットは inventory_token を handler の返り値では**持たない**。HUMOS がマーキング
+    に置いた在庫トークンは、run_net のループ先頭でライブマーキングを再読して発見され、
+    T_inventory が発火する（間接的開き・能動ゲートの具体）。
+
+    送信失敗・処方空のときは在庫トークンを置かない → T_inventory 未発火 →
+    固定点で停止（§8.4「待ちが詰まる→審議へエスカレーション」の足場）。
+
+    Returns:
+        {"external_wait_token": '{"sent": true}'}
+        （「ネットの状態＝Slack送信完了を待っている」の彩色トークン・§8.2。
+         在庫トークンは返さず place_token で HUMOS に置く）
+    """
+    # 関数内 import（循環回避: nodes → humos はモジュールレベルで安全だが、
+    # 遅延解決の既存パターンに揃える）
+    import humos
+
+    prescription = state.get("prescription", [])
+    # 作動: Slack送信（処方メッセージ）。write_sos は send_message 内で呼ばれる。
+    message = projection.render_projection(state)
+    result = _send_to_slack(message)
+    sent = bool(result.get("success"))
+
+    out = {"external_wait_token": json.dumps({"sent": sent}, ensure_ascii=False)}
+    if sent and prescription:
+        # 状態判断: Slack送信完了 → 在庫チェックに進む（次トークンを置く）
+        humos.place_token(
+            "inventory_token",
+            projection.render_inventory_token(prescription),
+            trigger="T_rx_exec",
+        )
+    return out
+
+
+# =====================================================================
+# NODE ⑦: inventory_node — 在庫チェック（在庫プレースから発火）
 # =====================================================================
 
 def inventory_node(state: dict) -> dict:
     """
-    ⑥ 在庫チェックノード — 処方結果の薬剤名+数量で在庫を照会。
+    ⑦ 在庫チェックノード — 処方結果の薬剤名+数量で在庫を照会。
 
     Petri net遷移:
-      処方トークン（薬剤名+数量JSON）がplaceに投入される
-      → 在庫チェックが可能になったら発火
+      在庫チェックの入力プレース（inventory_token）に処方トークンが投入される
+      → 在庫チェックが発火
 
     在庫DB: stb.db（既存）のinventoryテーブル
 
@@ -212,7 +308,15 @@ def inventory_node(state: dict) -> dict:
             "inventory_message": "【在庫チェック結果】...",
         }
     """
+    # 在庫チェックの入力プレース（inventory_token）から処方トークンを復元する。
+    # 投射2（在庫用）が投入した処方JSON（薬剤名+数量）。空の場合は
+    # state["prescription"] をフォールバック（直結発火との互換維持）。
     prescription = state.get("prescription", [])
+    if state.get("inventory_token"):
+        try:
+            prescription = json.loads(state["inventory_token"])
+        except (ValueError, TypeError):
+            prescription = state.get("prescription", [])
 
     if not prescription:
         return {
@@ -273,12 +377,12 @@ def inventory_node(state: dict) -> dict:
 
 
 # =====================================================================
-# NODE ⑦: inventory_exec_node — 在庫実行（並列独立トランジション）
+# NODE ⑧: inventory_exec_node — 在庫実行（並列独立トランジション）
 # =====================================================================
 
 def inventory_exec_node(state: dict) -> dict:
     """
-    ⑦ 在庫実行ノード — 在庫チェック結果をSlackに送信。
+    ⑧ 在庫実行ノード — 在庫チェック結果をSlackに送信。
 
     投射トランジションとは独立して動作。
 

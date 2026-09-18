@@ -25,6 +25,7 @@ chat_client への唯一の委譲先となる。
 import logging
 
 import chat_client
+import humos
 
 logger = logging.getLogger(__name__)
 
@@ -47,10 +48,14 @@ def send_message(text: str, blocks: list = None) -> dict:
     """
     try:
         result = chat_client.send_message(text, blocks=blocks)
-        return result if isinstance(result, dict) else {"success": False, "error": "不正な返り値"}
+        result = result if isinstance(result, dict) else {"success": False, "error": "不正な返り値"}
     except Exception as e:
         logger.error(f"Slack送信エラー: {e}")
-        return {"success": False, "error": str(e)[:200]}
+        result = {"success": False, "error": str(e)[:200]}
+    # 石1: HUMOS write_sos（作動ログ）。成功・失敗の両方を記録。
+    # 「作動完了が状態である」（TS設計 §4.3）の足場。
+    humos.write_sos("slack_send", result)
+    return result
 
 
 def send_card(title: str, sections: list, footer: str = None) -> dict:

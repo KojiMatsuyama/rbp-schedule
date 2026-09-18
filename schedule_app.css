@@ -170,6 +170,9 @@ header .year-nav span { font-size: 1.1rem; min-width: 60px; text-align: center; 
 .day-badge.has-schedule {
   background: #2980b9;
 }
+.day-badge.has-transplant {
+  background: #27ae60;
+}
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: .6; }
@@ -354,6 +357,19 @@ header .year-nav span { font-size: 1.1rem; min-width: 60px; text-align: center; 
 .spec-badge.danger { background: #f8d7da; color: var(--danger); }
 .spec-badge.good { background: var(--accent-light); color: var(--accent); }
 .spec-candidate .btn { margin-top: 6px; width: 100%; }
+
+/* 圃場バッジ（防除暦・防除履歴に付く圃場の表示） */
+.field-badge {
+  display: inline-block;
+  font-size: .7rem;
+  padding: 1px 6px;
+  margin: 1px 4px 1px 0;
+  border-radius: 3px;
+  background: #eef4ee;
+  color: #2e5a3a;
+  border: 1px solid #cfe0cf;
+  white-space: nowrap;
+}
 
 /* Prescription card (auto-decided single set) */
 .prescription-card {
@@ -1018,4 +1034,106 @@ details.spec-alternatives summary, details.spec-excluded summary {
   .container { display: block; height: auto; }
   .calendar-panel { border: none; padding: 0; }
   .month-card { break-inside: avoid; page-break-inside: avoid; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   トップポータル（タイル形式）
+   body.portal-mode → ポータル表示（.container 非表示）
+   body.app-mode    → カレンダー+タブ表示（#portal 非表示）
+   変数は :root / [data-theme="dark"] で定義済み → 明暗両対応。
+   ═══════════════════════════════════════════════════════════════ */
+#portal { display: none; }
+body.portal-mode #portal { display: block; }
+body.portal-mode .container { display: none; }
+body.app-mode #portal { display: none; }
+
+.portal-view {
+  min-height: calc(100vh - 56px);
+  overflow-y: auto;
+  padding: 24px clamp(16px, 4vw, 48px) 48px;
+}
+.portal-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+.portal-head {
+  margin-bottom: 24px;
+}
+.portal-head h2 {
+  font-size: 1.5rem;
+  color: var(--text);
+  letter-spacing: .02em;
+}
+.portal-head .portal-sub {
+  font-size: .9rem;
+  font-weight: normal;
+  color: var(--muted);
+  margin-left: 8px;
+}
+.portal-desc {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: .9rem;
+}
+
+.portal-group { margin-bottom: 22px; }
+.portal-group-title {
+  font-size: .8rem;
+  font-weight: bold;
+  color: var(--muted);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  margin: 0 0 10px 2px;
+  padding-left: 10px;
+  border-left: 3px solid var(--accent);
+}
+
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 12px;
+}
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 16px 16px 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  color: var(--text);
+  transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease, background .12s ease;
+}
+.tile:hover {
+  transform: translateY(-3px);
+  border-color: var(--accent);
+  box-shadow: 0 6px 18px rgba(0,0,0,.12);
+  background: var(--accent-light);
+}
+.tile:active { transform: translateY(-1px); }
+.tile-icon { font-size: 1.9rem; line-height: 1; }
+.tile-name { font-size: .95rem; font-weight: bold; }
+.tile-desc { font-size: .75rem; color: var(--muted); }
+
+/* ヘッダーの「🏠 ポータル」ボタン */
+.portal-btn {
+  background: rgba(255,255,255,.25) !important;
+  border: 1px solid rgba(255,255,255,.5) !important;
+  color: white !important;
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: .9rem;
+  font-weight: bold;
+}
+.portal-btn:hover { background: rgba(255,255,255,.4) !important; }
+
+@media (max-width: 600px) {
+  .tile-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+  .tile { padding: 12px; }
+  .tile-icon { font-size: 1.6rem; }
 }

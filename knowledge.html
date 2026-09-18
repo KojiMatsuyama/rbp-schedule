@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🧩 境界言語知識メンテナンス — RBP 防除</title>
+<link rel="stylesheet" href="schedule_app.css">
+<style>
+  body { background: #f5f5dc; margin: 0; }
+  .kb-header {
+    background: #2d4a35; color: #fff; padding: 14px 20px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .kb-header h1 { font-size: 1.1rem; margin: 0; }
+  .kb-header a {
+    color: #cfe3d4; text-decoration: none; font-size: .9rem;
+    padding: 6px 12px; border: 1px solid #4a7c59; border-radius: 6px;
+  }
+  .kb-header a:hover { background: #3a5c44; }
+  .kb-toolbar {
+    display: flex; gap: 8px; padding: 10px 20px; border-bottom: 1px solid #ddd;
+    flex-wrap: wrap; align-items: center; background: #fff;
+  }
+  .kb-toolbar label { font-size: .8rem; color: #555; }
+  .kb-grounding {
+    display: flex; gap: 8px; padding: 10px 20px; background: #eef3ee;
+    border-bottom: 1px solid #ddd; flex-wrap: wrap; align-items: center;
+  }
+  .kb-grounding .gl { font-size: .8rem; color: #555; margin-right: 4px; }
+  .kb-stage {
+    display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px;
+    border-radius: 16px; font-size: .8rem; cursor: pointer; border: 1px solid #ccc;
+    background: #fff;
+  }
+  .kb-stage .n { font-weight: bold; }
+  .kb-stage.ok { border-color: #4a7c59; background: #e7f2ea; color: #2d4a35; }
+  .kb-stage.ok .n { color: #4a7c59; }
+  .kb-stage.miss { border-color: #c0392b; background: #fbeae8; color: #c0392b; }
+  .kb-stage.miss .n { color: #c0392b; }
+  .kb-stage.cur { outline: 2px solid #2d4a35; }
+  .kb-ground-badge {
+    margin-left: auto; font-size: .82rem; font-weight: bold; padding: 4px 12px;
+    border-radius: 14px;
+  }
+  .kb-ground-badge.ok { background: #e7f2ea; color: #2d4a35; border: 1px solid #4a7c59; }
+  .kb-ground-badge.miss { background: #fbeae8; color: #c0392b; border: 1px solid #c0392b; }
+  .kb-main { display: flex; min-height: calc(100vh - 190px); }
+  .kb-list { flex: 1; overflow-y: auto; padding: 8px 20px; border-right: 1px solid #eee; background: #fff; }
+  .kb-edit { flex: 1.2; overflow-y: auto; padding: 16px 20px; background: #fafafa; }
+  .kb-item {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    border: 1px solid #eee; border-radius: 8px; margin-bottom: 6px; cursor: pointer;
+  }
+  .kb-item:hover { border-color: #4a7c59; }
+  .kb-item.sel { border-color: #4a7c59; background: #f0f7f2; }
+  .kb-item .pk { min-width: 40px; text-align: center; font-weight: bold; color: #4a7c59; font-size: .85rem; }
+  .kb-item .body { flex: 1; min-width: 0; }
+  .kb-item .label { font-weight: bold; font-size: .9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .kb-item .sub { font-size: .75rem; color: #666; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .kb-empty { text-align: center; padding: 24px; color: #999; }
+  .kb-field label { font-size: .75rem; color: #666; display: block; margin-bottom: 2px; }
+  .kb-field input, .kb-field textarea {
+    width: 100%; padding: 5px 8px; border: 1px solid #ccc; border-radius: 6px;
+    font-size: .85rem; box-sizing: border-box;
+  }
+  .kb-field textarea { font-family: monospace; font-size: .78rem; }
+  .kb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .kb-actions { display: flex; gap: 8px; margin-top: 16px; }
+  .kb-edit-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .btn { cursor: pointer; border-radius: 6px; border: 1px solid transparent; }
+  .btn-primary { background: #4a7c59; color: #fff; }
+  .btn-outline { background: #fff; color: #4a7c59; border-color: #4a7c59; }
+  .btn-danger { background: #fff; color: #c0392b; border-color: #c0392b; }
+  .btn-sm { padding: 6px 12px; font-size: .85rem; }
+  .kb-taskform {
+    display: flex; gap: 8px; padding: 12px 20px; background: #fff8e1;
+    border-bottom: 1px solid #e0d6a8; flex-wrap: wrap; align-items: center;
+  }
+  .kb-taskform input {
+    padding: 5px 8px; border: 1px solid #ccc; border-radius: 6px; font-size: .85rem;
+  }
+  .kb-taskform .tf-label { font-size: .8rem; color: #555; }
+</style>
+</head>
+<body>
+<div class="kb-header">
+  <h1>🧩 境界言語知識メンテナンス（タスク単位）</h1>
+  <a href="/" title="トップポータルに戻る">← ポータル</a>
+</div>
+
+<!-- タスク（業務）選択 -->
+<div class="kb-toolbar">
+  <label for="kbTaskSelect">タスク（業務）</label>
+  <select id="kbTaskSelect" style="padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;min-width:180px;"></select>
+  <button id="kbNewTaskBtn" class="btn btn-outline btn-sm" style="white-space:nowrap;">＋ タスク登録</button>
+</div>
+
+<!-- 普遍構造 T = {認知,評価,決定,投射} + 作動 の接地（5段・ライブ） -->
+<div class="kb-grounding" id="kbGrounding"></div>
+
+<!-- タスク登録フォーム（＋タスク登録 で表示） -->
+<div class="kb-taskform" id="kbTaskForm" style="display:none;">
+  <span class="tf-label">新規タスク登録</span>
+  <input id="tf_task_id" placeholder="task_id（英字・例: mulch）" style="width:140px;">
+  <input id="tf_name" placeholder="表示名（例: マルチ敷設）" style="width:160px;">
+  <input id="tf_domain_id" placeholder="domain_id（既定 STB-PEST）" value="STB-PEST" style="width:140px;">
+  <input id="tf_desc" placeholder="説明（任意）" style="flex:1;min-width:160px;">
+  <button id="tf_save" class="btn btn-primary btn-sm">登録</button>
+  <button id="tf_cancel" class="btn btn-outline btn-sm">キャンセル</button>
+</div>
+
+<!-- テーブル（段）選択 -->
+<div class="kb-toolbar">
+  <label for="kbTableSelect">テーブル（段）</label>
+  <select id="kbTableSelect" style="padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;flex:1;min-width:180px;"></select>
+  <button id="kbAddBtn" class="btn btn-primary btn-sm" style="white-space:nowrap;">＋ 追加</button>
+  <button id="kbReloadBtn" class="btn btn-outline btn-sm" style="white-space:nowrap;">🔄 再読込</button>
+</div>
+
+<div class="kb-main">
+  <div class="kb-list" id="kbList"></div>
+  <div class="kb-edit" id="kbEditPanel" style="display:none;"></div>
+</div>
+
+<script>
+// =====================================================================
+// 🧩 境界言語知識メンテナンス（rbp_* CRUD）— タスク（業務）単位
+// =====================================================================
+// 普遍構造 T = {認知,評価,決定,投射} + 作動 に合わせ、知識を**タスク単位**で持つ。
+// タスクの知識 = 5段の行集合。接地 = 5段すべてに少なくとも1行あること（DBライブ判定）。
+// API: /api/rbp/tasks（タスク一覧+接地）, /api/rbp/<table>[/<id>]（CRUD）。
+
+const RBP_TABLES = {
+  rbp_domain: { pk: 'domain_id', auto: false, label: 'ドメイン',
+    columns: ['name', 'layer_specbridge', 'fold_order'] },
+  rbp_task: { pk: 'task_id', auto: false, label: 'タスク',
+    columns: ['domain_id', 'name', 'description'] },
+  rbp_actuation: { pk: 'id', auto: true, label: '作動',
+    columns: ['task_id', 'name', 'handler', 'description'] },
+  rbp_perception_axis: { pk: 'id', auto: true, label: '認知軸',
+    columns: ['domain_id', 'task_id', 'axis_name', 'seq', 'dims', 'dim_type',
+              'norm_source', 'norm_basis', 'check_all_zero', 'lead', 'threshold'] },
+  rbp_eval_box: { pk: 'id', auto: true, label: '評価BOX',
+    columns: ['domain_id', 'task_id', 'box_id', 'box_name', 'condition', 'threshold', 'members'] },
+  rbp_bridge: { pk: 'id', auto: true, label: 'SPEC-BRIDGE',
+    columns: ['domain_id', 'task_id', 'bridge_id', 'level', 'dim', 'open_at', 'rule_json'] },
+  rbp_spec_condition: { pk: 'id', auto: true, label: 'SPEC条件',
+    columns: ['domain_id', 'task_id', 'cond_name', 'kind', 'source', 'source_ref',
+              'decision_rule', 'rule_json', 'seq'] },
+  rbp_spec_gate: { pk: 'domain_id', auto: false, label: '発火ゲート',
+    columns: ['task_id', 'pre', 'open_expr'] },
+  rbp_projection: { pk: 'id', auto: true, label: '投射',
+    columns: ['domain_id', 'task_id', 'output_name', 'mode', 'template'] },
+};
+// JSON 文字列列（オブジェクト↔文字列変換対象）
+const RBP_JSON_COLS = new Set(['dims', 'norm_source', 'members', 'rule_json']);
+// タスクでフィルタするテーブル（task_id を持つ知識テーブル）。
+// rbp_task（task_id=主キー）/ rbp_domain（task_id なし）は対象外。
+const TASK_FILTERED = new Set([
+  'rbp_perception_axis', 'rbp_eval_box', 'rbp_bridge',
+  'rbp_spec_condition', 'rbp_spec_gate', 'rbp_projection', 'rbp_actuation'
+]);
+// 5段（普遍構造）→ 各段の rbp_* テーブル。接地チップをクリックで該当テーブルへ。
+const STAGE_TABLE = {
+  perception: 'rbp_perception_axis',
+  evaluation: 'rbp_eval_box',
+  decision:   'rbp_spec_condition',
+  projection: 'rbp_projection',
+  actuation:  'rbp_actuation',
+};
+
+// ?task=<task_id> & ?table=<rbp_table> で事前選択（ペトリネットUI の導線から飛んできたとき）。
+const _Q = new URLSearchParams(location.search);
+const _INIT_TASK = _Q.get('task');
+const _INIT_TABLE = _Q.get('table') || 'rbp_bridge';
+let rbpState = {
+  table: RBP_TABLES[_INIT_TABLE] ? _INIT_TABLE : 'rbp_bridge',
+  task: _INIT_TASK || '',       // 空 = すべて（未選択）
+  tasks: [],                    // /api/rbp/tasks の結果（grounding 付き）
+  rows: [],
+  editingId: null,
+};
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ── タスク（業務）一覧＋接地 ─────────────────────────────────────
+async function loadTasks() {
+  try {
+    const res = await fetch('/api/rbp/tasks');
+    const data = await res.json();
+    rbpState.tasks = data.tasks || [];
+  } catch (e) {
+    rbpState.tasks = [];
+  }
+  renderTaskSelect();
+  renderGrounding();
+}
+
+function renderTaskSelect() {
+  const sel = document.getElementById('kbTaskSelect');
+  if (!sel) return;
+  let html = `<option value="">（すべて・未選択）</option>`;
+  rbpState.tasks.forEach(t => {
+    const g = t.grounding || {};
+    const mark = g.grounded ? '✓' : '✎';
+    html += `<option value="${escapeHtml(t.task_id)}" ${t.task_id === rbpState.task ? 'selected' : ''}>` +
+            `${escapeHtml(t.name)}（${escapeHtml(t.task_id)}） ${mark} ${g.grounded_count ?? 0}/${g.total ?? 5}</option>`;
+  });
+  sel.innerHTML = html;
+}
+
+function renderGrounding() {
+  const box = document.getElementById('kbGrounding');
+  if (!box) return;
+  const t = rbpState.tasks.find(x => x.task_id === rbpState.task);
+  if (!t) {
+    box.innerHTML = `<span class="gl">タスクを選択すると、そのタスクの5段（認知/評価/決定/投射/作動）の接地がここに表示されます。</span>`;
+    return;
+  }
+  const g = t.grounding || {};
+  let html = `<span class="gl">${escapeHtml(t.name)} の接地:</span>`;
+  (g.stages || []).forEach(s => {
+    const cls = s.present ? 'ok' : 'miss';
+    const cur = (STAGE_TABLE[s.key] === rbpState.table) ? ' cur' : '';
+    html += `<span class="kb-stage ${cls}${cur}" data-stage="${s.key}">` +
+            `${escapeHtml(s.name)} <span class="n">${s.count}</span></span>`;
+  });
+  const badge = g.grounded
+    ? `<span class="kb-ground-badge ok">接地 ${g.grounded_count}/${g.total} ✓</span>`
+    : `<span class="kb-ground-badge miss">写生 ${g.grounded_count}/${g.total}（未接地）</span>`;
+  html += badge;
+  box.innerHTML = html;
+  box.querySelectorAll('.kb-stage').forEach(el => {
+    el.addEventListener('click', () => {
+      const tbl = STAGE_TABLE[el.getAttribute('data-stage')];
+      if (tbl) rbpSelectTable(tbl);
+    });
+  });
+}
+
+function kbSelectTask(taskId) {
+  rbpState.task = taskId;
+  renderTaskSelect();
+  renderGrounding();
+  rbpReload();
+}
+
+// ── タスク登録フォーム ─────────────────────────────────────────
+function showTaskForm() {
+  const f = document.getElementById('kbTaskForm');
+  if (f) f.style.display = 'flex';
+}
+function hideTaskForm() {
+  const f = document.getElementById('kbTaskForm');
+  if (f) f.style.display = 'none';
+}
+async function saveTask() {
+  const task_id = document.getElementById('tf_task_id').value.trim();
+  const name = document.getElementById('tf_name').value.trim();
+  const domain_id = document.getElementById('tf_domain_id').value.trim() || 'STB-PEST';
+  const description = document.getElementById('tf_desc').value.trim();
+  if (!task_id || !name) { alert('task_id と 表示名 は必須です。'); return; }
+  try {
+    const res = await fetch('/api/rbp/rbp_task', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task_id, name, domain_id, description: description || null })
+    });
+    const data = await res.json();
+    if (!res.ok) { alert('登録に失敗: ' + (data.error || res.statusText)); return; }
+    hideTaskForm();
+    ['tf_task_id', 'tf_name', 'tf_desc'].forEach(id => document.getElementById(id).value = '');
+    await loadTasks();
+    kbSelectTask(task_id);
+  } catch (e) {
+    alert('通信エラー: ' + e.message);
+  }
+}
+
+// ── テーブル（段）選択 ────────────────────────────────────────
+function initTableSelect() {
+  const sel = document.getElementById('kbTableSelect');
+  sel.innerHTML = Object.entries(RBP_TABLES)
+    .map(([k, v]) => `<option value="${k}" ${k === rbpState.table ? 'selected' : ''}>${v.label}（${k}）</option>`).join('');
+  sel.addEventListener('change', () => rbpSelectTable(sel.value));
+}
+
+async function rbpReload() {
+  const table = rbpState.table;
+  try {
+    const res = await fetch(`/api/rbp/${table}`);
+    const data = await res.json();
+    let rows = data[table] || [];
+    // タスク選択中 & フィルタ対象テーブル → そのタスクの行のみ
+    if (rbpState.task && TASK_FILTERED.has(table)) {
+      rows = rows.filter(r => r.task_id === rbpState.task);
+    }
+    rbpState.rows = rows;
+    rbpState.editingId = null;
+    renderKbList();
+    hideKbEditPanel();
+  } catch (e) {
+    alert('読込エラー: ' + e.message);
+  }
+}
+
+function rbpSelectTable(table) {
+  rbpState.table = table;
+  const sel = document.getElementById('kbTableSelect');
+  if (sel) sel.value = table;
+  renderGrounding();   // 接地チップのハイライト更新
+  rbpReload();
+}
+
+function renderKbList() {
+  const list = document.getElementById('kbList');
+  if (!list) return;
+  const t = RBP_TABLES[rbpState.table];
+  if (!rbpState.rows.length) {
+    const hint = (rbpState.task && TASK_FILTERED.has(rbpState.table))
+      ? `（タスク「${escapeHtml(rbpState.task)}」の${t.label}はまだありません。＋追加で登録してください。）`
+      : '（空）';
+    list.innerHTML = `<div class="kb-empty">${hint}</div>`;
+    return;
+  }
+  let html = `<div style="font-size:.78rem;color:#888;margin-bottom:8px;">${rbpState.rows.length}件` +
+    (rbpState.task && TASK_FILTERED.has(rbpState.table) ? `（タスク: ${escapeHtml(rbpState.task)}）` : '') + `</div>`;
+  rbpState.rows.forEach(r => {
+    const pk = r[t.pk];
+    const label = r.axis_name || r.box_id || r.bridge_id || r.cond_name ||
+                  r.output_name || r.name || r.domain_id || pk;
+    const sub = r.box_name || r.decision_rule || r.bridge_id || r.cond_name ||
+                r.output_name || r.handler || (r.level != null ? `L${r.level}` : '');
+    const sel = rbpState.editingId === pk ? 'sel' : '';
+    html += `
+      <div class="kb-item ${sel}" data-pk="${escapeHtml(String(pk))}">
+        <div class="pk">${escapeHtml(String(pk))}</div>
+        <div class="body">
+          <div class="label">${escapeHtml(String(label))}</div>
+          <div class="sub">${escapeHtml(String(sub))}</div>
+        </div>
+      </div>`;
+  });
+  list.innerHTML = html;
+  list.querySelectorAll('.kb-item').forEach(el => {
+    el.addEventListener('click', () => rbpShowEdit(el.getAttribute('data-pk')));
+  });
+}
+
+function rbpShowAddForm() {
+  const t = RBP_TABLES[rbpState.table];
+  rbpState.editingId = '__new__';
+  const empty = {};
+  t.columns.forEach(c => {
+    // タスク選択中 & task_id 列 → 選択タスクを既定値に（タスク単位の知識として登録）
+    empty[c] = (c === 'task_id' && rbpState.task) ? rbpState.task : '';
+  });
+  renderKbEditForm(empty, true);
+  renderKbList();
+}
+
+function rbpShowEdit(pk) {
+  const t = RBP_TABLES[rbpState.table];
+  const row = rbpState.rows.find(r => String(r[t.pk]) === String(pk));
+  if (!row) return;
+  rbpState.editingId = row[t.pk];
+  renderKbEditForm(row, false);
+  renderKbList();
+}
+
+function renderKbEditForm(row, isNew) {
+  const panel = document.getElementById('kbEditPanel');
+  if (!panel) return;
+  panel.style.display = 'block';
+  const t = RBP_TABLES[rbpState.table];
+  const pkVal = row[t.pk];
+
+  let fields = '';
+  const allCols = [t.pk, ...t.columns];
+  allCols.forEach(c => {
+    const isPk = c === t.pk;
+    const val = row[c];
+    const isJson = RBP_JSON_COLS.has(c);
+    const disabled = isPk && !isNew ? 'disabled' : '';
+    const placeholder = isPk && !isNew ? String(pkVal) : '';
+    let input;
+    if (isJson) {
+      const shown = (val == null || val === '') ? '' :
+        (typeof val === 'string' ? val : JSON.stringify(val, null, 2));
+      input = `<textarea id="kb_${c}" ${disabled} rows="4">${escapeHtml(shown)}</textarea>`;
+    } else {
+      input = `<input id="kb_${c}" ${disabled} type="text" value="${escapeHtml(val == null ? '' : String(val))}" placeholder="${escapeHtml(placeholder)}">`;
+    }
+    fields += `
+      <div class="kb-field">
+        <label>${escapeHtml(c)}${isPk ? '（主キー）' : ''}${isJson ? '（JSON）' : ''}</label>
+        ${input}
+      </div>`;
+  });
+
+  panel.innerHTML = `
+    <div class="kb-edit-head">
+      <strong style="font-size:.95rem;">${isNew ? '➕ 新規追加' : '✏️ 編集'}（${t.label}）</strong>
+      <button id="kbEditClose" style="background:transparent;border:none;color:#888;cursor:pointer;font-size:1.1rem;padding:4px 8px;">✕</button>
+    </div>
+    <div class="kb-grid">${fields}</div>
+    <div class="kb-actions">
+      <button id="kbSaveBtn" class="btn btn-primary btn-sm">💾 保存</button>
+      ${isNew ? '' : `<button id="kbDeleteBtn" class="btn btn-danger btn-sm">🗑 削除</button>`}
+    </div>`;
+
+  document.getElementById('kbEditClose').addEventListener('click', hideKbEditPanel);
+  document.getElementById('kbSaveBtn').addEventListener('click', rbpSave);
+  if (!isNew) {
+    document.getElementById('kbDeleteBtn').addEventListener('click', () => rbpDelete(pkVal));
+  }
+}
+
+function hideKbEditPanel() {
+  const panel = document.getElementById('kbEditPanel');
+  if (panel) panel.style.display = 'none';
+  rbpState.editingId = null;
+  renderKbList();
+}
+
+async function rbpSave() {
+  const t = RBP_TABLES[rbpState.table];
+  const isNew = rbpState.editingId === '__new__';
+  const body = {};
+  const allCols = [t.pk, ...t.columns];
+  for (const c of allCols) {
+    const el = document.getElementById('kb_' + c);
+    if (!el) continue;
+    let v = el.value;
+    if (RBP_JSON_COLS.has(c)) {
+      v = v.trim();
+      if (v === '') { body[c] = null; continue; }
+      try { v = JSON.parse(v); }
+      catch (e) { alert(`${c} の JSON が不正です: ${e.message}`); return; }
+    } else if (v === '') {
+      body[c] = null; continue;
+    }
+    body[c] = v;
+  }
+  try {
+    let res;
+    if (isNew) {
+      res = await fetch(`/api/rbp/${rbpState.table}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body) });
+    } else {
+      res = await fetch(`/api/rbp/${rbpState.table}/${encodeURIComponent(rbpState.editingId)}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body) });
+    }
+    const data = await res.json();
+    if (!res.ok) { alert('保存に失敗: ' + (data.error || res.statusText)); return; }
+    await rbpReload();
+    await loadTasks();   // 接地状態を更新
+  } catch (e) {
+    alert('通信エラー: ' + e.message);
+  }
+}
+
+async function rbpDelete(pk) {
+  if (!confirm(`この知識（${pk}）を削除してもよろしいですか？`)) return;
+  try {
+    const res = await fetch(`/api/rbp/${rbpState.table}/${encodeURIComponent(pk)}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) { alert('削除に失敗: ' + (data.error || res.statusText)); return; }
+    await rbpReload();
+    await loadTasks();
+  } catch (e) {
+    alert('通信エラー: ' + e.message);
+  }
+}
+
+// ── 起動 ─────────────────────────────────────────────────────────
+document.getElementById('kbTaskSelect').addEventListener('change', (e) => kbSelectTask(e.target.value));
+document.getElementById('kbNewTaskBtn').addEventListener('click', showTaskForm);
+document.getElementById('tf_save').addEventListener('click', saveTask);
+document.getElementById('tf_cancel').addEventListener('click', hideTaskForm);
+document.getElementById('kbAddBtn').addEventListener('click', rbpShowAddForm);
+document.getElementById('kbReloadBtn').addEventListener('click', () => { rbpReload(); loadTasks(); });
+initTableSelect();
+loadTasks().then(() => rbpReload());
+</script>
+</body>
+</html>
